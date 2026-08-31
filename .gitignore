@@ -1,0 +1,29 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+artifacts/
+TestResults/
+*.binlog
+
+# Rider / VS Code
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# Secrets & environment
+*.env
+.env.*
+!.env.example
+appsettings.*.Local.json
+secrets.json
+
+# Node (if tooling appears later)
+node_modules/
+
+# OS
+Thumbs.db
+.DS_Store
