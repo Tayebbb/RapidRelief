@@ -6,4 +6,13 @@ Before doing ANY work in this repo, read in order:
 2. [AGENTS.md](AGENTS.md) — hard rules summary.
 3. For feature work: the feature's section in [RapidRelief-Development-Plan.md](RapidRelief-Development-Plan.md).
 
-After any merged change, update PROJECT-CONTEXT.md (status board + changelog) in the same PR.
+## After EVERY implementation (mandatory)
+
+Do not consider any task done until PROJECT-CONTEXT.md is updated in the same change/PR:
+
+- **Status board row** (§3) for the feature you touched
+- **Changelog entry** (§8, newest first)
+- **Decision D-NNN** (§7) for any choice not covered by the plan
+- **Contracts registry** (§6) and **Repository State** (§2) if they changed
+
+An implementation without this update is incomplete work — never skip it.

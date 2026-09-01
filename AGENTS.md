@@ -14,6 +14,14 @@
 - Keep all stubs/fallbacks (FakeAuth, rule-based AI, polling) working — they are permanent resilience, not scaffolding.
 - Only touch feature folders owned by the developer you are working for, unless the task explicitly says otherwise.
 
-## After any merged change
+## After EVERY implementation (mandatory)
 
-Update PROJECT-CONTEXT.md in the same PR: status board row, changelog line, and any new decision (D-NNN). A change without a context update is incomplete.
+An implementation is **not finished** until PROJECT-CONTEXT.md is updated in the same change/PR. Always:
+
+1. Update the feature's **status board row** (§3): status + one-line note of what now works.
+2. Add a **changelog entry** (§8, newest first): date — what was implemented/changed.
+3. Append a **decision** (§7, D-NNN) if you made any choice not covered by the plan, or deviated from it.
+4. Update the **Contracts v1 Registry** (§6) if any contract was added or extended.
+5. Update the **Repository State** table (§2) if scaffold/CI/contracts state changed.
+
+No exceptions — code without the PROJECT-CONTEXT.md update is incomplete work and must not be merged.
