@@ -15,15 +15,15 @@
     <div class="alert alert-danger" role="alert">@_error</div>
 }
 
-@if (_shelters is null)
+@if (_shelters is null && _error is null)
 {
     <p><em>Loading shelters...</em></p>
 }
-else if (_shelters.Count == 0)
+else if (_shelters is not null && _shelters.Count == 0)
 {
     <p><em>No shelters found.</em></p>
 }
-else
+else if (_shelters is not null)
 {
     <table class="table align-middle">
         <thead>

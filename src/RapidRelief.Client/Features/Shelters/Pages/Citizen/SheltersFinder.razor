@@ -21,11 +21,11 @@
         {
             <p><em>Determining your location...</em></p>
         }
-        else if (_shelters is null)
+        else if (_shelters is null && _error is null)
         {
             <p><em>Loading shelters...</em></p>
         }
-        else
+        else if (_shelters is not null)
         {
             @if (_recommendedShelter is null)
             {
