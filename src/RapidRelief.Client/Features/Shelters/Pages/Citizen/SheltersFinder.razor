@@ -1,4 +1,5 @@
 @page "/shelters/finder"
+@implements IAsyncDisposable
 @using RapidRelief.Shared.Contracts.Common
 @using RapidRelief.Shared.Contracts.ReadModels
 @using RapidRelief.Client.Features.Shelters.Components
@@ -92,24 +93,16 @@
     private List<ShelterSummaryDto>? _shelters;
     private ShelterSummaryDto? _recommendedShelter;
     private string? _error;
+    private IJSObjectReference? _module;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
-            // A more robust JS interop snippet that returns the coordinates:
-            try 
+            try
             {
-                var coords = await JsRuntime.InvokeAsync<double[]>("eval", @"
-                    new Promise((resolve, reject) => {
-                        if (!navigator.geolocation) { reject('not supported'); return; }
-                        navigator.geolocation.getCurrentPosition(
-                            pos => resolve([pos.coords.latitude, pos.coords.longitude]),
-                            err => reject(err),
-                            { timeout: 5000 }
-                        );
-                    })
-                ");
+                _module = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/shelters-geo.js");
+                var coords = await _module.InvokeAsync<double[]>("getUserLocation");
                 _userLocation = new GeoPoint(coords[0], coords[1]);
             } 
             catch 
@@ -151,5 +144,13 @@
         }
         
         StateHasChanged();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            await _module.DisposeAsync();
+        }
     }
 }
