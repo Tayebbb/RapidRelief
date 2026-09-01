@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using RapidRelief.Api.Features.Ai;
 using RapidRelief.Api.Features.Ai.Data;
 using RapidRelief.Api.Features.Ai.Domain;
 using RapidRelief.Api.Features.Ai.Pipeline;
@@ -218,5 +219,37 @@ public sealed class DuplicateDetectorTests : IDisposable
             Guid.NewGuid(), PairB, DisasterType.Flood, Anchor.AddHours(-1.0));
 
         Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task Exactly_thirty_minutes_apart_is_still_a_duplicate()
+    {
+        // D-022 pins |Δt| ≤ 30 min as INCLUSIVE — the boundary itself links.
+        var candidateId = AddAssessment(PairA, DisasterType.Flood, Anchor.AddHours(-1.0));
+
+        var result = await CreateDetector().FindDuplicateAsync(
+            Guid.NewGuid(), PairB, DisasterType.Flood,
+            Anchor.AddHours(-1.0) + TimeSpan.FromMinutes(30));
+
+        Assert.Equal(candidateId, result);
+    }
+
+    [Fact]
+    public async Task At_the_300_meter_boundary_is_still_a_duplicate()
+    {
+        // D-022 pins Haversine ≤ 300 m as INCLUSIVE. A pure-north offset targeting
+        // 299.9995 m lands within fp noise of the boundary from below; the premise
+        // assert keeps the test honest if GeoMath or the constant ever drifts.
+        const double latDeltaDegrees = 299.9995 / 6_371_000 * 180.0 / Math.PI;
+        var origin = new GeoPoint(PairA.Latitude + latDeltaDegrees, PairA.Longitude);
+        var distance = GeoMath.HaversineMeters(origin, PairA);
+        Assert.InRange(distance, 299.999, 300.0);
+
+        var candidateId = AddAssessment(PairA, DisasterType.Flood, Anchor.AddHours(-1.0));
+
+        var result = await CreateDetector().FindDuplicateAsync(
+            Guid.NewGuid(), origin, DisasterType.Flood, Anchor.AddHours(-1.0));
+
+        Assert.Equal(candidateId, result);
     }
 }

@@ -131,8 +131,11 @@ public sealed class AiAnalysisWorker : BackgroundService
             }
         }
 
+        // CancellationToken.None on purpose: after a successful SaveChangesAsync the row
+        // exists — a shutdown cancellation in this gap would persist the assessment but lose
+        // IncidentAssessed forever (no redelivery once the row blocks reprocessing).
         await bus.PublishAsync(new IncidentAssessed(request.IncidentId, assessment.EstimatedSeverity,
-            assessment.PriorityScore, summary, duplicateOf), ct);
+            assessment.PriorityScore, summary, duplicateOf), CancellationToken.None);
         _logger.LogInformation(
             "Incident {IncidentId} assessed by {Provider}: severity {Severity}, priority {Priority:F0}, duplicateOf {DuplicateOf}",
             request.IncidentId, assessment.Provider, (int)assessment.EstimatedSeverity,

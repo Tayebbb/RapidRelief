@@ -24,6 +24,7 @@ internal sealed class GeminiAiAnalysisService : IAiAnalysisService
 {
     private readonly RuleBasedAiAnalysisService _fallback;
     private readonly IGeminiClient _client;
+    private readonly IFileStorage _fileStorage;
     private readonly GeminiCircuitBreaker _breaker;
     private readonly TimeProvider _timeProvider;
     private readonly IConfiguration _config;
@@ -32,6 +33,7 @@ internal sealed class GeminiAiAnalysisService : IAiAnalysisService
     public GeminiAiAnalysisService(
         RuleBasedAiAnalysisService fallback,
         IGeminiClient client,
+        IFileStorage fileStorage,
         GeminiCircuitBreaker breaker,
         TimeProvider timeProvider,
         IConfiguration config,
@@ -39,6 +41,7 @@ internal sealed class GeminiAiAnalysisService : IAiAnalysisService
     {
         _fallback = fallback;
         _client = client;
+        _fileStorage = fileStorage;
         _breaker = breaker;
         _timeProvider = timeProvider;
         _config = config;
@@ -70,7 +73,10 @@ internal sealed class GeminiAiAnalysisService : IAiAnalysisService
         var model = _config["Ai:Gemini:Model"] ?? "gemini-3.7-flash";
         try
         {
-            var responseBody = await _client.GenerateContentAsync(request, ct);
+            // Blueprint chain: load first photo (D-024) → build request → client (D-026 timeout).
+            var photo = await LoadFirstPhotoAsync(request, ct);
+            var requestBody = GeminiPromptBuilder.Build(request, photo);
+            var responseBody = await _client.GenerateContentAsync(requestBody, photo is not null, ct);
 
             if (!GeminiResponseParser.TryParse(responseBody, out var parsed, out var rejectReason))
             {
@@ -92,6 +98,13 @@ internal sealed class GeminiAiAnalysisService : IAiAnalysisService
                 priority, parsed.Summary, PossibleDuplicateOfId: null, Provider: "Gemini");
             return new AiAnalysisOutcome(dto, model, LatencyMs(stopwatch), parsed.TotalTokenCount, parsed.FinishReason);
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // Caller cancellation escaping between TryEnter and Record* (photo load or client
+            // call) would otherwise strand a half-open probe forever — release it, then rethrow.
+            _breaker.AbandonProbe();
+            throw;
+        }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
             // Any Gemini-path failure counts (D-025); caller cancellation propagates instead.
@@ -102,6 +115,65 @@ internal sealed class GeminiAiAnalysisService : IAiAnalysisService
             return await FallbackAsync(request, stopwatch, ct);
         }
     }
+
+    /// <summary>D-024: any photo problem degrades to text-only — never fails the pipeline.</summary>
+    private async Task<GeminiPhoto?> LoadFirstPhotoAsync(AiAnalysisRequest request, CancellationToken ct)
+    {
+        if (request.PhotoPaths is not { Count: > 0 } paths)
+        {
+            return null;
+        }
+
+        if (paths.Count > 1)
+        {
+            _logger.LogInformation(
+                "Dropping {DroppedCount} extra photo(s) for incident {IncidentId} — first photo only (D-024)",
+                paths.Count - 1, request.IncidentId);
+        }
+
+        var path = paths[0];
+        var mimeType = MimeFromExtension(path);
+        if (mimeType is null)
+        {
+            _logger.LogWarning(
+                "Photo for incident {IncidentId} has unsupported extension {Extension} — proceeding text-only",
+                request.IncidentId, Path.GetExtension(path));
+            return null;
+        }
+
+        try
+        {
+            await using var stream = await _fileStorage.OpenReadAsync(path, ct);
+            if (stream is null)
+            {
+                _logger.LogWarning(
+                    "Photo for incident {IncidentId} not found in storage — proceeding text-only",
+                    request.IncidentId);
+                return null;
+            }
+
+            using var buffer = new MemoryStream();
+            await stream.CopyToAsync(buffer, ct);
+            return new GeminiPhoto(mimeType, Convert.ToBase64String(buffer.ToArray()));
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            // Metadata only — never the photo bytes; a broken photo must not become a breaker failure.
+            _logger.LogWarning(
+                "Photo read failed for incident {IncidentId} ({ExceptionType}) — proceeding text-only",
+                request.IncidentId, ex.GetType().Name);
+            return null;
+        }
+    }
+
+    // D-024 whitelist: only extensions the upload path can produce for images.
+    private static string? MimeFromExtension(string path) => Path.GetExtension(path).ToLowerInvariant() switch
+    {
+        ".jpg" or ".jpeg" => "image/jpeg",
+        ".png" => "image/png",
+        ".webp" => "image/webp",
+        _ => null,
+    };
 
     private async Task<AiAnalysisOutcome> FallbackAsync(
         AiAnalysisRequest request, Stopwatch stopwatch, CancellationToken ct)

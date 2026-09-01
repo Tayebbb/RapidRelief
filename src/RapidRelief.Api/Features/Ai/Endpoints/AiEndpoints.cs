@@ -36,6 +36,10 @@ public sealed record RecommendationResponse(
 /// </summary>
 public static class AiEndpoints
 {
+    // Assumption: the 50 nearest shelters always contain ≥3 open ones with free capacity
+    // (Dhaka seed has 8 total); revisit if real F3 data ever exceeds ~50 clustered shelters.
+    private const int ShelterPrefetchCount = 50;
+
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         var group = endpoints.MapGroup("/api/ai")
@@ -90,7 +94,7 @@ public static class AiEndpoints
         }
 
         var (origin, _) = resolved.Value;
-        var nearest = await shelters.GetNearestAsync(origin, count: 50, ct);
+        var nearest = await shelters.GetNearestAsync(origin, ShelterPrefetchCount, ct);
         var candidates = nearest
             .Where(s => s.IsOpen && s.Occupancy < s.Capacity)
             .Take(3)

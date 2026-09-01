@@ -55,6 +55,18 @@ public sealed class GeminiCircuitBreaker
         }
     }
 
+    /// <summary>
+    /// Releases the half-open probe slot when its holder can no longer report an outcome
+    /// (caller cancellation). No-op when no probe is in flight.
+    /// </summary>
+    public void AbandonProbe()
+    {
+        lock (_gate)
+        {
+            _halfOpenProbeIssued = false;
+        }
+    }
+
     public void RecordFailure()
     {
         lock (_gate)

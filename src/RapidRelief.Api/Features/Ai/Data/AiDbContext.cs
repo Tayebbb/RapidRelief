@@ -26,6 +26,8 @@ public sealed class AiDbContext : DbContext
             assessment.ToTable("ai_assessments"); // feature_ prefix convention (PROJECT-CONTEXT §5)
             assessment.HasKey(a => a.Id);
             assessment.HasIndex(a => a.IncidentId).IsUnique(); // idempotency: one row per incident
+            // Duplicate-detection scan (D-022): type + time window filter in SQL.
+            assessment.HasIndex(a => new { a.SnapshotType, a.SnapshotReportedAtUtc });
             assessment.Property(a => a.Summary).IsRequired().HasMaxLength(200);
             assessment.Property(a => a.Provider).IsRequired().HasMaxLength(32);
             assessment.Property(a => a.ModelName).HasMaxLength(64);

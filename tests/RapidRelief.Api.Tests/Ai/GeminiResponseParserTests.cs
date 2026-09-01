@@ -132,4 +132,96 @@ public sealed class GeminiResponseParserTests
         Assert.True(ok);
         Assert.Equal(expected, parsed!.Confidence);
     }
+
+    [Fact]
+    public void Full_realistic_v1beta_response_shape_parses_with_extra_fields_ignored()
+    {
+        // Real generateContent envelope (chunk-2 confirmation): content.role, avgLogprobs,
+        // modelVersion, responseId, and the full usageMetadata breakdown must all be tolerated;
+        // only candidates[0].content.parts[0].text + finishReason + totalTokenCount are consumed.
+        const string realBody = """
+            {
+              "candidates": [
+                {
+                  "content": {
+                    "parts": [
+                      { "text": "{\"predictedType\":\"Flood\",\"severity\":4,\"summary\":\"Extensive urban flooding with residents trapped.\",\"confidence\":0.86}" }
+                    ],
+                    "role": "model"
+                  },
+                  "finishReason": "STOP",
+                  "avgLogprobs": -0.0123
+                }
+              ],
+              "usageMetadata": {
+                "promptTokenCount": 181,
+                "candidatesTokenCount": 38,
+                "totalTokenCount": 219,
+                "promptTokensDetails": [ { "modality": "TEXT", "tokenCount": 181 } ]
+              },
+              "modelVersion": "gemini-3.7-flash",
+              "responseId": "abc123XYZ"
+            }
+            """;
+
+        var ok = GeminiResponseParser.TryParse(realBody, out var parsed, out var reason);
+
+        Assert.True(ok, reason);
+        Assert.Equal(DisasterType.Flood, parsed!.PredictedType);
+        Assert.Equal(4, parsed.Severity);
+        Assert.Equal("Extensive urban flooding with residents trapped.", parsed.Summary);
+        Assert.Equal(0.86, parsed.Confidence);
+        Assert.Equal("STOP", parsed.FinishReason);
+        Assert.Equal(219, parsed.TotalTokenCount);
+    }
+
+    [Fact]
+    public void Inner_json_split_across_two_text_parts_is_concatenated_and_parsed()
+    {
+        // Gemini may split long output across several text parts — all must be joined.
+        var inner = Inner();
+        var firstHalf = inner[..20];
+        var secondHalf = inner[20..];
+        var body = "{\"candidates\":[{\"content\":{\"parts\":["
+            + $"{{\"text\":{JsonSerializer.Serialize(firstHalf)}}},{{\"text\":{JsonSerializer.Serialize(secondHalf)}}}"
+            + "]},\"finishReason\":\"STOP\"}]}";
+
+        var ok = GeminiResponseParser.TryParse(body, out var parsed, out var reason);
+
+        Assert.True(ok, reason);
+        Assert.Equal(DisasterType.Fire, parsed!.PredictedType);
+        Assert.Equal(4, parsed.Severity);
+        Assert.Equal("Warehouse fire with heavy smoke.", parsed.Summary);
+    }
+
+    [Fact]
+    public void Non_text_parts_are_skipped_while_text_parts_still_concatenate()
+    {
+        var inner = Inner();
+        var body = "{\"candidates\":[{\"content\":{\"parts\":["
+            + $"{{\"inlineData\":{{\"mimeType\":\"image/png\",\"data\":\"AAAA\"}}}},{{\"text\":{JsonSerializer.Serialize(inner)}}}"
+            + "]},\"finishReason\":\"STOP\"}]}";
+
+        var ok = GeminiResponseParser.TryParse(body, out var parsed, out var reason);
+
+        Assert.True(ok, reason);
+        Assert.Equal(DisasterType.Fire, parsed!.PredictedType);
+    }
+
+    [Fact]
+    public void Hostile_finish_reason_is_sanitized_and_clamped_in_the_reject_reason()
+    {
+        var hostile = "EVIL\r\nFAKE-LOG <script>alert(1)</script> " + new string('A', 100);
+
+        var ok = GeminiResponseParser.TryParse(Body(Inner(), finishReason: hostile), out _, out var reason);
+
+        Assert.False(ok);
+        Assert.NotNull(reason);
+        Assert.DoesNotContain('\n', reason!); // no log-line injection
+        Assert.DoesNotContain('\r', reason);
+        Assert.DoesNotContain('<', reason);
+        Assert.DoesNotContain(hostile, reason);
+        // 32 chars of [A-Za-z0-9_] only.
+        Assert.Contains("'EVILFAKELOGscriptalert1scriptAAA'", reason);
+    }
 }

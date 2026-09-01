@@ -129,4 +129,34 @@ public sealed class GeminiCircuitBreakerTests
         clock.Advance(TimeSpan.FromSeconds(1));
         Assert.True(breaker.TryEnter()); // next probe
     }
+
+    [Fact]
+    public void Abandoned_half_open_probe_frees_the_slot_for_a_new_probe()
+    {
+        var clock = new TestClock();
+        var breaker = Create(clock);
+        breaker.RecordFailure();
+        breaker.RecordFailure();
+        breaker.RecordFailure();
+        clock.Advance(OpenDuration);
+        Assert.True(breaker.TryEnter()); // the single probe
+
+        breaker.AbandonProbe(); // holder cancelled — will never Record success/failure
+
+        Assert.True(breaker.TryEnter());  // a fresh probe may proceed — breaker not wedged
+        Assert.False(breaker.TryEnter()); // still exactly one probe at a time
+    }
+
+    [Fact]
+    public void Abandon_without_a_probe_in_flight_is_a_harmless_no_op()
+    {
+        var breaker = Create(new TestClock());
+
+        breaker.AbandonProbe();
+
+        Assert.True(breaker.TryEnter()); // closed breaker unaffected
+        breaker.RecordFailure();
+        breaker.RecordFailure();
+        Assert.True(breaker.TryEnter()); // counter untouched — still below threshold
+    }
 }

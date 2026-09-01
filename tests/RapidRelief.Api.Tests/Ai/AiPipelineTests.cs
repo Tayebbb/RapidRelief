@@ -157,7 +157,10 @@ public sealed class AiPipelineTests : IClassFixture<AiPipelineFixture>
         Assert.NotNull(await WaitForAssessedEventAsync(incidentId));
 
         await PublishAsync(evt); // redelivery
-        await Task.Delay(1500);  // grace period for any (wrong) second processing
+        // Absence proof needs a fixed window: 1.5 s comfortably exceeds the worker's dequeue+
+        // analyze+persist time for one item (rule-based path is ~ms), so a wrong second
+        // processing would have landed before we count.
+        await Task.Delay(1500);
 
         using var scope = _fixture.Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AiDbContext>();

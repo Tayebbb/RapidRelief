@@ -45,6 +45,12 @@ dotnet run --project src/RapidRelief.Api
 
 `dotnet run --project src/RapidRelief.Api` with nothing listening on 5432 still works: startup retries migrations 3× (2s backoff), logs a prominent warning, and keeps serving. Stub-backed pages keep working; DB-backed endpoints (e.g. `POST`/`GET /api/sample/pings`) return **503 ProblemDetails**; `GET /health` reports `"status": "degraded", "dbConnected": false`. The demo never depends on a network.
 
+### AI data flow & consent (F8)
+
+By default (`Ai:Gemini:ApiKey` empty), incident analysis is **fully local** — the permanent rule-based fallback makes **zero external calls**. When a key is configured (`dotnet user-secrets set Ai:Gemini:ApiKey <key>` in `src/RapidRelief.Api`, or the `Ai__Gemini__ApiKey` env var), the incident **description text and the first photo** are sent to Google Gemini for assessment. Nothing else leaves the machine: no names, emails, phones, GPS coordinates, incident IDs, or timestamps are in the request, and extra photos are never uploaded. Logs record metadata only (provider, model, latency, tokens, status codes) — never the description, photo, or model response, and never the key. Kill the key mid-demo and analysis continues rule-based with no errors.
+
+> **Demo consent note:** while a key is configured, submitted reports may be processed by Google Gemini.
+
 ### Tests — no Docker/Postgres needed
 
 ```bash

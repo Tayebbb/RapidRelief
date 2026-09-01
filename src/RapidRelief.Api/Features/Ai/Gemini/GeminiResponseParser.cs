@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using RapidRelief.Shared.Contracts.Enums;
 
@@ -33,7 +34,9 @@ internal static class GeminiResponseParser
 
         if (finishReason != "STOP")
         {
-            rejectReason = $"finishReason was '{finishReason}', expected STOP";
+            // Log hygiene: the model-controlled value is clamped/stripped before it can reach
+            // any log line via the reject reason.
+            rejectReason = $"finishReason was '{SanitizeForMessage(finishReason)}', expected STOP";
             return false;
         }
 
@@ -137,17 +140,34 @@ internal static class GeminiResponseParser
                 finishReason = finishElement.GetString()!;
             }
 
+            // Gemini may split output across several parts — concatenate every string
+            // "text" value in order; non-text parts (e.g. inlineData) are skipped.
             if (!candidate.TryGetProperty("content", out var content)
                 || !content.TryGetProperty("parts", out var parts)
-                || parts.ValueKind != JsonValueKind.Array
-                || parts.GetArrayLength() == 0
-                || !parts[0].TryGetProperty("text", out var textElement)
-                || textElement.ValueKind != JsonValueKind.String)
+                || parts.ValueKind != JsonValueKind.Array)
             {
-                rejectReason = "candidates[0].content.parts[0].text is missing";
+                rejectReason = "candidates[0].content.parts is missing";
                 return false;
             }
-            innerText = textElement.GetString()!;
+
+            var textBuilder = new StringBuilder();
+            var sawText = false;
+            foreach (var part in parts.EnumerateArray())
+            {
+                if (part.TryGetProperty("text", out var textElement)
+                    && textElement.ValueKind == JsonValueKind.String)
+                {
+                    sawText = true;
+                    textBuilder.Append(textElement.GetString());
+                }
+            }
+
+            if (!sawText)
+            {
+                rejectReason = "candidates[0].content.parts contains no text";
+                return false;
+            }
+            innerText = textBuilder.ToString();
 
             if (root.TryGetProperty("usageMetadata", out var usage)
                 && usage.ValueKind == JsonValueKind.Object
@@ -167,5 +187,12 @@ internal static class GeminiResponseParser
     {
         var cleaned = new string(raw.Where(c => !char.IsControl(c)).ToArray());
         return cleaned.Length <= MaxSummaryLength ? cleaned : cleaned[..MaxSummaryLength];
+    }
+
+    /// <summary>Strips to [A-Za-z0-9_] and clamps to 32 chars — safe to embed in log messages.</summary>
+    private static string SanitizeForMessage(string raw)
+    {
+        var cleaned = new string(raw.Where(c => char.IsAsciiLetterOrDigit(c) || c == '_').ToArray());
+        return cleaned.Length <= 32 ? cleaned : cleaned[..32];
     }
 }
