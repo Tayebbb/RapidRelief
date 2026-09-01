@@ -1,23 +1,29 @@
 @namespace RapidRelief.Client.Common.Auth
+@using Microsoft.AspNetCore.Components.WebAssembly.Hosting
 @using RapidRelief.Shared.Contracts.Enums
 @implements IDisposable
 @inject DevRoleState RoleState
+@inject IWebAssemblyHostEnvironment HostEnvironment
 
-@* The AuthMessageHandler strips X-Dev-Role while signed in — disabling here is UX truth-telling. *@
-<div class="dev-role-picker"
-     title="@(_isAuthenticated
-         ? "Signed in — dev role ignored"
-         : "Dev role sent as X-Dev-Role on API calls (ignored by the server outside Development)")">
-    <label for="dev-role-select" class="me-1">Role:</label>
-    <select id="dev-role-select" value="@RoleState.CurrentRole" disabled="@_isAuthenticated"
-            @onchange="OnRoleChanged">
-        <option value="@DevRoleState.None">None</option>
-        @foreach (var role in Roles.All)
-        {
-            <option value="@role">@role</option>
-        }
-    </select>
-</div>
+@* The server ignores X-Dev-Role outside Development, so the picker only exists there. The
+   AuthMessageHandler strips the header while signed in — disabling here is UX truth-telling. *@
+@if (HostEnvironment.IsDevelopment())
+{
+    <div class="dev-role-picker"
+         title="@(_isAuthenticated
+             ? "Signed in — dev role ignored"
+             : "Dev role sent as X-Dev-Role on API calls (ignored by the server outside Development)")">
+        <label for="dev-role-select" class="me-1">Role:</label>
+        <select id="dev-role-select" value="@RoleState.CurrentRole" disabled="@_isAuthenticated"
+                @onchange="OnRoleChanged">
+            <option value="@DevRoleState.None">None</option>
+            @foreach (var role in Roles.All)
+            {
+                <option value="@role">@role</option>
+            }
+        </select>
+    </div>
+}
 
 @code {
     [CascadingParameter] private Task<AuthenticationState>? AuthStateTask { get; set; }

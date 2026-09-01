@@ -8,6 +8,7 @@ using Microsoft.Extensions.Hosting;
 using RapidRelief.Api.Features.Ai.Data;
 using RapidRelief.Api.Features.Auth.Data;
 using RapidRelief.Api.Features.Auth.Services;
+using RapidRelief.Api.Features.Realtime.Data;
 using RapidRelief.Api.Features.Sample.Data;
 using RapidRelief.Api.Infrastructure.Persistence;
 
@@ -41,6 +42,7 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
             AddSqliteContext<SampleDbContext>(services);
             AddSqliteContext<AuthDbContext>(services);
             AddSqliteContext<AiDbContext>(services);
+            AddSqliteContext<NotificationsDbContext>(services);
             // Future contexts (IncidentsDbContext, …): add one line here
             // and one EnsureCreated<TContext> line in CreateHost.
         });
@@ -53,6 +55,7 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
         EnsureCreated<SampleDbContext>(host);
         EnsureCreated<AuthDbContext>(host);
         EnsureCreated<AiDbContext>(host);
+        EnsureCreated<NotificationsDbContext>(host);
 
         // MigrationRunner is skipped in Testing, so module seeding never runs — seed here (risk 3).
         using (var scope = host.Services.CreateScope())

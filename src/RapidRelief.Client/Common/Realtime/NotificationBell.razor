@@ -1,0 +1,96 @@
+@namespace RapidRelief.Client.Common.Realtime
+@implements IDisposable
+@inject NotificationState State
+
+@* Every value below is rendered with plain @-interpolation: notification text can originate
+   from AI output or user-submitted content, so Blazor's automatic HTML encoding is the
+   defence. MarkupString / innerHTML are forbidden here. *@
+<div class="notification-bell">
+    <button class="btn btn-sm btn-outline-secondary position-relative" type="button"
+            title="@(State.HubConnected ? "Live" : "Polling")"
+            aria-label="@($"Notifications ({State.UnreadCount} unread)")"
+            @onclick="Toggle">
+        <span aria-hidden="true">🔔</span>
+        @if (State.BadgeText.Length > 0)
+        {
+            <span class="badge bg-danger">@State.BadgeText</span>
+        }
+    </button>
+
+    @if (_open)
+    {
+        <div class="notification-panel">
+            <div class="notification-panel-head">
+                <strong>Notifications</strong>
+                <button class="btn btn-link btn-sm" type="button" disabled="@_busy" @onclick="MarkAllAsync">
+                    Mark all read
+                </button>
+            </div>
+            @if (State.Items.Count == 0)
+            {
+                <p class="notification-empty">Nothing yet.</p>
+            }
+            else
+            {
+                <ul class="notification-list">
+                    @foreach (var item in State.Items.Take(MaxInPanel))
+                    {
+                        <li class="@(item.IsRead ? "read" : "unread")">
+                            <span class="notification-summary">@item.Summary</span>
+                            <span class="notification-meta">@item.Topic · @item.CreatedAtUtc.ToLocalTime().ToString("t")</span>
+                            @if (!item.IsRead)
+                            {
+                                <button class="btn btn-link btn-sm" type="button" disabled="@_busy"
+                                        @onclick="() => MarkReadAsync(item.Id)">
+                                    Mark read
+                                </button>
+                            }
+                        </li>
+                    }
+                </ul>
+            }
+            <a class="notification-all" href="notifications">Open inbox</a>
+        </div>
+    }
+</div>
+
+@code {
+    private const int MaxInPanel = 5;
+
+    private bool _open;
+    private bool _busy;
+
+    protected override void OnInitialized() => State.Changed += OnStateChanged;
+
+    private void Toggle() => _open = !_open;
+
+    private void OnStateChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private async Task MarkReadAsync(Guid id)
+    {
+        _busy = true;
+        try
+        {
+            await State.MarkReadAsync(id);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task MarkAllAsync()
+    {
+        _busy = true;
+        try
+        {
+            await State.MarkAllReadAsync();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    public void Dispose() => State.Changed -= OnStateChanged;
+}

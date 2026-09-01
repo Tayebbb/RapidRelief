@@ -43,7 +43,10 @@ public sealed class DiResolutionSmokeTests : IClassFixture<TestingWebAppFactory>
         // the rule-based service stays resolvable concretely — the fallback never dies (§4.5).
         Assert.IsType<GeminiAiAnalysisService>(services.GetRequiredService<IAiAnalysisService>());
         Assert.IsType<RuleBasedAiAnalysisService>(services.GetRequiredService<RuleBasedAiAnalysisService>());
-        Assert.IsType<NoOpRealtimeNotifier>(services.GetRequiredService<IRealtimeNotifier>());
+        // F9: the SignalR notifier displaces the no-op in Mode=Hub/PollingOnly (D-032); the
+        // no-op stays resolvable concretely and is the binding again in Mode=Off (§4.5).
+        Assert.IsType<SignalRRealtimeNotifier>(services.GetRequiredService<IRealtimeNotifier>());
+        Assert.IsType<NoOpRealtimeNotifier>(services.GetRequiredService<NoOpRealtimeNotifier>());
         Assert.IsType<LocalDiskFileStorage>(services.GetRequiredService<IFileStorage>());
     }
 }

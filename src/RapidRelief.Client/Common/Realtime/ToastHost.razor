@@ -1,0 +1,52 @@
+@namespace RapidRelief.Client.Common.Realtime
+@implements IDisposable
+@inject NotificationState State
+
+@* Live arrivals only (NotificationState.Pushed) — polled pages must not replay as toasts.
+   Text is @-interpolated, never MarkupString: the payload can carry AI or user content. *@
+<div class="toast-host" aria-live="polite" aria-atomic="true">
+    @foreach (var toast in _toasts)
+    {
+        <div class="toast-card" role="status">
+            <span class="toast-summary">@toast.Summary</span>
+            <span class="toast-topic">@toast.Topic</span>
+        </div>
+    }
+</div>
+
+@code {
+    private const int MaxVisible = 3;
+    private static readonly TimeSpan Lifetime = TimeSpan.FromSeconds(6);
+
+    private readonly List<NotificationDto> _toasts = [];
+    private bool _disposed;
+
+    protected override void OnInitialized() => State.Pushed += OnPushed;
+
+    private void OnPushed(NotificationDto notification) => _ = ShowAsync(notification);
+
+    private async Task ShowAsync(NotificationDto notification)
+    {
+        _toasts.Add(notification);
+        while (_toasts.Count > MaxVisible)
+        {
+            _toasts.RemoveAt(0);
+        }
+
+        await InvokeAsync(StateHasChanged);
+        await Task.Delay(Lifetime);
+        if (_disposed)
+        {
+            return; // navigated away mid-toast
+        }
+
+        _toasts.Remove(notification);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        State.Pushed -= OnPushed;
+    }
+}

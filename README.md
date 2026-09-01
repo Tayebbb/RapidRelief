@@ -51,6 +51,25 @@ By default (`Ai:Gemini:ApiKey` empty), incident analysis is **fully local** — 
 
 > **Demo consent note:** while a key is configured, submitted reports may be processed by Google Gemini.
 
+### Realtime notifications (F9)
+
+Signed-in users get a bell (unread badge, `99+` above 99), an inbox at `/notifications`, and toasts for live arrivals. Two delivery paths run side by side and are deduped by notification id:
+
+- **Push** — SignalR hub at `/hubs/notifications` (push-only; role groups are derived from the server's own claims, never from a client argument). Reconnects on the 0 s / 2 s / 10 s / 30 s schedule.
+- **Poll** — `GET /api/realtime/notifications?since=&limit=` every **5 s while the hub is down** and every **60 s while it's up**. The hub is an optimization; polling is what guarantees delivery.
+
+`Realtime:Mode` (appsettings / `Realtime__Mode`) is a **tri-state** operational switch (D-032):
+
+| Mode          | Hub route            | Notifications persisted | Client behaviour                                        |
+| ------------- | -------------------- | ----------------------- | ------------------------------------------------------- |
+| `Hub`         | mapped               | yes                     | live push + slow poll                                    |
+| `PollingOnly` | 404 (clean JSON)     | yes                     | connect fails silently, 5 s polling delivers everything   |
+| `Off`         | 404 (clean JSON)     | no (no-op notifier)     | inbox stays empty, no errors                             |
+
+Notification text is rendered with plain Blazor interpolation (auto HTML-encoded) — never `MarkupString`, because payloads can carry AI output and user-submitted content. In degraded mode (no DB) the inbox endpoints return 503 and the client simply shows nothing new; no error banner, no retry storm.
+
+Dev tip: with no login but a **dev role** selected in the top-right picker, the client connects over long polling and sends `X-Dev-Role` (D-035) — browser WebSockets cannot carry custom headers.
+
 ### Tests — no Docker/Postgres needed
 
 ```bash
