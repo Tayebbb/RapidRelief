@@ -1,0 +1,105 @@
+@page "/login"
+@using RapidRelief.Client.Common.Auth
+@inject AuthApi Auth
+@inject JwtAuthStateProvider AuthState
+@inject NavigationManager Navigation
+
+<PageTitle>Sign in — RapidRelief</PageTitle>
+
+<h1>Sign in</h1>
+
+@if (_error is not null)
+{
+    <div class="alert alert-danger" role="alert">@_error</div>
+}
+
+<form @onsubmit="SubmitAsync" @onsubmit:preventDefault>
+    <div class="mb-3">
+        <label class="form-label" for="login-email">Email</label>
+        <input id="login-email" class="form-control" type="email" autocomplete="username" @bind="_email"
+               @bind:event="oninput" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="login-password">Password</label>
+        <input id="login-password" class="form-control" type="password" autocomplete="current-password"
+               @bind="_password" @bind:event="oninput" />
+    </div>
+    <button class="btn btn-primary" type="submit" disabled="@_busy">
+        @(_busy ? "Signing in…" : "Sign in")
+    </button>
+</form>
+
+<p class="mt-3">No account yet? <a href="register">Register</a>.</p>
+
+@code {
+    private string _email = string.Empty;
+    private string _password = string.Empty;
+    private bool _busy;
+    private string? _error;
+
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    public string? ReturnUrl { get; set; }
+
+    protected override void OnInitialized()
+    {
+        if (AuthState.HasSession)
+        {
+            Navigation.NavigateTo(Destination()); // already signed in — nothing to do here
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_email) || string.IsNullOrWhiteSpace(_password))
+        {
+            _error = "Email and password are required.";
+            return;
+        }
+
+        _busy = true;
+        _error = null;
+        try
+        {
+            var result = await Auth.LoginAsync(new LoginRequest(_email.Trim(), _password));
+            if (result.Succeeded)
+            {
+                Navigation.NavigateTo(Destination());
+                return;
+            }
+
+            _error = result.Error ?? FirstFieldError(result) ?? "Sign-in failed.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static string? FirstFieldError(AuthResult result) =>
+        result.FieldErrors?.Values.SelectMany(messages => messages).FirstOrDefault();
+
+    private string Destination() => SafeDestination(ReturnUrl);
+
+    // Strict local-path allowlist — pure so the redirect policy is traceable in isolation.
+    // Blocks protocol-relative (//), backslash variants (\\, /\, \/ — browsers normalize \ → /)
+    // and any scheme (javascript:, https:, …) by rejecting ':' outright.
+    internal static string SafeDestination(string? returnUrl)
+    {
+        if (string.IsNullOrWhiteSpace(returnUrl))
+        {
+            return "/";
+        }
+
+        return returnUrl.StartsWith('/') &&
+               !returnUrl.StartsWith("//", StringComparison.Ordinal) &&
+               !returnUrl.Contains('\\') &&
+               !returnUrl.Contains(':')
+            ? returnUrl
+            : "/";
+    }
+}

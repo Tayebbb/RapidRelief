@@ -15,6 +15,9 @@ namespace RapidRelief.Api.Features.Auth.Services;
 /// Real IUserAdminService (blueprint B7) — adapts to the FROZEN contract exactly; displaces
 /// FakeUserAdminService via stub-yield. IsLocked is computed in memory: LockoutEnd is not
 /// ticks-gated and must never be compared inside SQL on SQLite (risk 8).
+/// Self-lock/self-demote guards are deliberately NOT here: the frozen contract has no notion
+/// of "caller", so UserAdminEndpoints owns that check — any new caller of this service must
+/// enforce its own.
 /// </summary>
 public sealed class IdentityUserAdminService : IUserAdminService
 {

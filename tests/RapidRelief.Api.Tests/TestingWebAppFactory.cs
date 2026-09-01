@@ -100,9 +100,9 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
                     Directory.Delete(_storageRoot, recursive: true);
                 }
             }
-            catch (IOException)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                // Best-effort temp cleanup only.
+                // Best-effort temp cleanup only (AV scanners briefly lock fresh files on Windows).
             }
         }
     }

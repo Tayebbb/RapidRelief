@@ -54,6 +54,10 @@ public static class AuthSetup
                 ValidAudience = config["Jwt:Audience"],
                 ValidateLifetime = true,
                 ValidateIssuerSigningKey = true,
+                // Pin exactly what TokenService mints: HS256 + typ JWT. Kills alg-confusion
+                // (e.g. 'none'/RS256 swaps) and non-access-token JWT shapes outright.
+                ValidAlgorithms = new[] { SecurityAlgorithms.HmacSha256 },
+                ValidTypes = new[] { "JWT" },
                 // D-013: issuer and validator share one clock — the 5-min default skew only stretches TTLs.
                 ClockSkew = TimeSpan.FromMinutes(1),
             };

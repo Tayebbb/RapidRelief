@@ -37,6 +37,9 @@ public sealed class AuthRateLimitTests : IClassFixture<TestingWebAppFactory>
     }
 
     [Fact] // ㊳ — live pin: Development env registers the limiter (default Auth:PermitLimit = 10)
+    // Assumes all 11 posts land inside ONE fixed window (Auth:WindowSeconds default = 60 s);
+    // the loop takes well under a second, so a rollover mid-run is effectively impossible —
+    // if this ever flakes, check the window assumption first.
     public async Task Eleventh_rapid_login_post_returns_429_in_development()
     {
         // Empty connection string ⇒ MigrationRunner fails fast ⇒ degraded boot (D-005), no Postgres needed.

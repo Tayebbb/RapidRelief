@@ -7,8 +7,10 @@
     <main>
         <div class="top-row px-4">
             @* Visible in every environment for now — harmless in prod because the server only
-               honors X-Dev-Role where FakeAuth is registered (Development/Testing). *@
+               honors X-Dev-Role where FakeAuth is registered (Development/Testing). The picker
+               disables itself while a real session is active. *@
             <DevRolePicker />
+            <LoginDisplay />
         </div>
 
         <article class="content px-4">

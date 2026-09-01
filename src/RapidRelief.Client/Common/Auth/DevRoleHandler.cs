@@ -20,22 +20,11 @@ public sealed class DevRoleHandler : DelegatingHandler
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         request.Headers.Remove(HeaderName);
-        if (_state.CurrentRole is not DevRoleState.None && IsRelativeOrSameOrigin(request.RequestUri))
+        if (_state.CurrentRole is not DevRoleState.None &&
+            HttpOrigin.IsRelativeOrSameOrigin(request.RequestUri, _baseAddress))
         {
             request.Headers.Add(HeaderName, _state.CurrentRole);
         }
         return base.SendAsync(request, cancellationToken);
-    }
-
-    /// <summary>The dev header must never leak to third-party origins (e.g. tile servers).</summary>
-    private bool IsRelativeOrSameOrigin(Uri? uri)
-    {
-        if (uri is null || !uri.IsAbsoluteUri)
-        {
-            return true;
-        }
-
-        return _baseAddress is not null && Uri.Compare(
-            uri, _baseAddress, UriComponents.SchemeAndServer, UriFormat.Unescaped, StringComparison.OrdinalIgnoreCase) == 0;
     }
 }

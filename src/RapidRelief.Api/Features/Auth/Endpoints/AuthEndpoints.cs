@@ -22,9 +22,12 @@ public static class AuthEndpoints
     private const string CookieName = "rr_refresh";
     private const string CookiePath = "/api/auth";
 
+    private static readonly string[] AllowedPhotoExtensions = [".jpg", ".jpeg", ".png", ".webp"];
+
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         var group = endpoints.MapGroup("/api/auth");
+        group.AddEndpointFilter(CacheControlNoStoreFilter);
 
         group.MapPost("/register", RegisterAsync)
             .AllowAnonymous()
@@ -56,6 +59,7 @@ public static class AuthEndpoints
         IEventBus eventBus,
         DatabaseHealth databaseHealth,
         HttpContext httpContext,
+        IHostEnvironment env,
         CancellationToken ct)
     {
         if (databaseHealth.PostgresAvailable != true)
@@ -87,12 +91,15 @@ public static class AuthEndpoints
         var roleResult = await userManager.AddToRoleAsync(user, Roles.Citizen);
         if (!roleResult.Succeeded)
         {
+            // Compensate: a stranded role-less account could still log in but would carry no
+            // role claims — delete it so the user can simply retry registration.
+            await userManager.DeleteAsync(user);
             return roleResult.ToValidationProblem();
         }
 
         await eventBus.PublishAsync(new AuthEvent(user.Id, "Register", null), ct);
 
-        var session = await MintSessionAsync(user, [Roles.Citizen], tokenService, httpContext, ct);
+        var session = await MintSessionAsync(user, [Roles.Citizen], tokenService, httpContext, env, ct);
         return Results.Created("/api/auth/profile", new ApiEnvelope<AuthSessionDto>(session));
     }
 
@@ -101,10 +108,12 @@ public static class AuthEndpoints
         IValidator<LoginRequest> validator,
         UserManager<AppUser> userManager,
         SignInManager<AppUser> signInManager,
+        IPasswordHasher<AppUser> passwordHasher,
         ITokenService tokenService,
         IEventBus eventBus,
         DatabaseHealth databaseHealth,
         HttpContext httpContext,
+        IHostEnvironment env,
         CancellationToken ct)
     {
         if (databaseHealth.PostgresAvailable != true)
@@ -121,6 +130,9 @@ public static class AuthEndpoints
         var user = await userManager.FindByEmailAsync(request.Email!);
         if (user is null)
         {
+            // Burn the same PBKDF2 cost a real password check would — unknown-email and
+            // wrong-password 401s must be indistinguishable by response time too.
+            BurnPasswordVerification(passwordHasher, request.Password!);
             await eventBus.PublishAsync(new AuthEvent(Guid.Empty, "LoginFailed", "UnknownEmail"), ct);
             return InvalidCredentials();
         }
@@ -136,7 +148,7 @@ public static class AuthEndpoints
         var roles = (await userManager.GetRolesAsync(user)).ToList();
         await eventBus.PublishAsync(new AuthEvent(user.Id, "Login", null), ct);
 
-        var session = await MintSessionAsync(user, roles, tokenService, httpContext, ct);
+        var session = await MintSessionAsync(user, roles, tokenService, httpContext, env, ct);
         return Results.Ok(new ApiEnvelope<AuthSessionDto>(session));
     }
 
@@ -167,7 +179,7 @@ public static class AuthEndpoints
         }
 
         SetRefreshCookie(httpContext, env, outcome.NewRawRefreshToken!, outcome.RefreshExpiresAtUtc!.Value);
-        var profile = await BuildProfileAsync(outcome.User!, outcome.Roles!);
+        var profile = BuildProfile(outcome.User!, outcome.Roles!);
         return Results.Ok(new ApiEnvelope<AuthSessionDto>(
             new AuthSessionDto(outcome.AccessToken!, outcome.AccessExpiresAtUtc!.Value, profile)));
     }
@@ -179,6 +191,7 @@ public static class AuthEndpoints
         DatabaseHealth databaseHealth,
         HttpContext httpContext,
         IHostEnvironment env,
+        ILoggerFactory loggerFactory,
         CancellationToken ct)
     {
         if (databaseHealth.PostgresAvailable != true)
@@ -196,6 +209,11 @@ public static class AuthEndpoints
         if (TryGetUserId(principal, out var userId))
         {
             await eventBus.PublishAsync(new AuthEvent(userId, "Logout", null), ct);
+        }
+        else
+        {
+            loggerFactory.CreateLogger(nameof(AuthEndpoints))
+                .LogDebug("Logout principal carried no parseable user id claim — AuthEvent skipped");
         }
         return Results.NoContent();
     }
@@ -217,7 +235,7 @@ public static class AuthEndpoints
             return UserNotFound();
         }
 
-        var profile = await BuildProfileAsync(user, (await userManager.GetRolesAsync(user)).ToList());
+        var profile = BuildProfile(user, (await userManager.GetRolesAsync(user)).ToList());
         return Results.Ok(new ApiEnvelope<UserProfileDto>(profile));
     }
 
@@ -256,7 +274,7 @@ public static class AuthEndpoints
             return updated.ToValidationProblem();
         }
 
-        var profile = await BuildProfileAsync(user, (await userManager.GetRolesAsync(user)).ToList());
+        var profile = BuildProfile(user, (await userManager.GetRolesAsync(user)).ToList());
         return Results.Ok(new ApiEnvelope<UserProfileDto>(profile));
     }
 
@@ -281,6 +299,18 @@ public static class AuthEndpoints
             });
         }
 
+        // Profile photos are image-only; IFileStorage keeps its broader whitelist (.pdf/.mp4)
+        // for future features, so the narrower gate must live here at the endpoint.
+        var fileName = file.FileName ?? string.Empty;
+        var photoExtension = Path.GetExtension(fileName).ToLowerInvariant();
+        if (!AllowedPhotoExtensions.Contains(photoExtension))
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["file"] = [$"Only {string.Join(", ", AllowedPhotoExtensions)} photos are allowed."],
+            });
+        }
+
         var user = await LoadCallerAsync(principal, userManager);
         if (user is null)
         {
@@ -291,7 +321,7 @@ public static class AuthEndpoints
         try
         {
             await using var content = file.OpenReadStream();
-            var stored = await fileStorage.SaveAsync(content, file.FileName, file.ContentType, ct);
+            var stored = await fileStorage.SaveAsync(content, fileName, file.ContentType, ct);
             newPath = stored.Path;
         }
         catch (ArgumentException ex)
@@ -314,7 +344,7 @@ public static class AuthEndpoints
             await fileStorage.DeleteAsync(oldPath, ct); // best-effort replace semantics
         }
 
-        var profile = await BuildProfileAsync(user, (await userManager.GetRolesAsync(user)).ToList());
+        var profile = BuildProfile(user, (await userManager.GetRolesAsync(user)).ToList());
         return Results.Ok(new ApiEnvelope<UserProfileDto>(profile));
     }
 
@@ -323,6 +353,7 @@ public static class AuthEndpoints
         UserManager<AppUser> userManager,
         IFileStorage fileStorage,
         DatabaseHealth databaseHealth,
+        HttpContext httpContext,
         CancellationToken ct)
     {
         if (databaseHealth.PostgresAvailable != true)
@@ -342,30 +373,52 @@ public static class AuthEndpoints
             return PhotoNotFound();
         }
 
+        // inline + fixed name: never reflect a stored path into a download prompt.
+        var photoFileExtension = Path.GetExtension(user.PhotoPath).ToLowerInvariant();
+        httpContext.Response.Headers.ContentDisposition = $"inline; filename=photo{photoFileExtension}";
         return Results.Stream(stream, ContentTypeFor(user.PhotoPath)); // D-015 authenticated read
     }
 
     // ---- helpers ----
 
+    /// <summary>Auth responses carry credentials/PII — no browser or intermediary may cache them.</summary>
+    internal static async ValueTask<object?> CacheControlNoStoreFilter(
+        EndpointFilterInvocationContext invocationContext, EndpointFilterDelegate next)
+    {
+        invocationContext.HttpContext.Response.Headers.CacheControl = "no-store, private";
+        return await next(invocationContext);
+    }
+
+    // Lazily hashed once per process with the DI-configured iteration count, so the dummy
+    // verification burns exactly the same cost as a real one (a hardcoded literal would pin
+    // a stale iteration count). Benign race: two threads may each hash once; both are valid.
+    private static string? _dummyPasswordHash;
+
+    private static void BurnPasswordVerification(IPasswordHasher<AppUser> passwordHasher, string password)
+    {
+        var dummyUser = new AppUser();
+        _dummyPasswordHash ??= passwordHasher.HashPassword(dummyUser, "dummy-password");
+        passwordHasher.VerifyHashedPassword(dummyUser, _dummyPasswordHash, password);
+    }
+
     private static async Task<AuthSessionDto> MintSessionAsync(AppUser user, IReadOnlyList<string> roles,
-        ITokenService tokenService, HttpContext httpContext, CancellationToken ct)
+        ITokenService tokenService, HttpContext httpContext, IHostEnvironment env, CancellationToken ct)
     {
         var (accessToken, accessExpires) = tokenService.CreateAccessToken(user, roles);
         var (rawRefresh, row) = await tokenService.IssueRefreshTokenAsync(user, inheritedAbsoluteExpiry: null, ct);
-        var env = httpContext.RequestServices.GetRequiredService<IHostEnvironment>();
         SetRefreshCookie(httpContext, env, rawRefresh, row.ExpiresAtUtc);
-        return new AuthSessionDto(accessToken, accessExpires, await BuildProfileAsync(user, roles));
+        return new AuthSessionDto(accessToken, accessExpires, BuildProfile(user, roles));
     }
 
-    private static Task<UserProfileDto> BuildProfileAsync(AppUser user, IReadOnlyList<string> roles) =>
-        Task.FromResult(new UserProfileDto(
+    private static UserProfileDto BuildProfile(AppUser user, IReadOnlyList<string> roles) =>
+        new(
             user.Id,
             user.Email ?? string.Empty,
             user.DisplayName,
             user.PhoneNumber,
             user.EmergencyContact,
             HasPhoto: !string.IsNullOrEmpty(user.PhotoPath),
-            roles));
+            roles);
 
     private static async Task<AppUser?> LoadCallerAsync(ClaimsPrincipal principal, UserManager<AppUser> userManager) =>
         TryGetUserId(principal, out var userId)

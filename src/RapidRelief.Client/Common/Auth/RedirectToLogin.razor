@@ -1,0 +1,16 @@
+@namespace RapidRelief.Client.Common.Auth
+@inject NavigationManager Navigation
+
+@code {
+    // Rendered by App.razor's NotAuthorized branch for anonymous visitors: bounce to /login
+    // carrying the current page so a successful sign-in returns the user where they started.
+    protected override void OnInitialized()
+    {
+        var relative = Navigation.ToBaseRelativePath(Navigation.Uri);
+        // Leading slash is required by Login's strict local-path guard (SafeDestination).
+        // replace: true keeps the guarded page out of history — Back must not bounce again.
+        Navigation.NavigateTo(string.IsNullOrEmpty(relative)
+            ? "login"
+            : $"login?returnUrl={Uri.EscapeDataString("/" + relative)}", replace: true);
+    }
+}

@@ -1,0 +1,310 @@
+@page "/profile"
+@attribute [Authorize]
+@using System.IO
+@using System.Net
+@using System.Net.Http.Headers
+@using RapidRelief.Shared.Contracts.Common
+@inject HttpClient Http
+
+<PageTitle>Profile — RapidRelief</PageTitle>
+
+<h1>My profile</h1>
+
+@if (_notice is not null)
+{
+    <div class="alert alert-warning" role="alert">@_notice</div>
+}
+
+@if (_profile is null)
+{
+    @if (_notice is null)
+    {
+        <p><em>Loading profile…</em></p>
+    }
+}
+else
+{
+    @if (_saved)
+    {
+        <div class="alert alert-success" role="alert">Profile saved.</div>
+    }
+
+    <form @onsubmit="SaveAsync" @onsubmit:preventDefault>
+        <div class="mb-3">
+            <label class="form-label" for="profile-email">Email</label>
+            <input id="profile-email" class="form-control" value="@_profile.Email" disabled />
+            <small class="text-muted">Email can't be changed.</small>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="profile-display-name">Display name</label>
+            <input id="profile-display-name" class="form-control" @bind="_displayName" @bind:event="oninput" />
+            @foreach (var message in ErrorsFor("DisplayName"))
+            {
+                <div class="text-danger"><small>@message</small></div>
+            }
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="profile-phone">Phone number</label>
+            <input id="profile-phone" class="form-control" type="tel" @bind="_phoneNumber" @bind:event="oninput" />
+            @foreach (var message in ErrorsFor("PhoneNumber"))
+            {
+                <div class="text-danger"><small>@message</small></div>
+            }
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="profile-emergency">Emergency contact</label>
+            <input id="profile-emergency" class="form-control" @bind="_emergencyContact" @bind:event="oninput" />
+            @foreach (var message in ErrorsFor("EmergencyContact"))
+            {
+                <div class="text-danger"><small>@message</small></div>
+            }
+        </div>
+        <p><small class="text-muted">Roles: @string.Join(", ", _profile.Roles)</small></p>
+        <button class="btn btn-primary" type="submit" disabled="@_saving">
+            @(_saving ? "Saving…" : "Save changes")
+        </button>
+    </form>
+
+    <hr />
+
+    <h2>Profile photo</h2>
+
+    @if (_photoDataUri is not null)
+    {
+        @* Data URI render: an <img src> can't send the Bearer header (D-015 / risk 6). *@
+        <img src="@_photoDataUri" alt="Profile photo" class="img-thumbnail mb-2" style="max-width: 160px; max-height: 160px;" />
+    }
+    else
+    {
+        <p><em>No photo uploaded yet.</em></p>
+    }
+
+    <div class="mb-2">
+        <InputFile OnChange="OnFileSelected" accept=".jpg,.jpeg,.png,.webp" />
+    </div>
+    <p><small class="text-muted">JPG, JPEG, PNG or WebP — up to 10 MiB.</small></p>
+    @if (_photoError is not null)
+    {
+        <div class="text-danger mb-2"><small>@_photoError</small></div>
+    }
+    <button class="btn btn-secondary" @onclick="UploadPhotoAsync" disabled="@(_selectedFile is null || _uploading)">
+        @(_uploading ? "Uploading…" : "Upload photo")
+    </button>
+}
+
+@code {
+    private const long MaxPhotoBytes = 10 * 1024 * 1024;
+    private const string OfflineMessage = "Can't reach the server — check your connection.";
+
+    private static readonly string[] AllowedPhotoExtensions = [".jpg", ".jpeg", ".png", ".webp"];
+
+    private UserProfileDto? _profile;
+    private string _displayName = string.Empty;
+    private string _phoneNumber = string.Empty;
+    private string _emergencyContact = string.Empty;
+    private string? _notice;
+    private bool _saving;
+    private bool _saved;
+    private IReadOnlyDictionary<string, string[]>? _fieldErrors;
+
+    private string? _photoDataUri;
+    private IBrowserFile? _selectedFile;
+    private string? _photoError;
+    private bool _uploading;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            using var response = await Http.GetAsync("api/auth/profile");
+            if (response.StatusCode == HttpStatusCode.ServiceUnavailable)
+            {
+                _notice = AuthApi.DegradedMessage;
+                return;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _notice = $"Couldn't load the profile ({(int)response.StatusCode}).";
+                return;
+            }
+
+            var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<UserProfileDto>>();
+            if (envelope is null)
+            {
+                _notice = "The server returned an unexpected response.";
+                return;
+            }
+
+            ApplyProfile(envelope.Data);
+            if (envelope.Data.HasPhoto)
+            {
+                await LoadPhotoAsync();
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            _notice = OfflineMessage;
+        }
+    }
+
+    private void ApplyProfile(UserProfileDto profile)
+    {
+        _profile = profile;
+        _displayName = profile.DisplayName;
+        _phoneNumber = profile.PhoneNumber ?? string.Empty;
+        _emergencyContact = profile.EmergencyContact ?? string.Empty;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_saving || _profile is null)
+        {
+            return;
+        }
+
+        _saving = true;
+        _saved = false;
+        _fieldErrors = null;
+        try
+        {
+            var request = new UpdateProfileRequest(_displayName.Trim(),
+                NullIfEmpty(_phoneNumber), NullIfEmpty(_emergencyContact));
+            using var response = await Http.PutAsJsonAsync("api/auth/profile", request);
+            if (response.IsSuccessStatusCode)
+            {
+                var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<UserProfileDto>>();
+                if (envelope is not null)
+                {
+                    ApplyProfile(envelope.Data);
+                    _saved = true;
+                }
+                return;
+            }
+
+            if (response.StatusCode == HttpStatusCode.BadRequest)
+            {
+                _fieldErrors = await AuthApi.ReadFieldErrorsAsync(response);
+                return;
+            }
+
+            _notice = response.StatusCode == HttpStatusCode.ServiceUnavailable
+                ? AuthApi.DegradedMessage
+                : $"Save failed ({(int)response.StatusCode}).";
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            _notice = OfflineMessage;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void OnFileSelected(InputFileChangeEventArgs e)
+    {
+        _photoError = null;
+        _selectedFile = null;
+
+        var file = e.File;
+        var extension = Path.GetExtension(file.Name);
+        if (!AllowedPhotoExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
+        {
+            _photoError = "Only .jpg, .jpeg, .png or .webp files are allowed.";
+            return;
+        }
+
+        if (file.Size > MaxPhotoBytes)
+        {
+            _photoError = "The photo is larger than 10 MiB.";
+            return;
+        }
+
+        _selectedFile = file;
+    }
+
+    private async Task UploadPhotoAsync()
+    {
+        if (_selectedFile is null || _uploading)
+        {
+            return;
+        }
+
+        _uploading = true;
+        _photoError = null;
+        try
+        {
+            using var content = new MultipartFormDataContent();
+            var fileContent = new StreamContent(_selectedFile.OpenReadStream(MaxPhotoBytes));
+            if (!string.IsNullOrEmpty(_selectedFile.ContentType))
+            {
+                fileContent.Headers.ContentType = new MediaTypeHeaderValue(_selectedFile.ContentType);
+            }
+            content.Add(fileContent, "file", _selectedFile.Name);
+
+            using var response = await Http.PostAsync("api/auth/profile/photo", content);
+            if (response.IsSuccessStatusCode)
+            {
+                var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<UserProfileDto>>();
+                if (envelope is not null)
+                {
+                    ApplyProfile(envelope.Data);
+                }
+                _selectedFile = null;
+                await LoadPhotoAsync();
+                return;
+            }
+
+            if (response.StatusCode == HttpStatusCode.BadRequest)
+            {
+                var errors = await AuthApi.ReadFieldErrorsAsync(response);
+                _photoError = errors?.Values.SelectMany(messages => messages).FirstOrDefault()
+                    ?? "The server rejected the file.";
+                return;
+            }
+
+            _photoError = response.StatusCode == HttpStatusCode.ServiceUnavailable
+                ? AuthApi.DegradedMessage
+                : $"Upload failed ({(int)response.StatusCode}).";
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            _photoError = OfflineMessage;
+        }
+        finally
+        {
+            _uploading = false;
+        }
+    }
+
+    private async Task LoadPhotoAsync()
+    {
+        try
+        {
+            using var response = await Http.GetAsync("api/auth/profile/photo");
+            if (!response.IsSuccessStatusCode)
+            {
+                _photoDataUri = null; // 404 = no photo
+                return;
+            }
+
+            var bytes = await response.Content.ReadAsByteArrayAsync();
+            var contentType = response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
+            _photoDataUri = $"data:{contentType};base64,{Convert.ToBase64String(bytes)}";
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            _photoDataUri = null;
+        }
+    }
+
+    private IEnumerable<string> ErrorsFor(string field) =>
+        _fieldErrors is null
+            ? []
+            : _fieldErrors.Where(kv => kv.Key.Contains(field, StringComparison.OrdinalIgnoreCase))
+                .SelectMany(kv => kv.Value);
+
+    private static string? NullIfEmpty(string value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+}

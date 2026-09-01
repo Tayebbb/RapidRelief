@@ -1,0 +1,39 @@
+@namespace RapidRelief.Client.Common.Auth
+@using RapidRelief.Client.Features.Auth
+@inject AuthApi Auth
+@inject NavigationManager Navigation
+
+<AuthorizeView>
+    <Authorized>
+        <span class="me-2">@context.User.Identity?.Name</span>
+        <button class="btn btn-sm btn-outline-secondary" @onclick="SignOutAsync" disabled="@_signingOut">
+            @(_signingOut ? "Signing out…" : "Sign out")
+        </button>
+    </Authorized>
+    <NotAuthorized>
+        <a href="login">Sign in</a>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private bool _signingOut;
+
+    private async Task SignOutAsync()
+    {
+        if (_signingOut)
+        {
+            return;
+        }
+
+        _signingOut = true;
+        try
+        {
+            await Auth.LogoutAsync();
+            Navigation.NavigateTo("/");
+        }
+        finally
+        {
+            _signingOut = false;
+        }
+    }
+}

@@ -3,10 +3,14 @@
 @implements IDisposable
 @inject DevRoleState RoleState
 
+@* The AuthMessageHandler strips X-Dev-Role while signed in — disabling here is UX truth-telling. *@
 <div class="dev-role-picker"
-     title="Dev role sent as X-Dev-Role on API calls (ignored by the server outside Development)">
+     title="@(_isAuthenticated
+         ? "Signed in — dev role ignored"
+         : "Dev role sent as X-Dev-Role on API calls (ignored by the server outside Development)")">
     <label for="dev-role-select" class="me-1">Role:</label>
-    <select id="dev-role-select" value="@RoleState.CurrentRole" @onchange="OnRoleChanged">
+    <select id="dev-role-select" value="@RoleState.CurrentRole" disabled="@_isAuthenticated"
+            @onchange="OnRoleChanged">
         <option value="@DevRoleState.None">None</option>
         @foreach (var role in Roles.All)
         {
@@ -16,7 +20,17 @@
 </div>
 
 @code {
+    [CascadingParameter] private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private bool _isAuthenticated;
+
     protected override void OnInitialized() => RoleState.Changed += StateHasChanged;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _isAuthenticated = AuthStateTask is not null &&
+            (await AuthStateTask).User.Identity?.IsAuthenticated == true;
+    }
 
     private void OnRoleChanged(ChangeEventArgs e) => RoleState.SetRole(e.Value?.ToString() ?? DevRoleState.None);
 

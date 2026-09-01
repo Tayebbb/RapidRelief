@@ -113,6 +113,75 @@ public sealed class RefreshTokenTests : IClassFixture<TestingWebAppFactory>
         Assert.Equal(HttpStatusCode.Unauthorized, refresh.StatusCode);
     }
 
+    [Fact] // post-review item 1e — concurrent rotation race must never mint two live sessions
+    public async Task Parallel_refreshes_with_the_same_cookie_yield_at_most_one_200_and_at_most_one_active_row()
+    {
+        var setupClient = AuthTestClient.CreateNoCookieClient(_factory);
+        var (session, cookie, _) = await AuthTestClient.RegisterFreshUserAsync(setupClient);
+
+        // Several clients replay the SAME cookie simultaneously (stolen-cookie / double-tab shape).
+        var responses = await Task.WhenAll(Enumerable.Range(0, 6).Select(_ =>
+            AuthTestClient.RefreshAsync(AuthTestClient.CreateNoCookieClient(_factory), cookie)));
+
+        var successes = responses.Count(r => r.StatusCode == HttpStatusCode.OK);
+        Assert.True(successes <= 1, $"expected at most one 200, got {successes}");
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var now = DateTimeOffset.UtcNow;
+        var active = await db.RefreshTokens
+            .Where(t => t.UserId == session.UserId && t.RevokedAtUtc == null && t.ExpiresAtUtc > now)
+            .CountAsync();
+        Assert.True(active <= 1, $"expected at most one active refresh row, found {active}");
+    }
+
+    [Fact] // post-review item 1a — RevokedAtUtc is a concurrency token: the losing writer must throw
+    public async Task Concurrent_revocation_of_the_same_row_throws_for_the_losing_writer()
+    {
+        var client = AuthTestClient.CreateNoCookieClient(_factory);
+        var (session, _, _) = await AuthTestClient.RegisterFreshUserAsync(client);
+
+        using var scopeA = _factory.Services.CreateScope();
+        using var scopeB = _factory.Services.CreateScope();
+        var dbA = scopeA.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var dbB = scopeB.ServiceProvider.GetRequiredService<AuthDbContext>();
+
+        // Both contexts load the row while it is still active, like two racing refresh requests.
+        var rowA = await dbA.RefreshTokens.SingleAsync(t => t.UserId == session.UserId);
+        var rowB = await dbB.RefreshTokens.SingleAsync(t => t.UserId == session.UserId);
+
+        rowA.RevokedAtUtc = DateTimeOffset.UtcNow;
+        await dbA.SaveChangesAsync();
+
+        rowB.RevokedAtUtc = DateTimeOffset.UtcNow.AddSeconds(1);
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => dbB.SaveChangesAsync());
+    }
+
+    [Fact] // post-review item 11 — expired row: uniform 401, no heir minted
+    public async Task Expired_refresh_row_returns_uniform_401_and_mints_no_new_row()
+    {
+        var client = AuthTestClient.CreateNoCookieClient(_factory);
+        var (session, cookie, _) = await AuthTestClient.RegisterFreshUserAsync(client);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+            var row = await db.RefreshTokens.SingleAsync(t => t.UserId == session.UserId);
+            row.ExpiresAtUtc = DateTimeOffset.UtcNow.AddMinutes(-1);
+            await db.SaveChangesAsync();
+        }
+
+        var refresh = await AuthTestClient.RefreshAsync(client, cookie);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, refresh.StatusCode);
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+            var rows = await db.RefreshTokens.CountAsync(t => t.UserId == session.UserId);
+            Assert.Equal(1, rows); // the expired original only — no rotation happened
+        }
+    }
+
     [Fact] // ⑯ — D-013 absolute-expiry inheritance across two rotations
     public async Task All_rows_of_a_rotated_family_share_the_original_absolute_expiry()
     {

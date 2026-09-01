@@ -1,0 +1,164 @@
+@page "/register"
+@using RapidRelief.Client.Common.Auth
+@inject AuthApi Auth
+@inject JwtAuthStateProvider AuthState
+@inject NavigationManager Navigation
+
+<PageTitle>Register — RapidRelief</PageTitle>
+
+<h1>Create your account</h1>
+
+<p>Citizen self-registration — Rescue/NGO/Admin roles are granted later by an administrator.</p>
+
+@if (_error is not null)
+{
+    <div class="alert alert-danger" role="alert">@_error</div>
+}
+@if (_generalErrors.Count > 0)
+{
+    <ul class="text-danger">
+        @foreach (var message in _generalErrors)
+        {
+            <li>@message</li>
+        }
+    </ul>
+}
+
+<form @onsubmit="SubmitAsync" @onsubmit:preventDefault>
+    <div class="mb-3">
+        <label class="form-label" for="reg-email">Email</label>
+        <input id="reg-email" class="form-control" type="email" autocomplete="email" @bind="_email"
+               @bind:event="oninput" />
+        @foreach (var message in ErrorsFor("Email"))
+        {
+            <div class="text-danger"><small>@message</small></div>
+        }
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="reg-password">Password</label>
+        <input id="reg-password" class="form-control" type="password" autocomplete="new-password" @bind="_password"
+               @bind:event="oninput" />
+        @foreach (var message in ErrorsFor("Password"))
+        {
+            <div class="text-danger"><small>@message</small></div>
+        }
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="reg-display-name">Display name</label>
+        <input id="reg-display-name" class="form-control" autocomplete="name" @bind="_displayName"
+               @bind:event="oninput" />
+        @foreach (var message in ErrorsFor("DisplayName"))
+        {
+            <div class="text-danger"><small>@message</small></div>
+        }
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="reg-phone">Phone number <small class="text-muted">(optional)</small></label>
+        <input id="reg-phone" class="form-control" type="tel" autocomplete="tel" @bind="_phoneNumber"
+               @bind:event="oninput" />
+        @foreach (var message in ErrorsFor("PhoneNumber"))
+        {
+            <div class="text-danger"><small>@message</small></div>
+        }
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="reg-emergency">Emergency contact <small
+            class="text-muted">(optional)</small></label>
+            <input id="reg-emergency" class="form-control" @bind="_emergencyContact" @bind:event="oninput" />
+            @foreach (var message in ErrorsFor("EmergencyContact"))
+            {
+                <div class="text-danger"><small>@message</small></div>
+            }
+        </div>
+        <button class="btn btn-primary" type="submit" disabled="@_busy">
+            @(_busy ? "Creating account…" : "Register")
+        </button>
+    </form>
+
+<p class="mt-3">Already registered? <a href="login">Sign in</a>.</p>
+
+@code {
+    private static readonly string[] Fields =
+        ["Email", "Password", "DisplayName", "PhoneNumber", "EmergencyContact"];
+
+    private string _email = string.Empty;
+    private string _password = string.Empty;
+    private string _displayName = string.Empty;
+    private string _phoneNumber = string.Empty;
+    private string _emergencyContact = string.Empty;
+    private bool _busy;
+    private string? _error;
+    private IReadOnlyDictionary<string, string[]>? _fieldErrors;
+    private List<string> _generalErrors = [];
+
+    protected override void OnInitialized()
+    {
+        if (AuthState.HasSession)
+        {
+            Navigation.NavigateTo("/"); // already signed in
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        _error = null;
+        SetFieldErrors(null);
+        try
+        {
+            var request = new RegisterRequest(_email.Trim(), _password, _displayName.Trim(),
+                NullIfEmpty(_phoneNumber), NullIfEmpty(_emergencyContact));
+            var result = await Auth.RegisterAsync(request);
+            if (result.Succeeded)
+            {
+                Navigation.NavigateTo("/"); // register auto-logs-in (server minted the session)
+                return;
+            }
+
+            if (result.FieldErrors is not null)
+            {
+                SetFieldErrors(result.FieldErrors);
+            }
+            else
+            {
+                _error = result.Error ?? "Registration failed.";
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void SetFieldErrors(IReadOnlyDictionary<string, string[]>? errors)
+    {
+        _fieldErrors = errors;
+        _generalErrors = errors is null
+            ? []
+            : errors.Where(kv => !Fields.Any(field => Matches(kv.Key, field)))
+                .SelectMany(kv => kv.Value)
+                .ToList();
+    }
+
+    private IEnumerable<string> ErrorsFor(string field) =>
+        _fieldErrors is null
+            ? []
+            : _fieldErrors.Where(kv => Matches(kv.Key, field)).SelectMany(kv => kv.Value);
+
+    // Server keys are FluentValidation property names OR Identity error codes (DuplicateUserName,
+    // PasswordTooShort, …) — substring-match both onto form fields.
+    private static bool Matches(string key, string field) => field switch
+    {
+        "Email" => key.Contains("Email", StringComparison.OrdinalIgnoreCase)
+                   || key.Contains("UserName", StringComparison.OrdinalIgnoreCase),
+        _ => key.Contains(field, StringComparison.OrdinalIgnoreCase),
+    };
+
+    private static string? NullIfEmpty(string value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+}

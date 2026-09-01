@@ -125,7 +125,19 @@ public sealed class TokenService : ITokenService
         var (newRaw, newRow) = CreateRow(user, row.ExpiresAtUtc);
         row.ReplacedByTokenHash = newRow.TokenHash;
         _db.RefreshTokens.Add(newRow);
-        await _db.SaveChangesAsync(ct);
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Lost a concurrent rotation race on the same cookie (RevokedAtUtc concurrency token):
+            // someone else already rotated or revoked this row — treat exactly like reuse (D-014).
+            _db.ChangeTracker.Clear(); // drop the failed revoke+heir so RevokeAll saves cleanly
+            await RevokeAllForUserAsync(row.UserId, ct);
+            await _eventBus.PublishAsync(new AuthEvent(row.UserId, "TokenReuse", "ConcurrentRotation"), ct);
+            return FailedOutcome;
+        }
 
         var roles = (await _userManager.GetRolesAsync(user)).ToList(); // FRESH roles
         var (accessToken, accessExpires) = CreateAccessToken(user, roles);

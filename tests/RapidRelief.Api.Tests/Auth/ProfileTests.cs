@@ -127,6 +127,19 @@ public sealed class ProfileTests : IClassFixture<TestingWebAppFactory>
         Assert.True(body.RootElement.GetProperty("errors").TryGetProperty("file", out _));
     }
 
+    [Fact] // post-review item 5 — endpoint is image-only even though IFileStorage allows more (.pdf/.mp4)
+    public async Task Photo_upload_pdf_returns_400_keyed_file()
+    {
+        var client = AuthTestClient.CreateNoCookieClient(_factory);
+        var (session, _, _) = await AuthTestClient.RegisterFreshUserAsync(client);
+
+        var response = await UploadPhotoAsync(client, session.AccessToken, [1, 2, 3], "scan.pdf", "application/pdf");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.True(body.RootElement.GetProperty("errors").TryGetProperty("file", out _));
+    }
+
     [Fact] // ㉕ — oversize (factory caps FileStorage:MaxSizeBytes at 64 KiB)
     public async Task Photo_upload_oversize_returns_400_keyed_file()
     {

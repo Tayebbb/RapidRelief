@@ -47,6 +47,9 @@ public sealed class AuthDbContext : IdentityDbContext<AppUser, IdentityRole<Guid
             token.HasIndex(x => x.UserId); // non-unique — revoke-all scans
             token.Property(x => x.SecurityStampAtIssue).IsRequired().HasMaxLength(100);
             token.Property(x => x.ReplacedByTokenHash).HasMaxLength(64);
+            // Two racing rotations both read RevokedAtUtc == null; the losing UPDATE must throw
+            // (DbUpdateConcurrencyException) so TokenService can treat it as reuse (D-014).
+            token.Property(x => x.RevokedAtUtc).IsConcurrencyToken();
             token.HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
 
             // SampleDbContext ticks gate: SQLite cannot compare DateTimeOffset TEXT columns in

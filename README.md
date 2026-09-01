@@ -39,6 +39,8 @@ $env:ConnectionStrings__Postgres = "Host=<host>;Port=5432;Database=<db>;Username
 dotnet run --project src/RapidRelief.Api
 ```
 
+> **Ops note:** never run the `Development` environment against a production database — the startup seeder would create the demo users (`citizen1@rr.dev` … `Demo!123`) in it. Deployed instances must run with `ASPNETCORE_ENVIRONMENT=Production` (roles are seeded everywhere; demo users only in Development/Testing).
+
 ### 3. No database at all — degraded mode (D-005)
 
 `dotnet run --project src/RapidRelief.Api` with nothing listening on 5432 still works: startup retries migrations 3× (2s backoff), logs a prominent warning, and keeps serving. Stub-backed pages keep working; DB-backed endpoints (e.g. `POST`/`GET /api/sample/pings`) return **503 ProblemDetails**; `GET /health` reports `"status": "degraded", "dbConnected": false`. The demo never depends on a network.

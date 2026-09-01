@@ -120,6 +120,18 @@ try
     app.UseExceptionHandler();
     app.UseStatusCodePages();
 
+    // Post-review item 4a — every response (API, static files, SPA fallback) declares that
+    // browsers must not MIME-sniff it. OnStarting + indexer keeps it single-valued.
+    app.Use(async (context, next) =>
+    {
+        context.Response.OnStarting(static state =>
+        {
+            ((HttpContext)state).Response.Headers.XContentTypeOptions = "nosniff";
+            return Task.CompletedTask;
+        }, context);
+        await next(context);
+    });
+
     // D-011 — must run before anything that consumes scheme/client IP (HTTPS redirect, rate limiter).
     if (proxyEnabled)
     {

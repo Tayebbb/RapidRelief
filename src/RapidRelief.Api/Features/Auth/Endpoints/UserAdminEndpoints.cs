@@ -14,6 +14,7 @@ public static class UserAdminEndpoints
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         var group = endpoints.MapGroup("/api/auth");
+        group.AddEndpointFilter(AuthEndpoints.CacheControlNoStoreFilter);
 
         group.MapGet("/users", GetUsersAsync)
             .RequireAuthorization(AuthPolicies.RequireAdmin);
