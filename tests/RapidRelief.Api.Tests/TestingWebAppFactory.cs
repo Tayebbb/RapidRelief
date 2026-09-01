@@ -5,6 +5,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using RapidRelief.Api.Features.Auth.Data;
+using RapidRelief.Api.Features.Auth.Services;
 using RapidRelief.Api.Features.Sample.Data;
 using RapidRelief.Api.Infrastructure.Persistence;
 
@@ -17,15 +19,27 @@ namespace RapidRelief.Api.Tests;
 /// </summary>
 public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
 {
+    /// <summary>Testing mints/validates REAL JWTs — MigrationRunner (and appsettings.Development) never runs here.</summary>
+    public const string TestSigningKey = "tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt";
+
     private readonly List<SqliteConnection> _connections = [];
+    private readonly string _storageRoot =
+        Path.Combine(Path.GetTempPath(), "rapidrelief-tests", Guid.NewGuid().ToString("N"));
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
+        builder.UseSetting("Jwt:SigningKey", TestSigningKey);
+        // D-018: V3 hashes embed the per-hash iteration count, so a low test count is safe.
+        builder.UseSetting("Auth:PasswordHasherIterations", "10000");
+        // Keep uploads out of the repo tree and make the oversize test cheap (64 KiB cap).
+        builder.UseSetting("FileStorage:Root", _storageRoot);
+        builder.UseSetting("FileStorage:MaxSizeBytes", "65536");
         builder.ConfigureServices(services =>
         {
             AddSqliteContext<SampleDbContext>(services);
-            // Future contexts (AuthDbContext, IncidentsDbContext, …): add one line here
+            AddSqliteContext<AuthDbContext>(services);
+            // Future contexts (IncidentsDbContext, …): add one line here
             // and one EnsureCreated<TContext> line in CreateHost.
         });
     }
@@ -35,6 +49,13 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
         var host = base.CreateHost(builder);
 
         EnsureCreated<SampleDbContext>(host);
+        EnsureCreated<AuthDbContext>(host);
+
+        // MigrationRunner is skipped in Testing, so module seeding never runs — seed here (risk 3).
+        using (var scope = host.Services.CreateScope())
+        {
+            AuthSeeder.SeedAsync(scope.ServiceProvider, CancellationToken.None).GetAwaiter().GetResult();
+        }
 
         // EnsureCreated succeeded ⇒ the relational store is real and reachable, so the
         // D-005 gate must open: Testing reports dbConnected=true (MigrationRunner is skipped).
@@ -71,6 +92,17 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
             foreach (var connection in _connections)
             {
                 connection.Dispose();
+            }
+            try
+            {
+                if (Directory.Exists(_storageRoot))
+                {
+                    Directory.Delete(_storageRoot, recursive: true);
+                }
+            }
+            catch (IOException)
+            {
+                // Best-effort temp cleanup only.
             }
         }
     }

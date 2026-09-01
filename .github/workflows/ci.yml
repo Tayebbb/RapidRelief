@@ -62,3 +62,8 @@ jobs:
         run: dotnet ef database update --project src/RapidRelief.Api --context SampleDbContext
         env:
           ConnectionStrings__Postgres: "Host=localhost;Port=5432;Database=rapidrelief;Username=rapidrelief;Password=rapidrelief_dev"
+
+      - name: Apply AuthDbContext migrations
+        run: dotnet ef database update --project src/RapidRelief.Api --context AuthDbContext
+        env:
+          ConnectionStrings__Postgres: "Host=localhost;Port=5432;Database=rapidrelief;Username=rapidrelief;Password=rapidrelief_dev"

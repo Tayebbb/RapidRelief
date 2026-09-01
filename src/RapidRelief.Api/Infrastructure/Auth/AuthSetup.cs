@@ -54,6 +54,8 @@ public static class AuthSetup
                 ValidAudience = config["Jwt:Audience"],
                 ValidateLifetime = true,
                 ValidateIssuerSigningKey = true,
+                // D-013: issuer and validator share one clock — the 5-min default skew only stretches TTLs.
+                ClockSkew = TimeSpan.FromMinutes(1),
             };
             if (!string.IsNullOrWhiteSpace(signingKey))
             {

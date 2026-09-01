@@ -1,0 +1,426 @@
+using System.Security.Claims;
+using FluentValidation;
+using Microsoft.AspNetCore.Identity;
+using RapidRelief.Api.Features.Auth.Domain;
+using RapidRelief.Api.Features.Auth.Services;
+using RapidRelief.Api.Infrastructure.Persistence;
+using RapidRelief.Shared.Contracts.Common;
+using RapidRelief.Shared.Contracts.Enums;
+using RapidRelief.Shared.Contracts.Eventing;
+using RapidRelief.Shared.Contracts.Events;
+using RapidRelief.Shared.Contracts.Services;
+
+namespace RapidRelief.Api.Features.Auth.Endpoints;
+
+/// <summary>
+/// Blueprint B5 endpoints 1–8. Uniform 401 for every credential failure (login AND refresh);
+/// specifics go to AuthEvent/logs only. Refresh cookie per D-012: rr_refresh, HttpOnly,
+/// SameSite=Strict, Path=/api/auth, Secure outside Development/Testing.
+/// </summary>
+public static class AuthEndpoints
+{
+    private const string CookieName = "rr_refresh";
+    private const string CookiePath = "/api/auth";
+
+    public static void Map(IEndpointRouteBuilder endpoints)
+    {
+        var group = endpoints.MapGroup("/api/auth");
+
+        group.MapPost("/register", RegisterAsync)
+            .AllowAnonymous()
+            .RequireRateLimiting("auth");
+        group.MapPost("/login", LoginAsync)
+            .AllowAnonymous()
+            .RequireRateLimiting("auth");
+        group.MapPost("/refresh", RefreshAsync)
+            .AllowAnonymous()
+            .RequireRateLimiting("auth");
+        group.MapPost("/logout", LogoutAsync)
+            .RequireAuthorization();
+        group.MapGet("/profile", GetProfileAsync)
+            .RequireAuthorization();
+        group.MapPut("/profile", UpdateProfileAsync)
+            .RequireAuthorization();
+        group.MapPost("/profile/photo", UploadPhotoAsync)
+            .RequireAuthorization()
+            .DisableAntiforgery(); // IFormFile endpoint, Bearer auth ⇒ CSRF n/a (risk 5)
+        group.MapGet("/profile/photo", GetPhotoAsync)
+            .RequireAuthorization();
+    }
+
+    private static async Task<IResult> RegisterAsync(
+        RegisterRequest request,
+        IValidator<RegisterRequest> validator,
+        UserManager<AppUser> userManager,
+        ITokenService tokenService,
+        IEventBus eventBus,
+        DatabaseHealth databaseHealth,
+        HttpContext httpContext,
+        CancellationToken ct)
+    {
+        if (databaseHealth.PostgresAvailable != true)
+        {
+            return DatabaseUnavailable();
+        }
+
+        var validation = await validator.ValidateAsync(request, ct);
+        if (!validation.IsValid)
+        {
+            return Results.ValidationProblem(validation.ToDictionary());
+        }
+
+        var user = new AppUser
+        {
+            UserName = request.Email,
+            Email = request.Email,
+            DisplayName = request.DisplayName!,
+            PhoneNumber = request.PhoneNumber,
+            EmergencyContact = request.EmergencyContact,
+        };
+        var created = await userManager.CreateAsync(user, request.Password!);
+        if (!created.Succeeded)
+        {
+            return created.ToValidationProblem();
+        }
+
+        // Server hard-assigns Citizen; the request carries no role field — ever (D-016).
+        var roleResult = await userManager.AddToRoleAsync(user, Roles.Citizen);
+        if (!roleResult.Succeeded)
+        {
+            return roleResult.ToValidationProblem();
+        }
+
+        await eventBus.PublishAsync(new AuthEvent(user.Id, "Register", null), ct);
+
+        var session = await MintSessionAsync(user, [Roles.Citizen], tokenService, httpContext, ct);
+        return Results.Created("/api/auth/profile", new ApiEnvelope<AuthSessionDto>(session));
+    }
+
+    private static async Task<IResult> LoginAsync(
+        LoginRequest request,
+        IValidator<LoginRequest> validator,
+        UserManager<AppUser> userManager,
+        SignInManager<AppUser> signInManager,
+        ITokenService tokenService,
+        IEventBus eventBus,
+        DatabaseHealth databaseHealth,
+        HttpContext httpContext,
+        CancellationToken ct)
+    {
+        if (databaseHealth.PostgresAvailable != true)
+        {
+            return DatabaseUnavailable();
+        }
+
+        var validation = await validator.ValidateAsync(request, ct);
+        if (!validation.IsValid)
+        {
+            return Results.ValidationProblem(validation.ToDictionary());
+        }
+
+        var user = await userManager.FindByEmailAsync(request.Email!);
+        if (user is null)
+        {
+            await eventBus.PublishAsync(new AuthEvent(Guid.Empty, "LoginFailed", "UnknownEmail"), ct);
+            return InvalidCredentials();
+        }
+
+        var signIn = await signInManager.CheckPasswordSignInAsync(user, request.Password!, lockoutOnFailure: true);
+        if (!signIn.Succeeded)
+        {
+            await eventBus.PublishAsync(
+                new AuthEvent(user.Id, "LoginFailed", signIn.IsLockedOut ? "LockedOut" : "WrongPassword"), ct);
+            return InvalidCredentials();
+        }
+
+        var roles = (await userManager.GetRolesAsync(user)).ToList();
+        await eventBus.PublishAsync(new AuthEvent(user.Id, "Login", null), ct);
+
+        var session = await MintSessionAsync(user, roles, tokenService, httpContext, ct);
+        return Results.Ok(new ApiEnvelope<AuthSessionDto>(session));
+    }
+
+    private static async Task<IResult> RefreshAsync(
+        ITokenService tokenService,
+        DatabaseHealth databaseHealth,
+        HttpContext httpContext,
+        IHostEnvironment env,
+        CancellationToken ct)
+    {
+        if (databaseHealth.PostgresAvailable != true)
+        {
+            return DatabaseUnavailable();
+        }
+
+        if (!httpContext.Request.Cookies.TryGetValue(CookieName, out var rawToken) ||
+            string.IsNullOrWhiteSpace(rawToken))
+        {
+            DeleteRefreshCookie(httpContext, env);
+            return InvalidCredentials();
+        }
+
+        var outcome = await tokenService.ValidateAndRotateAsync(rawToken, ct);
+        if (!outcome.Succeeded)
+        {
+            DeleteRefreshCookie(httpContext, env); // stops client silent-refresh loops
+            return InvalidCredentials();
+        }
+
+        SetRefreshCookie(httpContext, env, outcome.NewRawRefreshToken!, outcome.RefreshExpiresAtUtc!.Value);
+        var profile = await BuildProfileAsync(outcome.User!, outcome.Roles!);
+        return Results.Ok(new ApiEnvelope<AuthSessionDto>(
+            new AuthSessionDto(outcome.AccessToken!, outcome.AccessExpiresAtUtc!.Value, profile)));
+    }
+
+    private static async Task<IResult> LogoutAsync(
+        ClaimsPrincipal principal,
+        ITokenService tokenService,
+        IEventBus eventBus,
+        DatabaseHealth databaseHealth,
+        HttpContext httpContext,
+        IHostEnvironment env,
+        CancellationToken ct)
+    {
+        if (databaseHealth.PostgresAvailable != true)
+        {
+            return DatabaseUnavailable();
+        }
+
+        if (httpContext.Request.Cookies.TryGetValue(CookieName, out var rawToken) &&
+            !string.IsNullOrWhiteSpace(rawToken))
+        {
+            await tokenService.RevokeByRawTokenAsync(rawToken, ct); // idempotent — missing row is fine
+        }
+
+        DeleteRefreshCookie(httpContext, env);
+        if (TryGetUserId(principal, out var userId))
+        {
+            await eventBus.PublishAsync(new AuthEvent(userId, "Logout", null), ct);
+        }
+        return Results.NoContent();
+    }
+
+    private static async Task<IResult> GetProfileAsync(
+        ClaimsPrincipal principal,
+        UserManager<AppUser> userManager,
+        DatabaseHealth databaseHealth,
+        CancellationToken ct)
+    {
+        if (databaseHealth.PostgresAvailable != true)
+        {
+            return DatabaseUnavailable();
+        }
+
+        var user = await LoadCallerAsync(principal, userManager);
+        if (user is null)
+        {
+            return UserNotFound();
+        }
+
+        var profile = await BuildProfileAsync(user, (await userManager.GetRolesAsync(user)).ToList());
+        return Results.Ok(new ApiEnvelope<UserProfileDto>(profile));
+    }
+
+    private static async Task<IResult> UpdateProfileAsync(
+        UpdateProfileRequest request,
+        IValidator<UpdateProfileRequest> validator,
+        ClaimsPrincipal principal,
+        UserManager<AppUser> userManager,
+        DatabaseHealth databaseHealth,
+        CancellationToken ct)
+    {
+        if (databaseHealth.PostgresAvailable != true)
+        {
+            return DatabaseUnavailable();
+        }
+
+        var validation = await validator.ValidateAsync(request, ct);
+        if (!validation.IsValid)
+        {
+            return Results.ValidationProblem(validation.ToDictionary());
+        }
+
+        var user = await LoadCallerAsync(principal, userManager);
+        if (user is null)
+        {
+            return UserNotFound();
+        }
+
+        // Email is immutable in F1 — only the three mutable profile fields are written.
+        user.DisplayName = request.DisplayName!;
+        user.PhoneNumber = request.PhoneNumber;
+        user.EmergencyContact = request.EmergencyContact;
+        var updated = await userManager.UpdateAsync(user);
+        if (!updated.Succeeded)
+        {
+            return updated.ToValidationProblem();
+        }
+
+        var profile = await BuildProfileAsync(user, (await userManager.GetRolesAsync(user)).ToList());
+        return Results.Ok(new ApiEnvelope<UserProfileDto>(profile));
+    }
+
+    private static async Task<IResult> UploadPhotoAsync(
+        IFormFile? file,
+        ClaimsPrincipal principal,
+        UserManager<AppUser> userManager,
+        IFileStorage fileStorage,
+        DatabaseHealth databaseHealth,
+        CancellationToken ct)
+    {
+        if (databaseHealth.PostgresAvailable != true)
+        {
+            return DatabaseUnavailable();
+        }
+
+        if (file is null || file.Length == 0)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["file"] = ["A non-empty multipart field named 'file' is required."],
+            });
+        }
+
+        var user = await LoadCallerAsync(principal, userManager);
+        if (user is null)
+        {
+            return UserNotFound();
+        }
+
+        string newPath;
+        try
+        {
+            await using var content = file.OpenReadStream();
+            var stored = await fileStorage.SaveAsync(content, file.FileName, file.ContentType, ct);
+            newPath = stored.Path;
+        }
+        catch (ArgumentException ex)
+        {
+            // LocalDiskFileStorage rejects non-whitelisted extensions and oversize streams.
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["file"] = [ex.Message] });
+        }
+
+        var oldPath = user.PhotoPath;
+        user.PhotoPath = newPath;
+        var updated = await userManager.UpdateAsync(user);
+        if (!updated.Succeeded)
+        {
+            await fileStorage.DeleteAsync(newPath, ct); // don't strand the new file
+            return updated.ToValidationProblem();
+        }
+
+        if (!string.IsNullOrEmpty(oldPath))
+        {
+            await fileStorage.DeleteAsync(oldPath, ct); // best-effort replace semantics
+        }
+
+        var profile = await BuildProfileAsync(user, (await userManager.GetRolesAsync(user)).ToList());
+        return Results.Ok(new ApiEnvelope<UserProfileDto>(profile));
+    }
+
+    private static async Task<IResult> GetPhotoAsync(
+        ClaimsPrincipal principal,
+        UserManager<AppUser> userManager,
+        IFileStorage fileStorage,
+        DatabaseHealth databaseHealth,
+        CancellationToken ct)
+    {
+        if (databaseHealth.PostgresAvailable != true)
+        {
+            return DatabaseUnavailable();
+        }
+
+        var user = await LoadCallerAsync(principal, userManager);
+        if (user is null || string.IsNullOrEmpty(user.PhotoPath))
+        {
+            return PhotoNotFound();
+        }
+
+        var stream = await fileStorage.OpenReadAsync(user.PhotoPath, ct);
+        if (stream is null)
+        {
+            return PhotoNotFound();
+        }
+
+        return Results.Stream(stream, ContentTypeFor(user.PhotoPath)); // D-015 authenticated read
+    }
+
+    // ---- helpers ----
+
+    private static async Task<AuthSessionDto> MintSessionAsync(AppUser user, IReadOnlyList<string> roles,
+        ITokenService tokenService, HttpContext httpContext, CancellationToken ct)
+    {
+        var (accessToken, accessExpires) = tokenService.CreateAccessToken(user, roles);
+        var (rawRefresh, row) = await tokenService.IssueRefreshTokenAsync(user, inheritedAbsoluteExpiry: null, ct);
+        var env = httpContext.RequestServices.GetRequiredService<IHostEnvironment>();
+        SetRefreshCookie(httpContext, env, rawRefresh, row.ExpiresAtUtc);
+        return new AuthSessionDto(accessToken, accessExpires, await BuildProfileAsync(user, roles));
+    }
+
+    private static Task<UserProfileDto> BuildProfileAsync(AppUser user, IReadOnlyList<string> roles) =>
+        Task.FromResult(new UserProfileDto(
+            user.Id,
+            user.Email ?? string.Empty,
+            user.DisplayName,
+            user.PhoneNumber,
+            user.EmergencyContact,
+            HasPhoto: !string.IsNullOrEmpty(user.PhotoPath),
+            roles));
+
+    private static async Task<AppUser?> LoadCallerAsync(ClaimsPrincipal principal, UserManager<AppUser> userManager) =>
+        TryGetUserId(principal, out var userId)
+            ? await userManager.FindByIdAsync(userId.ToString())
+            : null;
+
+    private static bool TryGetUserId(ClaimsPrincipal principal, out Guid userId) =>
+        Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out userId);
+
+    private static CookieOptions BuildCookieOptions(IHostEnvironment env, DateTimeOffset? expires)
+    {
+        var options = new CookieOptions
+        {
+            HttpOnly = true,
+            SameSite = SameSiteMode.Strict,
+            Path = CookiePath,
+            // D-012/D-010 gate: Testing's CookieContainer and Dev's plain HTTP both drop Secure cookies.
+            Secure = !(env.IsDevelopment() || env.IsEnvironment("Testing")),
+        };
+        if (expires is not null)
+        {
+            options.Expires = expires;
+        }
+        return options;
+    }
+
+    private static void SetRefreshCookie(HttpContext httpContext, IHostEnvironment env, string rawToken, DateTimeOffset expiresAtUtc) =>
+        httpContext.Response.Cookies.Append(CookieName, rawToken, BuildCookieOptions(env, expiresAtUtc));
+
+    /// <summary>Delete must repeat Path + attributes or browsers keep the stale cookie (risk 11).</summary>
+    private static void DeleteRefreshCookie(HttpContext httpContext, IHostEnvironment env) =>
+        httpContext.Response.Cookies.Delete(CookieName, BuildCookieOptions(env, expires: null));
+
+    /// <summary>Byte-identical body for EVERY credential failure — enumeration-proof (B5).</summary>
+    private static IResult InvalidCredentials() =>
+        Results.Problem(statusCode: StatusCodes.Status401Unauthorized, title: "Invalid credentials");
+
+    private static IResult UserNotFound() =>
+        Results.Problem(statusCode: StatusCodes.Status404NotFound, title: "User not found");
+
+    private static IResult PhotoNotFound() =>
+        Results.Problem(statusCode: StatusCodes.Status404NotFound, title: "No profile photo");
+
+    /// <summary>Stored extension → content type (upload whitelist subset); never the client's claim.</summary>
+    private static string ContentTypeFor(string path) =>
+        Path.GetExtension(path).ToLowerInvariant() switch
+        {
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".png" => "image/png",
+            ".webp" => "image/webp",
+            _ => "application/octet-stream",
+        };
+
+    internal static IResult DatabaseUnavailable() => Results.Problem(
+        statusCode: StatusCodes.Status503ServiceUnavailable,
+        title: "Database unavailable",
+        detail: "The app is running in degraded mode (D-005): Postgres is unreachable, so database-backed endpoints are temporarily unavailable.");
+}
