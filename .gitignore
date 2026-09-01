@@ -27,3 +27,7 @@ node_modules/
 # OS
 Thumbs.db
 .DS_Store
+
+# RapidRelief — uploaded files live outside git (blueprint B1)
+App_Data/
+

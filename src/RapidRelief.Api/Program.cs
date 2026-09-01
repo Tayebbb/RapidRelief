@@ -1,0 +1,136 @@
+using System.Threading.RateLimiting;
+using FluentValidation;
+using RapidRelief.Api.Infrastructure.Auth;
+using RapidRelief.Api.Infrastructure.Eventing;
+using RapidRelief.Api.Infrastructure.Modules;
+using RapidRelief.Shared.Contracts.Eventing;
+using Serilog;
+
+// B6 step 1 — Serilog bootstrap logger, replaced by the config-driven logger below.
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console()
+    .CreateBootstrapLogger();
+
+try
+{
+    var builder = WebApplication.CreateBuilder(args);
+    // preserveStaticLogger keeps each host's logger independent so multiple
+    // WebApplicationFactory hosts in one test process never re-freeze the bootstrap logger.
+    builder.Host.UseSerilog((context, services, configuration) =>
+        configuration.ReadFrom.Configuration(context.Configuration).ReadFrom.Services(services),
+        preserveStaticLogger: true);
+
+    var isTesting = builder.Environment.IsEnvironment("Testing");
+
+    // B6 step 2 — ProblemDetails + exception handling (shared framework, no packages).
+    builder.Services.AddProblemDetails();
+
+    // B6 step 3 — rate limiter: global per-IP fixed window + named policy skeletons; skipped in Testing.
+    if (!isTesting)
+    {
+        builder.Services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+            var rateLimiting = builder.Configuration.GetSection("RateLimiting");
+
+            options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimiting.GetValue("Global:PermitLimit", 100),
+                        Window = TimeSpan.FromSeconds(rateLimiting.GetValue("Global:WindowSeconds", 10)),
+                        QueueLimit = 0,
+                    }));
+
+            options.AddPolicy("auth", httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimiting.GetValue("Auth:PermitLimit", 10),
+                        Window = TimeSpan.FromSeconds(rateLimiting.GetValue("Auth:WindowSeconds", 60)),
+                        QueueLimit = 0,
+                    }));
+
+            options.AddPolicy("reports", httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimiting.GetValue("Reports:PermitLimit", 30),
+                        Window = TimeSpan.FromSeconds(rateLimiting.GetValue("Reports:WindowSeconds", 60)),
+                        QueueLimit = 0,
+                    }));
+        });
+    }
+
+    // B6 step 4 — FluentValidation validators (EXPLICIT validation only, never auto-MVC).
+    builder.Services.AddValidatorsFromAssemblyContaining<Program>();
+
+    // B6 step 5 — MultiAuth policy scheme + JwtBearer + FakeAuth (Dev/Testing) + role policies.
+    builder.Services.AddRapidReliefAuth(builder.Configuration, builder.Environment);
+
+    // B6 step 6 — event bus (SCOPED, see B3).
+    builder.Services.AddScoped<IEventBus, InProcessEventBus>();
+
+    // B6 step 7 — IFileStorage + DatabaseHealth singletons slot in here (chunks 2/3).
+
+    // B6 step 8 — module discovery + registration (deterministic order).
+    var modules = ModuleDiscovery.Discover(typeof(Program).Assembly);
+    foreach (var module in modules)
+    {
+        module.AddModule(builder.Services, builder.Configuration, builder.Environment);
+    }
+
+    var app = builder.Build();
+
+    // B6 step 9 — ProblemDetails for exceptions and bare status codes.
+    app.UseExceptionHandler();
+    app.UseStatusCodePages();
+
+    // B6 step 10.
+    app.UseSerilogRequestLogging();
+
+    // B6 step 11 — hosted Blazor WASM client.
+    app.UseBlazorFrameworkFiles();
+    app.UseStaticFiles();
+
+    // B6 step 12.
+    if (!isTesting)
+    {
+        app.UseRateLimiter();
+    }
+
+    // B6 step 13.
+    app.UseAuthentication();
+    app.UseAuthorization();
+
+    // B6 step 14 — each module maps its own endpoints.
+    foreach (var module in modules)
+    {
+        module.MapEndpoints(app);
+    }
+
+    // B6 step 15 — SPA fallback to the Blazor client.
+    app.MapFallbackToFile("index.html");
+
+    // B6 step 16 — MigrationRunner.RunAsync(app, modules) slots in here (chunk 2), guarded by env != Testing.
+
+    app.Run();
+}
+catch (Exception ex) when (ex is not HostAbortedException)
+{
+    Log.Fatal(ex, "RapidRelief.Api terminated unexpectedly");
+    throw;
+}
+finally
+{
+    Log.CloseAndFlush();
+}
+
+// Exposes the entry point to WebApplicationFactory<Program> in integration tests.
+public partial class Program
+{
+}

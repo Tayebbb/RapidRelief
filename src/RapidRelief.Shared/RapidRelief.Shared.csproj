@@ -1,0 +1,5 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Contracts only — ZERO package references (enforced by architecture tests). -->
+
+</Project>
