@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Logging;
 using Microsoft.JSInterop;
 using RapidRelief.Shared.Contracts.Common;
 
@@ -11,9 +12,10 @@ namespace RapidRelief.Client.Common.Map;
 public sealed partial class RapidMap : ComponentBase, IAsyncDisposable
 {
     [Inject] private IJSRuntime Js { get; set; } = default!;
+    [Inject] private ILogger<RapidMap> Logger { get; set; } = default!;
 
-    [Parameter] public GeoPoint Center { get; set; } = new(23.8103, 90.4125);
-    [Parameter] public int Zoom { get; set; } = 12;
+    [Parameter] public GeoPoint InitialCenter { get; set; } = new(23.8103, 90.4125);
+    [Parameter] public int InitialZoom { get; set; } = 12;
     [Parameter] public IReadOnlyList<MapMarker> Markers { get; set; } = [];
     [Parameter] public EventCallback<GeoPoint> OnMapClick { get; set; }
 
@@ -22,15 +24,50 @@ public sealed partial class RapidMap : ComponentBase, IAsyncDisposable
     private IJSObjectReference? _module;
     private DotNetObjectReference<RapidMap>? _selfRef;
     private Dictionary<string, MapMarker> _renderedMarkers = new();
+    private bool _disposed;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender)
+        if (!firstRender || _disposed)
         {
-            _module = await Js.InvokeAsync<IJSObjectReference>("import", "./js/rapidMap.js");
+            return;
+        }
+
+        IJSObjectReference? module = null;
+        try
+        {
+            module = await Js.InvokeAsync<IJSObjectReference>("import", "./js/rapidMap.js");
+            if (_disposed)
+            {
+                // Disposed mid-init: tear down what was just created and bail.
+                await module.DisposeAsync();
+                return;
+            }
+
             _selfRef = DotNetObjectReference.Create(this);
-            await _module.InvokeVoidAsync("init", ElementId, _selfRef, Center.Latitude, Center.Longitude, Zoom);
+            await module.InvokeVoidAsync("init", ElementId, _selfRef, InitialCenter.Latitude, InitialCenter.Longitude, InitialZoom);
+            if (_disposed)
+            {
+                await module.InvokeVoidAsync("dispose", ElementId);
+                await module.DisposeAsync();
+                return;
+            }
+
+            _module = module;
             await SyncMarkersAsync();
+        }
+        catch (JSException ex)
+        {
+            // A broken map (missing Leaflet asset, JS error) must never crash the page.
+            Logger.LogError(ex, "RapidMap initialization failed for element {ElementId}", ElementId);
+            if (_module is null && module is not null)
+            {
+                await DisposeModuleQuietlyAsync(module);
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+            // Page torn down mid-init — nothing to clean up on the JS side.
         }
     }
 
@@ -45,12 +82,13 @@ public sealed partial class RapidMap : ComponentBase, IAsyncDisposable
     /// <summary>Diffs against the last rendered set: upserts current ids, removes vanished ones.</summary>
     private async Task SyncMarkersAsync()
     {
-        if (_module is null)
+        if (_module is null || _disposed)
         {
             return;
         }
 
-        var current = Markers.ToDictionary(m => m.Id);
+        // Duplicate marker ids must not throw — last one wins.
+        var current = Markers.GroupBy(m => m.Id).ToDictionary(g => g.Key, g => g.Last());
 
         var removedIds = _renderedMarkers.Keys.Where(id => !current.ContainsKey(id)).ToArray();
         if (removedIds.Length > 0)
@@ -71,7 +109,7 @@ public sealed partial class RapidMap : ComponentBase, IAsyncDisposable
 
     public async Task SetViewAsync(GeoPoint center, int zoom)
     {
-        if (_module is not null)
+        if (_module is not null && !_disposed)
         {
             await _module.InvokeVoidAsync("setView", ElementId, center.Latitude, center.Longitude, zoom);
         }
@@ -82,6 +120,8 @@ public sealed partial class RapidMap : ComponentBase, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        // Set FIRST so an in-flight OnAfterRenderAsync sees it after each await.
+        _disposed = true;
         try
         {
             if (_module is not null)
@@ -97,6 +137,17 @@ public sealed partial class RapidMap : ComponentBase, IAsyncDisposable
         finally
         {
             _selfRef?.Dispose();
+        }
+    }
+
+    private static async ValueTask DisposeModuleQuietlyAsync(IJSObjectReference module)
+    {
+        try
+        {
+            await module.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
         }
     }
 }

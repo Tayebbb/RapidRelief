@@ -25,12 +25,16 @@ public sealed record PingDto(Guid Id, string Message, DateTimeOffset CreatedAtUt
 
 public static class PingEndpoints
 {
+    private const int MaxPage = 1_000_000;
+    private const int MaxPageSize = 200;
+
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         var group = endpoints.MapGroup("/api/sample");
 
         group.MapPost("/pings", CreatePingAsync).RequireAuthorization(AuthPolicies.RequireAdmin);
         group.MapGet("/pings", GetPingsAsync).AllowAnonymous();
+        group.MapGet("/pings/{id:guid}", GetPingByIdAsync).AllowAnonymous();
     }
 
     private static async Task<IResult> CreatePingAsync(
@@ -80,8 +84,10 @@ public static class PingEndpoints
             return DatabaseUnavailable();
         }
 
-        page = Math.Max(page, 1);
-        pageSize = Math.Clamp(pageSize, 1, 200);
+        // Paging clamp convention (docs/api-conventions.md): page 1–1,000,000, pageSize 1–200,
+        // BEFORE any math — unclamped int.MaxValue overflows (page-1)*pageSize into a 500.
+        page = Math.Clamp(page, 1, MaxPage);
+        pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
 
         var totalCount = await db.Pings.CountAsync(ct);
         var items = await db.Pings
@@ -94,6 +100,26 @@ public static class PingEndpoints
 
         var result = new PagedResult<PingDto>(items, page, pageSize, totalCount);
         return Results.Ok(new ApiEnvelope<PagedResult<PingDto>>(result));
+    }
+
+    private static async Task<IResult> GetPingByIdAsync(
+        Guid id,
+        SampleDbContext db,
+        DatabaseHealth databaseHealth,
+        CancellationToken ct)
+    {
+        if (databaseHealth.PostgresAvailable != true)
+        {
+            return DatabaseUnavailable();
+        }
+
+        var ping = await db.Pings.FirstOrDefaultAsync(p => p.Id == id, ct);
+        if (ping is null)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status404NotFound, title: "Ping not found");
+        }
+
+        return Results.Ok(new ApiEnvelope<PingDto>(new PingDto(ping.Id, ping.Message, ping.CreatedAtUtc)));
     }
 
     private static IResult DatabaseUnavailable() => Results.Problem(

@@ -1,5 +1,7 @@
+using System.Net;
 using System.Threading.RateLimiting;
 using FluentValidation;
+using Microsoft.AspNetCore.HttpOverrides;
 using RapidRelief.Api.Infrastructure.Auth;
 using RapidRelief.Api.Infrastructure.Eventing;
 using RapidRelief.Api.Infrastructure.Modules;
@@ -24,6 +26,29 @@ try
         preserveStaticLogger: true);
 
     var isTesting = builder.Environment.IsEnvironment("Testing");
+
+    // D-011 — forwarded headers are OPT-IN for reverse-proxy deploys (Proxy:Enabled). Rate
+    // limiting partitions per-IP, so proxied deployments MUST configure this or every client
+    // shares the proxy's IP partition. KnownNetworks/Proxies are cleared only when proxies
+    // are explicitly listed (Proxy:KnownProxies) — never blindly trust any upstream.
+    var proxyEnabled = builder.Configuration.GetValue("Proxy:Enabled", false);
+    if (proxyEnabled)
+    {
+        builder.Services.Configure<ForwardedHeadersOptions>(options =>
+        {
+            options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+            var knownProxies = builder.Configuration.GetSection("Proxy:KnownProxies").Get<string[]>() ?? [];
+            if (knownProxies.Length > 0)
+            {
+                options.KnownNetworks.Clear();
+                options.KnownProxies.Clear();
+                foreach (var proxy in knownProxies)
+                {
+                    options.KnownProxies.Add(IPAddress.Parse(proxy));
+                }
+            }
+        });
+    }
 
     // B6 step 2 — ProblemDetails + exception handling (shared framework, no packages).
     builder.Services.AddProblemDetails();
@@ -95,6 +120,19 @@ try
     app.UseExceptionHandler();
     app.UseStatusCodePages();
 
+    // D-011 — must run before anything that consumes scheme/client IP (HTTPS redirect, rate limiter).
+    if (proxyEnabled)
+    {
+        app.UseForwardedHeaders();
+    }
+
+    // D-010 — TLS terminates at the app outside Development/Testing: redirect + HSTS.
+    if (!app.Environment.IsDevelopment() && !isTesting)
+    {
+        app.UseHsts();
+        app.UseHttpsRedirection();
+    }
+
     // B6 step 10.
     app.UseSerilogRequestLogging();
 
@@ -118,7 +156,9 @@ try
         module.MapEndpoints(app);
     }
 
-    // B6 step 15 — SPA fallback to the Blazor client.
+    // B6 step 15 — SPA fallback to the Blazor client; unknown /api/* routes must stay
+    // ProblemDetails 404s and never fall through to the SPA shell.
+    app.MapFallback("/api/{**path}", () => Results.Problem(statusCode: StatusCodes.Status404NotFound, title: "Not found"));
     app.MapFallbackToFile("index.html");
 
     // B6 step 16 — per-module migrations; warn-and-continue-degraded on failure (D-005). Skipped in

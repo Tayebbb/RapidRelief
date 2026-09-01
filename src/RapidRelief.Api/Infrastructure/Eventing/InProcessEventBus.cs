@@ -27,6 +27,11 @@ public sealed class InProcessEventBus : IEventBus
             {
                 await handler.HandleAsync(evt, ct);
             }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                // Cooperative shutdown is not a handler failure — stop publishing and propagate.
+                throw;
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Handler {Handler} failed for {Event} {EventId}",

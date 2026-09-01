@@ -43,21 +43,53 @@ public sealed class LocalDiskFileStorageTests : IDisposable
     }
 
     [Fact]
-    public async Task SaveAsync_discards_client_filename_and_rejects_non_whitelisted_extension()
+    public async Task SaveAsync_throws_for_non_whitelisted_extension_and_writes_nothing()
     {
         using var payload = Payload("malware");
 
-        var stored = await _storage.SaveAsync(payload, "../../evil.exe", "application/octet-stream");
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => _storage.SaveAsync(payload, "../../evil.exe", "application/octet-stream"));
 
-        Assert.DoesNotContain("..", stored.Path);
-        Assert.DoesNotContain("evil", stored.Path);
-        Assert.False(stored.Path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase));
-        Assert.False(Path.IsPathRooted(stored.Path));
-
-        // The physical file must live inside the storage root.
-        var physical = Directory.GetFiles(_root, "*", SearchOption.AllDirectories).Single();
-        Assert.StartsWith(Path.GetFullPath(_root), Path.GetFullPath(physical));
+        Assert.Empty(FilesOnDisk());
     }
+
+    [Fact]
+    public async Task SaveAsync_throws_for_html_extension()
+    {
+        using var payload = Payload("<script>alert(1)</script>");
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(
+            () => _storage.SaveAsync(payload, "evil.html", "text/html"));
+
+        Assert.Contains(".html", ex.Message);
+        Assert.Empty(FilesOnDisk());
+    }
+
+    [Fact]
+    public async Task SaveAsync_over_size_cap_throws_and_leaves_no_file_on_disk()
+    {
+        var capped = new LocalDiskFileStorage(_root, maxSizeBytes: 10);
+        using var payload = Payload("eleven bytes"); // 12 bytes > 10-byte cap
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => capped.SaveAsync(payload, "big.jpg", "image/jpeg"));
+
+        Assert.Empty(FilesOnDisk());
+    }
+
+    [Fact]
+    public async Task SaveAsync_derives_content_type_from_extension_never_caller_claim()
+    {
+        using var payload = Payload("jpeg bytes");
+
+        var stored = await _storage.SaveAsync(payload, "photo.jpg", "text/html");
+
+        Assert.Equal("image/jpeg", stored.ContentType);
+    }
+
+    private string[] FilesOnDisk() => Directory.Exists(_root)
+        ? Directory.GetFiles(_root, "*", SearchOption.AllDirectories)
+        : [];
 
     [Theory]
     [InlineData("photo.PNG", ".png")]

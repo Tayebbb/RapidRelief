@@ -49,9 +49,12 @@ Handlers are resolved from the **current scope**, so they can take scoped depend
 - Handlers run **sequentially, awaited**, each wrapped in try/catch.
 - A throwing handler is logged (`LogError` with handler + event id) and **skipped — the next
   handler still runs and the publisher never sees the exception**.
+- **Cancellation is the one exception:** if the publisher's `CancellationToken` fires,
+  `OperationCanceledException` propagates (publishing stops) — shutdown is not a handler failure.
 - Zero registered handlers = silent success. A missing subscriber module breaks nothing (§1.5).
 - No `Task.Run`/threads: isolation is at module level, not thread level — this keeps scoped
   services (DbContexts) safe from disposed-scope bugs.
+- Log hygiene: user text is data — log IDs/lengths, never free text.
 
 ## Testing
 

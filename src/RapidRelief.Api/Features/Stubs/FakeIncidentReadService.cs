@@ -29,7 +29,7 @@ public sealed class FakeIncidentReadService : IIncidentReadService
             .ThenBy(i => i.Id)
             .ToList();
 
-        var page = Math.Max(query.Page, 1);
+        var page = Math.Clamp(query.Page, 1, 1_000_000);
         var pageSize = Math.Clamp(query.PageSize, 1, 200);
         var items = ordered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
 

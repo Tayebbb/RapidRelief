@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Primitives;
 using Microsoft.IdentityModel.Tokens;
+using Serilog;
 
 namespace RapidRelief.Api.Infrastructure.Auth;
 
@@ -17,6 +18,20 @@ public static class AuthSetup
     public static IServiceCollection AddRapidReliefAuth(this IServiceCollection services, IConfiguration config, IHostEnvironment env)
     {
         var fakeAuthEnabled = env.IsDevelopment() || env.IsEnvironment("Testing");
+
+        // Fail-fast outside Dev/Testing: JwtBearer is the only scheme there, and a missing or
+        // short key would otherwise fail silently per-request instead of at startup.
+        if (!fakeAuthEnabled)
+        {
+            var signingKey = config["Jwt:SigningKey"];
+            if (string.IsNullOrWhiteSpace(signingKey) || Encoding.UTF8.GetByteCount(signingKey) < 32)
+            {
+                throw new InvalidOperationException(
+                    "Jwt:SigningKey is missing or shorter than 32 bytes. Outside Development/Testing a real key is "
+                    + "required — provide it via the Jwt__SigningKey environment variable or your secret store "
+                    + "(user-secrets, key vault); never commit it to appsettings.json.");
+            }
+        }
 
         var authBuilder = services.AddAuthentication(MultiAuthScheme);
 
@@ -64,6 +79,8 @@ public static class AuthSetup
 
         if (fakeAuthEnabled)
         {
+            // Loud, greppable banner: this line must NEVER appear in production logs.
+            Log.Warning("FAKE AUTH ACTIVE (env: {Env}) — X-Dev-Role header authentication is enabled", env.EnvironmentName);
             authBuilder.AddScheme<AuthenticationSchemeOptions, FakeAuthHandler>(FakeAuthHandler.SchemeName, _ => { });
         }
 

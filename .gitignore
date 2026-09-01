@@ -15,6 +15,7 @@ TestResults/
 !.vscode/extensions.json
 
 # Secrets & environment
+.env
 *.env
 .env.*
 !.env.example
@@ -28,6 +29,6 @@ node_modules/
 Thumbs.db
 .DS_Store
 
-# RapidRelief — uploaded files live outside git (blueprint B1)
+# RapidRelief ï¿½ uploaded files live outside git (blueprint B1)
 App_Data/
 

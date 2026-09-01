@@ -12,7 +12,8 @@ public sealed class PingCreatedLoggingHandler : IEventHandler<PingCreated>
 
     public Task HandleAsync(PingCreated evt, CancellationToken ct = default)
     {
-        _logger.LogInformation("Ping {PingId} created with message \"{Message}\"", evt.PingId, evt.Message);
+        // Log hygiene: user text is data — log IDs/lengths, never the message itself.
+        _logger.LogInformation("Ping {PingId} created ({Length} chars)", evt.PingId, evt.Message.Length);
         return Task.CompletedTask;
     }
 }

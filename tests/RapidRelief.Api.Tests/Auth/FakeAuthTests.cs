@@ -49,6 +49,30 @@ public sealed class FakeAuthTests : IClassFixture<TestingWebAppFactory>
     }
 
     [Fact]
+    public async Task WhoAmI_returns_401_when_dev_role_header_value_is_empty()
+    {
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.TryAddWithoutValidation(FakeAuthHandler.HeaderName, "");
+
+        var response = await client.GetAsync("/api/foundation/whoami");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task WhoAmI_returns_401_via_jwt_bearer_challenge_for_garbage_bearer_token()
+    {
+        // No X-Dev-Role header ⇒ MultiAuth must forward to JwtBearer even in Testing.
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", "Bearer garbage");
+
+        var response = await client.GetAsync("/api/foundation/whoami");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Contains(response.Headers.WwwAuthenticate, h => h.Scheme == "Bearer");
+    }
+
+    [Fact]
     public async Task Health_returns_200_ok_payload_anonymously()
     {
         var client = _factory.CreateClient();

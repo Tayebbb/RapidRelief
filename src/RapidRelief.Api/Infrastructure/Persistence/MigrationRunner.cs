@@ -41,7 +41,19 @@ public static class MigrationRunner
                         logger.LogWarning(ex,
                             "Migration attempt {Attempt}/{MaxAttempts} failed for module {Module}; retrying in {DelaySeconds}s",
                             attempt, MaxAttempts, module.Name, delay.TotalSeconds);
-                        await Task.Delay(delay, ct);
+                        try
+                        {
+                            await Task.Delay(delay, ct);
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            // Never-crash contract (D-005): swallow the cancellation, mark degraded, stop.
+                            logger.LogWarning(
+                                "Migration run cancelled while waiting to retry module {Module} — stopping; app continues in DEGRADED mode (D-005)",
+                                module.Name);
+                            health.PostgresAvailable = false;
+                            return;
+                        }
                     }
                     else
                     {

@@ -51,46 +51,46 @@
     <div class="alert alert-warning" role="alert">@_mapNotice</div>
 }
 
-<RapidMap Center="@(new GeoPoint(23.8103, 90.4125))" Zoom="11" Markers="_markers" OnMapClick="OnMapClicked" />
+<RapidMap InitialCenter="@(new GeoPoint(23.8103, 90.4125))" InitialZoom="11" Markers="_markers" OnMapClick="OnMapClicked" />
 
 @if (_lastClicked is not null)
 {
     <p class="mt-2"><small>Map clicked at @_lastClicked.Latitude.ToString("F4"), @_lastClicked.Longitude.ToString("F4") —
         click-to-pin wiring works.</small></p>
-    }
+}
 
-    <hr />
+<hr />
 
-    @if (_pings is null)
-    {
-        <p><em>Loading pings…</em></p>
-    }
-    else if (_pings.Count == 0)
-    {
-        <p><em>No pings yet — post the first one.</em></p>
-    }
-    else
-    {
-        <table class="table">
-            <thead>
+@if (_pings is null)
+{
+    <p><em>Loading pings…</em></p>
+}
+else if (_pings.Count == 0)
+{
+    <p><em>No pings yet — post the first one.</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Message</th>
+                <th>Created (UTC)</th>
+                <th>Id</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var ping in _pings)
+            {
                 <tr>
-                    <th>Message</th>
-                    <th>Created (UTC)</th>
-                    <th>Id</th>
+                    <td>@ping.Message</td>
+                    <td>@ping.CreatedAtUtc.ToString("u")</td>
+                    <td><small>@ping.Id</small></td>
                 </tr>
-            </thead>
-            <tbody>
-                @foreach (var ping in _pings)
-                {
-                    <tr>
-                        <td>@ping.Message</td>
-                        <td>@ping.CreatedAtUtc.ToString("u")</td>
-                        <td><small>@ping.Id</small></td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    }
+            }
+        </tbody>
+    </table>
+}
 
 @code {
     private string _message = string.Empty;

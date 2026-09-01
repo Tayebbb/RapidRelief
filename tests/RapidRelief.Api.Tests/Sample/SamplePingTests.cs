@@ -112,6 +112,55 @@ public sealed class SamplePingTests : IClassFixture<TestingWebAppFactory>
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    [Theory]
+    [InlineData("page=0&pageSize=50")]
+    [InlineData("page=2147483647&pageSize=50")]
+    [InlineData("page=1&pageSize=0")]
+    [InlineData("page=1&pageSize=500")]
+    public async Task Get_pings_with_extreme_paging_values_returns_200_with_clamped_values(string query)
+    {
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync($"{PingsRoute}?{query}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var data = body.RootElement.GetProperty("data");
+        Assert.InRange(data.GetProperty("page").GetInt32(), 1, 1_000_000);
+        Assert.InRange(data.GetProperty("pageSize").GetInt32(), 1, 200);
+    }
+
+    [Fact]
+    public async Task Get_ping_by_id_returns_200_envelope_when_ping_exists()
+    {
+        var admin = CreateClientWithRole(Roles.Admin);
+        var posted = await admin.PostAsJsonAsync(PingsRoute, new { message = "fetch me by id" });
+        Assert.Equal(HttpStatusCode.Created, posted.StatusCode);
+        var location = posted.Headers.Location!.ToString();
+
+        var anonymous = _factory.CreateClient();
+        var response = await anonymous.GetAsync(location);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var data = body.RootElement.GetProperty("data");
+        Assert.Equal("fetch me by id", data.GetProperty("message").GetString());
+    }
+
+    [Fact]
+    public async Task Get_ping_by_id_returns_404_problem_details_for_unknown_id()
+    {
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync($"{PingsRoute}/{Guid.NewGuid()}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("Ping not found", body.RootElement.GetProperty("title").GetString());
+    }
+
     [Fact]
     public async Task PingCreated_event_reaches_test_registered_probe_handler()
     {

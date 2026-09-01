@@ -24,7 +24,7 @@ public sealed class FakeUserAdminService : IUserAdminService
 
     public Task<PagedResult<UserSummaryDto>> GetUsersAsync(int page = 1, int pageSize = 50, CancellationToken ct = default)
     {
-        page = Math.Max(page, 1);
+        page = Math.Clamp(page, 1, 1_000_000);
         pageSize = Math.Clamp(pageSize, 1, 200);
         lock (_gate)
         {

@@ -20,4 +20,8 @@
     <ProjectReference Include="..\RapidRelief.Client\RapidRelief.Client.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="RapidRelief.Api.Tests" />
+  </ItemGroup>
+
 </Project>

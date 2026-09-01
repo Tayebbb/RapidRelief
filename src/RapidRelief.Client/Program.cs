@@ -9,12 +9,13 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 
 builder.Services.AddSingleton<DevRoleState>();
 
-// Every API call flows through DevRoleHandler, which stamps X-Dev-Role from DevRoleState.
-// In WASM, HttpClientHandler delegates to the browser's fetch handler.
+// Every API call flows through DevRoleHandler, which stamps X-Dev-Role from DevRoleState
+// on relative/same-origin requests only. In WASM, HttpClientHandler delegates to fetch.
+var baseAddress = new Uri(builder.HostEnvironment.BaseAddress);
 builder.Services.AddScoped(sp => new HttpClient(
-    new DevRoleHandler(sp.GetRequiredService<DevRoleState>()) { InnerHandler = new HttpClientHandler() })
+    new DevRoleHandler(sp.GetRequiredService<DevRoleState>(), baseAddress) { InnerHandler = new HttpClientHandler() })
 {
-    BaseAddress = new Uri(builder.HostEnvironment.BaseAddress),
+    BaseAddress = baseAddress,
 });
 
 await builder.Build().RunAsync();

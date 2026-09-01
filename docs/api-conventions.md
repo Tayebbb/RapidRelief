@@ -30,8 +30,18 @@ Collections use `ApiEnvelope<PagedResult<T>>`:
 
 ## Paging
 
-- Query params: `page` (1-based, default 1) and `pageSize` (default 50, server-clamped to 1–200).
+- Query params: `page` (1-based, default 1) and `pageSize` (default 50).
+- **Clamp convention (mandatory, BEFORE any math):** `page` is server-clamped to 1–1,000,000 and
+  `pageSize` to 1–200. Out-of-range values are silently clamped, never a 400 and never a 500 —
+  an unclamped `page=2147483647` overflows `(page-1)*pageSize` into a crash.
 - `totalCount` is always the full filtered count, independent of the page slice.
+
+## Rate limiting
+
+- Named policies `auth` and `reports` exist in Program.cs. `RequireRateLimiting("auth")` is
+  **mandatory** on the F1 login endpoints and `RequireRateLimiting("reports")` on the F2 report
+  endpoints (D-011). Partitioning is per-IP — behind a reverse proxy, forwarded headers MUST be
+  configured (`Proxy:Enabled` + `Proxy:KnownProxies`) or all clients share one partition.
 
 ## Errors — RFC 7807 ProblemDetails, always
 

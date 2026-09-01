@@ -4,6 +4,8 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self' https://tile.openstreetmap.org data:; style-src 'self' 'unsafe-inline'; connect-src 'self' https://tile.openstreetmap.org; base-uri 'self'" />
     <title>RapidRelief</title>
     <base href="/" />
     <link rel="stylesheet" href="css/bootstrap/bootstrap.min.css" />
@@ -33,7 +35,8 @@
     <!-- Leaflet 1.9.4 vendored locally (UMD global L) — CDN references are forbidden (PWA/offline rule). -->
     <script src="lib/leaflet/leaflet.js"></script>
     <script src="_framework/blazor.webassembly.js"></script>
-    <script>navigator.serviceWorker.register('service-worker.js');</script>
+    <!-- Service-worker registration lives in an external file: the CSP forbids inline scripts. -->
+    <script src="js/app-init.js"></script>
 </body>
 
 </html>

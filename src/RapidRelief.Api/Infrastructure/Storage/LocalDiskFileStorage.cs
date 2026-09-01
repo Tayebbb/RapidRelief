@@ -4,20 +4,29 @@ using RapidRelief.Shared.Contracts.Services;
 namespace RapidRelief.Api.Infrastructure.Storage;
 
 /// <summary>
-/// Writes to {root}/{yyyy-MM}/{newGuid}{sanitized ext} — never trusts the client filename
-/// (extension whitelist, original name discarded); rejects path traversal (blueprint B4).
+/// Writes to {root}/{yyyy-MM}/{newGuid}{ext} — never trusts the client: non-whitelisted
+/// extensions are rejected (ArgumentException), the stored ContentType is derived from the
+/// extension map (caller claim ignored), and FileStorage:MaxSizeBytes (default 10 MiB) is
+/// enforced while copying — on exceed the partial file is deleted. Rejects path traversal (B4).
 /// Root from config FileStorage:Root, relative to ContentRoot unless absolute.
 /// </summary>
 public sealed class LocalDiskFileStorage : IFileStorage
 {
+    public const long DefaultMaxSizeBytes = 10_485_760;
+
     private readonly string _root;
+    private readonly long _maxSizeBytes;
 
     public LocalDiskFileStorage(IConfiguration config, IHostEnvironment env)
-        : this(ResolveRoot(config, env))
+        : this(ResolveRoot(config, env), config.GetValue("FileStorage:MaxSizeBytes", DefaultMaxSizeBytes))
     {
     }
 
-    public LocalDiskFileStorage(string root) => _root = root;
+    public LocalDiskFileStorage(string root, long maxSizeBytes = DefaultMaxSizeBytes)
+    {
+        _root = root;
+        _maxSizeBytes = maxSizeBytes;
+    }
 
     private static string ResolveRoot(IConfiguration config, IHostEnvironment env)
     {
@@ -26,15 +35,18 @@ public sealed class LocalDiskFileStorage : IFileStorage
     }
 
     public Task<StoredFile> SaveAsync(Stream content, string fileName, string contentType, CancellationToken ct = default)
-        => SaveCoreAsync(content, fileName, contentType, ct);
+        => SaveCoreAsync(content, fileName, ct);
 
-    private async Task<StoredFile> SaveCoreAsync(Stream content, string fileName, string contentType, CancellationToken ct)
+    private async Task<StoredFile> SaveCoreAsync(Stream content, string fileName, CancellationToken ct)
     {
-        // Client filename is untrusted and discarded; only a whitelisted extension survives.
+        // Client filename is untrusted and discarded; a non-whitelisted extension is an error,
+        // and the stored ContentType comes from the whitelist map — never the caller's claim.
         var extension = Path.GetExtension(fileName ?? string.Empty).ToLowerInvariant();
-        if (!AllowedExtensions.Contains(extension))
+        if (!AllowedExtensionContentTypes.TryGetValue(extension, out var storedContentType))
         {
-            extension = string.Empty;
+            throw new ArgumentException(
+                $"File extension '{extension}' is not allowed. Allowed: {string.Join(", ", AllowedExtensionContentTypes.Keys)}.",
+                nameof(fileName));
         }
 
         var monthFolder = DateTimeOffset.UtcNow.ToString("yyyy-MM", System.Globalization.CultureInfo.InvariantCulture);
@@ -45,15 +57,36 @@ public sealed class LocalDiskFileStorage : IFileStorage
         Directory.CreateDirectory(directory);
 
         var fullPath = Path.Combine(directory, storedName);
-        long size;
-        await using (var file = File.Create(fullPath))
+        long size = 0;
+        try
         {
-            await content.CopyToAsync(file, ct);
-            size = file.Length;
+            await using var file = File.Create(fullPath);
+            var buffer = new byte[CopyBufferSize];
+            int read;
+            while ((read = await content.ReadAsync(buffer.AsMemory(), ct)) > 0)
+            {
+                size += read;
+                if (size > _maxSizeBytes)
+                {
+                    throw new ArgumentException(
+                        $"File exceeds the maximum allowed size of {_maxSizeBytes} bytes (FileStorage:MaxSizeBytes).",
+                        nameof(content));
+                }
+                await file.WriteAsync(buffer.AsMemory(0, read), ct);
+            }
+        }
+        catch
+        {
+            // Abort semantics: never leave a partial file behind.
+            if (File.Exists(fullPath))
+            {
+                File.Delete(fullPath);
+            }
+            throw;
         }
 
         // Url = relative storage path; public serving is F2's decision (B4).
-        return new StoredFile(relativePath, relativePath, size, contentType);
+        return new StoredFile(relativePath, relativePath, size, storedContentType);
     }
 
     public Task<Stream?> OpenReadAsync(string path, CancellationToken ct = default)
@@ -75,10 +108,19 @@ public sealed class LocalDiskFileStorage : IFileStorage
         return Task.CompletedTask;
     }
 
-    private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".jpg", ".jpeg", ".png", ".webp", ".mp4", ".pdf",
-    };
+    private const int CopyBufferSize = 81_920;
+
+    /// <summary>Whitelist doubles as the server-side ContentType source (never the caller's claim).</summary>
+    private static readonly IReadOnlyDictionary<string, string> AllowedExtensionContentTypes =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [".jpg"] = "image/jpeg",
+            [".jpeg"] = "image/jpeg",
+            [".png"] = "image/png",
+            [".webp"] = "image/webp",
+            [".mp4"] = "video/mp4",
+            [".pdf"] = "application/pdf",
+        };
 
     /// <summary>Rejects null/empty, rooted, and traversal paths; confines resolution to the root.</summary>
     private string? ResolveSafe(string path)
@@ -88,8 +130,8 @@ public sealed class LocalDiskFileStorage : IFileStorage
             return null;
         }
 
-        var fullRoot = Path.GetFullPath(_root);
+        var fullRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(_root));
         var fullPath = Path.GetFullPath(Path.Combine(fullRoot, path));
-        return fullPath.StartsWith(fullRoot, StringComparison.OrdinalIgnoreCase) ? fullPath : null;
+        return fullPath.StartsWith(fullRoot + Path.DirectorySeparatorChar, StringComparison.Ordinal) ? fullPath : null;
     }
 }
