@@ -39,6 +39,7 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
         {
             AddSqliteContext<SampleDbContext>(services);
             AddSqliteContext<AuthDbContext>(services);
+            AddSqliteContext<RapidRelief.Api.Features.Shelters.Data.OpsDbContext>(services);
             // Future contexts (IncidentsDbContext, …): add one line here
             // and one EnsureCreated<TContext> line in CreateHost.
         });
@@ -50,11 +51,13 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
 
         EnsureCreated<SampleDbContext>(host);
         EnsureCreated<AuthDbContext>(host);
+        EnsureCreated<RapidRelief.Api.Features.Shelters.Data.OpsDbContext>(host);
 
         // MigrationRunner is skipped in Testing, so module seeding never runs — seed here (risk 3).
         using (var scope = host.Services.CreateScope())
         {
             AuthSeeder.SeedAsync(scope.ServiceProvider, CancellationToken.None).GetAwaiter().GetResult();
+            RapidRelief.Api.Tests.Shelters.OpsSeeder.SeedAsync(scope.ServiceProvider, CancellationToken.None).GetAwaiter().GetResult();
         }
 
         // EnsureCreated succeeded ⇒ the relational store is real and reachable, so the
