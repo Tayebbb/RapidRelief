@@ -1,0 +1,37 @@
+# CODEOWNERS — vertical-slice lane ownership (PROJECT-CONTEXT §4.7)
+# Only edit Features folders you own; contracts changes need 2 approvals (§4.6).
+#
+# NOTE: only @Tayebbb's GitHub handle is known so far. Teammates: replace the commented
+# placeholder lines with real handles in your first PR — the file stays valid meanwhile.
+
+# ── Tayeb — foundation, auth, AI, realtime ──────────────────────────────
+/src/RapidRelief.Api/Infrastructure/                    @Tayebbb
+/src/RapidRelief.Api/Features/Foundation/               @Tayebbb
+/src/RapidRelief.Api/Features/Sample/                   @Tayebbb
+/src/RapidRelief.Api/Features/Ai/                       @Tayebbb
+/src/RapidRelief.Api/Features/Realtime/                 @Tayebbb
+/src/RapidRelief.Api/Features/Stubs/                    @Tayebbb
+/src/RapidRelief.Client/Common/                         @Tayebbb
+
+# Contracts are everyone's surface — owner reviews every change (2 approvals per §4.6).
+/src/RapidRelief.Shared/Contracts/                      @Tayebbb
+
+# ── Shehab — incident lifecycle (F2 reporting/SOS, F5 rescue, F6 missions, F15 offline) ──
+# TODO(Shehab): replace with real handle, e.g. @shehab-handle
+# /src/RapidRelief.Api/Features/Incidents/              @shehab-handle
+# /src/RapidRelief.Api/Features/Rescue/                 @shehab-handle
+# /src/RapidRelief.Api/Features/Missions/               @shehab-handle
+
+# ── Tanjim — shelters, command center, analytics, audit (F3, F7, F12, F14, F17) ──
+# TODO(Tanjim): replace with real handle, e.g. @tanjim-handle
+# /src/RapidRelief.Api/Features/Shelters/               @tanjim-handle
+# /src/RapidRelief.Api/Features/Admin/                  @tanjim-handle
+# /src/RapidRelief.Api/Features/Analytics/              @tanjim-handle
+# /src/RapidRelief.Api/Features/Audit/                  @tanjim-handle
+
+# ── Mugdho — relief, resources, registry, alerts (F4, F10, F11, F13) ──
+# TODO(Mugdho): replace with real handle, e.g. @mugdho-handle
+# /src/RapidRelief.Api/Features/Relief/                 @mugdho-handle
+# /src/RapidRelief.Api/Features/Resources/              @mugdho-handle
+# /src/RapidRelief.Api/Features/Registry/               @mugdho-handle
+# /src/RapidRelief.Api/Features/Alerts/                 @mugdho-handle

@@ -7,6 +7,7 @@
     <title>RapidRelief</title>
     <base href="/" />
     <link rel="stylesheet" href="css/bootstrap/bootstrap.min.css" />
+    <link rel="stylesheet" href="lib/leaflet/leaflet.css" />
     <link rel="stylesheet" href="css/app.css" />
     <link rel="icon" type="image/png" href="favicon.png" />
     <link href="RapidRelief.Client.styles.css" rel="stylesheet" />
@@ -29,6 +30,8 @@
         <a href="" class="reload">Reload</a>
         <a class="dismiss">🗙</a>
     </div>
+    <!-- Leaflet 1.9.4 vendored locally (UMD global L) — CDN references are forbidden (PWA/offline rule). -->
+    <script src="lib/leaflet/leaflet.js"></script>
     <script src="_framework/blazor.webassembly.js"></script>
     <script>navigator.serviceWorker.register('service-worker.js');</script>
 </body>

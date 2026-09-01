@@ -6,7 +6,9 @@
 
     <main>
         <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+            @* Visible in every environment for now — harmless in prod because the server only
+               honors X-Dev-Role where FakeAuth is registered (Development/Testing). *@
+            <DevRolePicker />
         </div>
 
         <article class="content px-4">

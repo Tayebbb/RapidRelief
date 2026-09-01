@@ -1,5 +1,6 @@
 @page "/sample"
 @using RapidRelief.Shared.Contracts.Common
+@using RapidRelief.Shared.Contracts.ReadModels
 @inject HttpClient Http
 
 <PageTitle>Sample — Pings</PageTitle>
@@ -7,8 +8,9 @@
 <h1>Sample pings</h1>
 
 <p>
-    The F0 copy-me slice: posts as <code>Admin</code> via the <code>X-Dev-Role</code> dev header
-    (the role picker arrives in chunk 3), lists anonymously.
+    The F0 copy-me slice: posts with the role selected in the top-bar picker (sent as
+    <code>X-Dev-Role</code> by the shared handler), lists anonymously. Only <code>Admin</code>
+    may post — flip the picker to see 401/403.
 </p>
 
 @if (_degradedNotice is not null)
@@ -38,45 +40,101 @@
 
 <hr />
 
-@if (_pings is null)
+<h2>Dhaka incident map</h2>
+<p>
+    RapidMap wrapper proof: seeded stub incidents from <code>GET /api/foundation/demo-incidents</code>
+    (served by <code>IIncidentReadService</code> — the fake until F2 lands).
+</p>
+
+@if (_mapNotice is not null)
 {
-    <p><em>Loading pings…</em></p>
+    <div class="alert alert-warning" role="alert">@_mapNotice</div>
 }
-else if (_pings.Count == 0)
+
+<RapidMap Center="@(new GeoPoint(23.8103, 90.4125))" Zoom="11" Markers="_markers" OnMapClick="OnMapClicked" />
+
+@if (_lastClicked is not null)
 {
-    <p><em>No pings yet — post the first one.</em></p>
-}
-else
-{
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Message</th>
-                <th>Created (UTC)</th>
-                <th>Id</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var ping in _pings)
-            {
+    <p class="mt-2"><small>Map clicked at @_lastClicked.Latitude.ToString("F4"), @_lastClicked.Longitude.ToString("F4") —
+        click-to-pin wiring works.</small></p>
+    }
+
+    <hr />
+
+    @if (_pings is null)
+    {
+        <p><em>Loading pings…</em></p>
+    }
+    else if (_pings.Count == 0)
+    {
+        <p><em>No pings yet — post the first one.</em></p>
+    }
+    else
+    {
+        <table class="table">
+            <thead>
                 <tr>
-                    <td>@ping.Message</td>
-                    <td>@ping.CreatedAtUtc.ToString("u")</td>
-                    <td><small>@ping.Id</small></td>
+                    <th>Message</th>
+                    <th>Created (UTC)</th>
+                    <th>Id</th>
                 </tr>
-            }
-        </tbody>
-    </table>
-}
+            </thead>
+            <tbody>
+                @foreach (var ping in _pings)
+                {
+                    <tr>
+                        <td>@ping.Message</td>
+                        <td>@ping.CreatedAtUtc.ToString("u")</td>
+                        <td><small>@ping.Id</small></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
 
 @code {
     private string _message = string.Empty;
     private bool _posting;
     private string? _degradedNotice;
+    private string? _mapNotice;
     private List<PingModel>? _pings;
+    private IReadOnlyList<MapMarker> _markers = [];
+    private GeoPoint? _lastClicked;
     private readonly List<string> _validationErrors = [];
 
-    protected override Task OnInitializedAsync() => LoadPingsAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPingsAsync();
+        await LoadIncidentMarkersAsync();
+    }
+
+    private async Task LoadIncidentMarkersAsync()
+    {
+        try
+        {
+            var envelope = await Http.GetFromJsonAsync<ApiEnvelope<PagedResult<IncidentSummaryDto>>>(
+                "api/foundation/demo-incidents");
+            _markers = envelope?.Data.Items
+                .Select(i => new MapMarker(
+                    i.Id.ToString(),
+                    i.Location.Latitude,
+                    i.Location.Longitude,
+                    $"{i.Type} ({i.Severity}) — {i.Summary}",
+                    i.IsSos ? "SOS" : i.Status.ToString()))
+                .ToList() ?? [];
+            _mapNotice = null;
+        }
+        catch (HttpRequestException)
+        {
+            _mapNotice = "Could not load seeded incidents — is the API running?";
+        }
+    }
+
+    private void OnMapClicked(GeoPoint point)
+    {
+        _lastClicked = point;
+        StateHasChanged();
+    }
 
     private async Task LoadPingsAsync()
     {
@@ -108,14 +166,8 @@ else
         _validationErrors.Clear();
         try
         {
-            // Dev-role header sent per request until the chunk-3 DevRolePicker handler lands (no extra packages).
-            using var request = new HttpRequestMessage(HttpMethod.Post, "api/sample/pings")
-            {
-                Content = JsonContent.Create(new { message = _message }),
-            };
-            request.Headers.Add("X-Dev-Role", "Admin");
-
-            var response = await Http.SendAsync(request);
+            // X-Dev-Role comes from the shared DevRoleHandler, driven by the top-bar picker.
+            var response = await Http.PostAsJsonAsync("api/sample/pings", new { message = _message });
             if (response.IsSuccessStatusCode)
             {
                 _message = string.Empty;

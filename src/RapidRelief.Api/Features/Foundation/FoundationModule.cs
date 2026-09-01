@@ -2,6 +2,8 @@ using System.Security.Claims;
 using RapidRelief.Api.Infrastructure.Modules;
 using RapidRelief.Api.Infrastructure.Persistence;
 using RapidRelief.Shared.Contracts.Common;
+using RapidRelief.Shared.Contracts.ReadModels;
+using RapidRelief.Shared.Contracts.Services;
 
 namespace RapidRelief.Api.Features.Foundation;
 
@@ -31,6 +33,14 @@ public sealed class FoundationModule : IFeatureModule
                 user.FindAll(ClaimTypes.Role).Select(c => c.Value).ToArray());
             return Results.Ok(new ApiEnvelope<WhoAmIResponse>(response));
         }).RequireAuthorization();
+
+        // DEMO SURFACE — foundation-owned proof feed for the /sample RapidMap (stub-backed via
+        // IIncidentReadService). Remove once F2/F7 expose real incident read endpoints.
+        group.MapGet("/demo-incidents", async (IIncidentReadService incidents, CancellationToken ct) =>
+        {
+            var result = await incidents.GetIncidentsAsync(new IncidentQuery(PageSize: 100), ct);
+            return Results.Ok(new ApiEnvelope<PagedResult<IncidentSummaryDto>>(result));
+        }).AllowAnonymous();
     }
 }
 

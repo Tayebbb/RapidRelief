@@ -4,7 +4,9 @@ using RapidRelief.Api.Infrastructure.Auth;
 using RapidRelief.Api.Infrastructure.Eventing;
 using RapidRelief.Api.Infrastructure.Modules;
 using RapidRelief.Api.Infrastructure.Persistence;
+using RapidRelief.Api.Infrastructure.Storage;
 using RapidRelief.Shared.Contracts.Eventing;
+using RapidRelief.Shared.Contracts.Services;
 using Serilog;
 
 // B6 step 1 — Serilog bootstrap logger, replaced by the config-driven logger below.
@@ -76,8 +78,9 @@ try
     // B6 step 6 — event bus (SCOPED, see B3).
     builder.Services.AddScoped<IEventBus, InProcessEventBus>();
 
-    // B6 step 7 — DatabaseHealth singleton (D-005 degraded-mode flag); IFileStorage arrives chunk 3.
+    // B6 step 7 — DatabaseHealth singleton (D-005 degraded-mode flag) + local-disk file storage.
     builder.Services.AddSingleton<DatabaseHealth>();
+    builder.Services.AddSingleton<IFileStorage, LocalDiskFileStorage>();
 
     // B6 step 8 — module discovery + registration (deterministic order).
     var modules = ModuleDiscovery.Discover(typeof(Program).Assembly);
