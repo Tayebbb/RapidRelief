@@ -3,6 +3,7 @@ using FluentValidation;
 using RapidRelief.Api.Infrastructure.Auth;
 using RapidRelief.Api.Infrastructure.Eventing;
 using RapidRelief.Api.Infrastructure.Modules;
+using RapidRelief.Api.Infrastructure.Persistence;
 using RapidRelief.Shared.Contracts.Eventing;
 using Serilog;
 
@@ -75,7 +76,8 @@ try
     // B6 step 6 — event bus (SCOPED, see B3).
     builder.Services.AddScoped<IEventBus, InProcessEventBus>();
 
-    // B6 step 7 — IFileStorage + DatabaseHealth singletons slot in here (chunks 2/3).
+    // B6 step 7 — DatabaseHealth singleton (D-005 degraded-mode flag); IFileStorage arrives chunk 3.
+    builder.Services.AddSingleton<DatabaseHealth>();
 
     // B6 step 8 — module discovery + registration (deterministic order).
     var modules = ModuleDiscovery.Discover(typeof(Program).Assembly);
@@ -116,7 +118,12 @@ try
     // B6 step 15 — SPA fallback to the Blazor client.
     app.MapFallbackToFile("index.html");
 
-    // B6 step 16 — MigrationRunner.RunAsync(app, modules) slots in here (chunk 2), guarded by env != Testing.
+    // B6 step 16 — per-module migrations; warn-and-continue-degraded on failure (D-005). Skipped in
+    // Testing (the factory uses SQLite EnsureCreated instead).
+    if (!isTesting)
+    {
+        await MigrationRunner.RunAsync(app.Services, modules);
+    }
 
     app.Run();
 }

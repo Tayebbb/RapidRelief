@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using RapidRelief.Api.Infrastructure.Modules;
+using RapidRelief.Api.Infrastructure.Persistence;
 using RapidRelief.Shared.Contracts.Common;
 
 namespace RapidRelief.Api.Features.Foundation;
@@ -14,8 +15,11 @@ public sealed class FoundationModule : IFeatureModule
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
-        // Static ok for now; chunk 2 wires DatabaseHealth into DbConnected.
-        endpoints.MapGet("/health", () => Results.Ok(new HealthResponse("ok", null)));
+        // D-005: dbConnected true/false/null from DatabaseHealth; status "degraded" when the DB is down.
+        endpoints.MapGet("/health", (DatabaseHealth databaseHealth) =>
+            Results.Ok(new HealthResponse(
+                databaseHealth.PostgresAvailable == false ? "degraded" : "ok",
+                databaseHealth.PostgresAvailable)));
 
         var group = endpoints.MapGroup("/api/foundation");
 

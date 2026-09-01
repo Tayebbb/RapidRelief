@@ -1,0 +1,162 @@
+@page "/sample"
+@using RapidRelief.Shared.Contracts.Common
+@inject HttpClient Http
+
+<PageTitle>Sample — Pings</PageTitle>
+
+<h1>Sample pings</h1>
+
+<p>
+    The F0 copy-me slice: posts as <code>Admin</code> via the <code>X-Dev-Role</code> dev header
+    (the role picker arrives in chunk 3), lists anonymously.
+</p>
+
+@if (_degradedNotice is not null)
+{
+    <div class="alert alert-warning" role="alert">@_degradedNotice</div>
+}
+
+<form @onsubmit="PostPingAsync" @onsubmit:preventDefault>
+    <div class="mb-3">
+        <label class="form-label" for="ping-message">Message</label>
+        <input id="ping-message" class="form-control" @bind="_message" @bind:event="oninput"
+               placeholder="e.g. hello RapidRelief" />
+    </div>
+    @if (_validationErrors.Count > 0)
+    {
+        <ul class="text-danger">
+            @foreach (var error in _validationErrors)
+            {
+                <li>@error</li>
+            }
+        </ul>
+    }
+    <button class="btn btn-primary" type="submit" disabled="@_posting">
+        @(_posting ? "Posting…" : "Post ping")
+    </button>
+</form>
+
+<hr />
+
+@if (_pings is null)
+{
+    <p><em>Loading pings…</em></p>
+}
+else if (_pings.Count == 0)
+{
+    <p><em>No pings yet — post the first one.</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Message</th>
+                <th>Created (UTC)</th>
+                <th>Id</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var ping in _pings)
+            {
+                <tr>
+                    <td>@ping.Message</td>
+                    <td>@ping.CreatedAtUtc.ToString("u")</td>
+                    <td><small>@ping.Id</small></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private string _message = string.Empty;
+    private bool _posting;
+    private string? _degradedNotice;
+    private List<PingModel>? _pings;
+    private readonly List<string> _validationErrors = [];
+
+    protected override Task OnInitializedAsync() => LoadPingsAsync();
+
+    private async Task LoadPingsAsync()
+    {
+        try
+        {
+            var response = await Http.GetAsync("api/sample/pings");
+            if (response.IsSuccessStatusCode)
+            {
+                var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<PagedResult<PingModel>>>();
+                _pings = envelope?.Data.Items.ToList() ?? [];
+                _degradedNotice = null;
+            }
+            else
+            {
+                _pings = [];
+                _degradedNotice = await ReadProblemAsync(response, "Could not load pings.");
+            }
+        }
+        catch (HttpRequestException)
+        {
+            _pings = [];
+            _degradedNotice = "API unreachable — is the server running?";
+        }
+    }
+
+    private async Task PostPingAsync()
+    {
+        _posting = true;
+        _validationErrors.Clear();
+        try
+        {
+            // Dev-role header sent per request until the chunk-3 DevRolePicker handler lands (no extra packages).
+            using var request = new HttpRequestMessage(HttpMethod.Post, "api/sample/pings")
+            {
+                Content = JsonContent.Create(new { message = _message }),
+            };
+            request.Headers.Add("X-Dev-Role", "Admin");
+
+            var response = await Http.SendAsync(request);
+            if (response.IsSuccessStatusCode)
+            {
+                _message = string.Empty;
+                await LoadPingsAsync();
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+            {
+                var problem = await response.Content.ReadFromJsonAsync<ProblemModel>();
+                _validationErrors.AddRange(
+                    problem?.Errors?.SelectMany(kvp => kvp.Value) ?? ["Invalid request."]);
+            }
+            else
+            {
+                _validationErrors.Add(await ReadProblemAsync(response, $"Post failed ({(int)response.StatusCode})."));
+            }
+        }
+        catch (HttpRequestException)
+        {
+            _validationErrors.Add("API unreachable — is the server running?");
+        }
+        finally
+        {
+            _posting = false;
+        }
+    }
+
+    private static async Task<string> ReadProblemAsync(HttpResponseMessage response, string fallback)
+    {
+        try
+        {
+            var problem = await response.Content.ReadFromJsonAsync<ProblemModel>();
+            return problem?.Detail ?? problem?.Title ?? fallback;
+        }
+        catch
+        {
+            return fallback;
+        }
+    }
+
+    // Client-side shapes only — PingDto lives in the Api slice, which the client must not reference.
+    private sealed record PingModel(Guid Id, string Message, DateTimeOffset CreatedAtUtc);
+
+    private sealed record ProblemModel(string? Title, string? Detail, Dictionary<string, string[]>? Errors);
+}
