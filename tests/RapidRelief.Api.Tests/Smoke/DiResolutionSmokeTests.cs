@@ -39,7 +39,10 @@ public sealed class DiResolutionSmokeTests : IClassFixture<TestingWebAppFactory>
         Assert.IsType<FakeShelterReadService>(services.GetRequiredService<IShelterReadService>());
         Assert.IsType<FakeRegistryReadService>(services.GetRequiredService<IRegistryReadService>());
         Assert.IsType<IdentityUserAdminService>(services.GetRequiredService<IUserAdminService>());
-        Assert.IsType<RuleBasedAiAnalysisService>(services.GetRequiredService<IAiAnalysisService>());
+        // F8: the Gemini-with-fallback composite displaces the direct rule-based binding (D-028);
+        // the rule-based service stays resolvable concretely — the fallback never dies (§4.5).
+        Assert.IsType<GeminiAiAnalysisService>(services.GetRequiredService<IAiAnalysisService>());
+        Assert.IsType<RuleBasedAiAnalysisService>(services.GetRequiredService<RuleBasedAiAnalysisService>());
         Assert.IsType<NoOpRealtimeNotifier>(services.GetRequiredService<IRealtimeNotifier>());
         Assert.IsType<LocalDiskFileStorage>(services.GetRequiredService<IFileStorage>());
     }

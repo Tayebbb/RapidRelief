@@ -91,6 +91,16 @@ try
                         Window = TimeSpan.FromSeconds(rateLimiting.GetValue("Reports:WindowSeconds", 60)),
                         QueueLimit = 0,
                     }));
+
+            options.AddPolicy("ai", httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimiting.GetValue("Ai:PermitLimit", 30),
+                        Window = TimeSpan.FromSeconds(rateLimiting.GetValue("Ai:WindowSeconds", 60)),
+                        QueueLimit = 0,
+                    }));
         });
     }
 

@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using RapidRelief.Api.Features.Ai.Data;
 using RapidRelief.Api.Features.Auth.Data;
 using RapidRelief.Api.Features.Auth.Services;
 using RapidRelief.Api.Features.Sample.Data;
@@ -39,6 +40,7 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
         {
             AddSqliteContext<SampleDbContext>(services);
             AddSqliteContext<AuthDbContext>(services);
+            AddSqliteContext<AiDbContext>(services);
             // Future contexts (IncidentsDbContext, …): add one line here
             // and one EnsureCreated<TContext> line in CreateHost.
         });
@@ -50,6 +52,7 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
 
         EnsureCreated<SampleDbContext>(host);
         EnsureCreated<AuthDbContext>(host);
+        EnsureCreated<AiDbContext>(host);
 
         // MigrationRunner is skipped in Testing, so module seeding never runs — seed here (risk 3).
         using (var scope = host.Services.CreateScope())
@@ -70,12 +73,21 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
         services.RemoveAll<DbContextOptions<TContext>>();
         services.RemoveAll<TContext>();
 
-        // Kept open on purpose: a :memory: database lives exactly as long as its connection.
-        var connection = new SqliteConnection("DataSource=:memory:");
-        connection.Open();
-        _connections.Add(connection);
+        // Named shared-cache in-memory DB, unique per host build: every scope opens its OWN
+        // connection — a single shared SqliteConnection is NOT thread-safe, and parallel
+        // requests (auth rotation-race test) or the F8 background worker corrupt its internal
+        // command list (dispose-time NRE in SqliteConnection.RemoveCommand). The kept-open
+        // anchor keeps the database alive; Pooling=False makes teardown deterministic.
+        var connectionString =
+            $"Data Source={typeof(TContext).Name}-{Guid.NewGuid():N};Mode=Memory;Cache=Shared;Pooling=False";
+        var anchor = new SqliteConnection(connectionString);
+        anchor.Open();
+        lock (_connections)
+        {
+            _connections.Add(anchor);
+        }
 
-        services.AddDbContext<TContext>(options => options.UseSqlite(connection));
+        services.AddDbContext<TContext>(options => options.UseSqlite(connectionString));
     }
 
     private static void EnsureCreated<TContext>(IHost host) where TContext : DbContext

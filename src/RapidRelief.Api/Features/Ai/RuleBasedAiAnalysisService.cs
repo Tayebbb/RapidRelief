@@ -56,9 +56,8 @@ public sealed class RuleBasedAiAnalysisService : IAiAnalysisService
             severity = (Severity)Math.Min((int)severity + 1, (int)Severity.Catastrophic);
         }
 
-        var ageHours = Math.Max((_timeProvider.GetUtcNow() - request.ReportedAtUtc).TotalHours, 0);
-        var recencyBonus = ageHours >= 6 ? 0 : 15 * (1 - ageHours / 6);
-        var priority = Math.Clamp(20 * (int)severity + (request.IsSos ? 25 : 0) + recencyBonus, 0, 100);
+        // F8: the shared formula — extracted verbatim so the Gemini path scores identically.
+        var priority = PriorityFormula.Compute(severity, request.IsSos, request.ReportedAtUtc, _timeProvider.GetUtcNow());
 
         var summary = string.Create(CultureInfo.InvariantCulture,
             $"{predictedType} assessed at severity {(int)severity}/5{(request.IsSos ? " with SOS flag" : "")}; priority {priority:F0}/100.");
