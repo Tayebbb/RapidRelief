@@ -73,6 +73,11 @@ public static class SheltersEndpoints
         int pageSize = 50,
         CancellationToken ct = default)
     {
+        if (databaseHealth.PostgresAvailable != true)
+        {
+            return DatabaseUnavailable();
+        }
+
         if (lat.HasValue && lng.HasValue)
         {
             // F3 finder functionality, utilizing the IShelterReadService interface for stub resilience
@@ -82,11 +87,6 @@ public static class SheltersEndpoints
             // Paging is mocked out in nearest, but we wrap the result in PagedResult for consistent ApiEnvelope
             var result = new PagedResult<ShelterSummaryDto>(nearest, 1, nearest.Count, nearest.Count);
             return Results.Ok(new ApiEnvelope<PagedResult<ShelterSummaryDto>>(result));
-        }
-
-        if (databaseHealth.PostgresAvailable != true)
-        {
-            return DatabaseUnavailable();
         }
 
         page = Math.Clamp(page, 1, MaxPage);
