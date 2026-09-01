@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using RapidRelief.Client;
 using RapidRelief.Client.Common.Auth;
 using RapidRelief.Client.Features.Auth;
+using RapidRelief.Client.Features.Shelters;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
@@ -40,6 +41,9 @@ builder.Services.AddScoped(sp => new HttpClient(
 {
     BaseAddress = baseAddress,
 });
+
+// F3 Client
+builder.Services.AddScoped(sp => new SheltersClient(sp.GetRequiredService<HttpClient>()));
 
 var host = builder.Build();
 
