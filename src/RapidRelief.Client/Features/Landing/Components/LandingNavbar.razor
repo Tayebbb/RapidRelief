@@ -3,9 +3,7 @@
 <header class="landing-nav-container" aria-label="Main landing navigation">
     <nav class="landing-nav">
         <a class="nav-brand-group" href="">
-            <span class="nav-brand-badge" aria-hidden="true">
-                <AppIcon Name="shield-plus" Size="20" />
-            </span>
+            <img src="logo.png" alt="RapidRelief Logo" class="brand-logo-img" style="width: 32px; height: 32px; object-fit: contain;" />
             <span class="nav-brand-text">RapidRelief</span>
         </a>
 
@@ -16,13 +14,9 @@
             <li><a class="nav-link-item" href="#features">Features</a></li>
             <li><a class="nav-link-item" href="shelters/finder">Shelters</a></li>
             <li><a class="nav-link-item" href="sample">Live Map</a></li>
-            <li><a class="nav-link-item" href="assistant">Assistant</a></li>
         </ul>
 
         <div class="nav-actions">
-            <div class="role-picker-slot">
-                <DevRolePicker />
-            </div>
             <ThemeToggle />
 
             <AuthorizeView>
@@ -73,10 +67,6 @@
         <a class="mobile-nav-link" href="sample" @onclick="CloseMobileMenu">
             <AppIcon Name="map" Size="18" />
             <span>Live Map</span>
-        </a>
-        <a class="mobile-nav-link" href="assistant" @onclick="CloseMobileMenu">
-            <AppIcon Name="chat" Size="18" />
-            <span>Emergency Assistant</span>
         </a>
 
         <div class="pt-2 border-top d-flex gap-2">

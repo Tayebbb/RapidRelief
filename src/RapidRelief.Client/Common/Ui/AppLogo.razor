@@ -1,0 +1,18 @@
+@namespace RapidRelief.Client.Common.Ui
+
+<div class="rr-logo-wrapper @CssClass" style="@Style">
+    <img src="logo.png" alt="@Alt" class="rr-logo-img" style="width: @(Size)px; height: @(Size)px; object-fit: contain;" />
+    @if (ShowText)
+    {
+        <span class="rr-logo-text @TextCssClass">RapidRelief</span>
+    }
+</div>
+
+@code {
+    [Parameter] public int Size { get; set; } = 32;
+    [Parameter] public bool ShowText { get; set; }
+    [Parameter] public string Alt { get; set; } = "RapidRelief Logo";
+    [Parameter] public string CssClass { get; set; } = "";
+    [Parameter] public string TextCssClass { get; set; } = "";
+    [Parameter] public string Style { get; set; } = "";
+}
