@@ -4,12 +4,14 @@
 @using System.Security.Claims
 @using RapidRelief.Shared.Contracts.Enums
 @using RapidRelief.Client.Common.Ui
+@using RapidRelief.Client.Features.Alerts.Components
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
 
 <PageTitle>Citizen Emergency Dashboard — RapidRelief</PageTitle>
 
 <div class="dash-layout">
+    <ActiveAlertsBanner />
     <!-- Header Banner -->
     <div class="dash-header-banner">
         <div class="dash-title-group">
