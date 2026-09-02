@@ -21,6 +21,8 @@ public sealed class NotificationsDbContext : DbContext
 
     public DbSet<NotificationRead> Reads => Set<NotificationRead>();
 
+    public DbSet<BroadcastAlert> BroadcastAlerts => Set<BroadcastAlert>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Notification>(notification =>
@@ -61,6 +63,15 @@ public sealed class NotificationsDbContext : DbContext
                     v => v.UtcTicks,
                     v => new DateTimeOffset(v, TimeSpan.Zero));
             }
+        });
+
+        modelBuilder.Entity<BroadcastAlert>(b =>
+        {
+            b.ToTable("notifications_broadcasts");
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Headline).IsRequired().HasMaxLength(200);
+            b.Property(x => x.TargetArea).HasMaxLength(150);
+            b.Property(x => x.Severity).HasMaxLength(30);
         });
     }
 }

@@ -6,11 +6,30 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace RapidRelief.Api.Features.Realtime.Data.Migrations
 {
     /// <inheritdoc />
-    public partial class Initial : Migration
+    public partial class InitialNotifications : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.CreateTable(
+                name: "notifications_broadcasts",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    AuthorGovernmentUserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Headline = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    AlertBody = table.Column<string>(type: "text", nullable: false),
+                    TargetArea = table.Column<string>(type: "character varying(150)", maxLength: 150, nullable: false),
+                    RadiusKm = table.Column<double>(type: "double precision", nullable: true),
+                    Severity = table.Column<string>(type: "character varying(30)", maxLength: 30, nullable: false),
+                    ExpiresAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    CreatedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_notifications_broadcasts", x => x.Id);
+                });
+
             migrationBuilder.CreateTable(
                 name: "notifications_notification",
                 columns: table => new
@@ -72,6 +91,9 @@ namespace RapidRelief.Api.Features.Realtime.Data.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropTable(
+                name: "notifications_broadcasts");
+
             migrationBuilder.DropTable(
                 name: "notifications_read");
 

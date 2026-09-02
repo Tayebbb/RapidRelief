@@ -7,11 +7,28 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace RapidRelief.Api.Features.Auth.Data.Migrations
 {
     /// <inheritdoc />
-    public partial class Initial : Migration
+    public partial class InitialAuth : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.CreateTable(
+                name: "auth_permissions",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    Code = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    Name = table.Column<string>(type: "character varying(150)", maxLength: 150, nullable: false),
+                    Category = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    Description = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
+                    PageRoute = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    CreatedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_auth_permissions", x => x.Id);
+                });
+
             migrationBuilder.CreateTable(
                 name: "auth_roles",
                 columns: table => new
@@ -69,6 +86,31 @@ namespace RapidRelief.Api.Features.Auth.Data.Migrations
                     table.PrimaryKey("PK_auth_role_claims", x => x.Id);
                     table.ForeignKey(
                         name: "FK_auth_role_claims_auth_roles_RoleId",
+                        column: x => x.RoleId,
+                        principalTable: "auth_roles",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "auth_role_permissions",
+                columns: table => new
+                {
+                    RoleId = table.Column<Guid>(type: "uuid", nullable: false),
+                    PermissionId = table.Column<Guid>(type: "uuid", nullable: false),
+                    AssignedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_auth_role_permissions", x => new { x.RoleId, x.PermissionId });
+                    table.ForeignKey(
+                        name: "FK_auth_role_permissions_auth_permissions_PermissionId",
+                        column: x => x.PermissionId,
+                        principalTable: "auth_permissions",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_auth_role_permissions_auth_roles_RoleId",
                         column: x => x.RoleId,
                         principalTable: "auth_roles",
                         principalColumn: "Id",
@@ -185,6 +227,12 @@ namespace RapidRelief.Api.Features.Auth.Data.Migrations
                 });
 
             migrationBuilder.CreateIndex(
+                name: "IX_auth_permissions_Code",
+                table: "auth_permissions",
+                column: "Code",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_auth_refresh_tokens_TokenHash",
                 table: "auth_refresh_tokens",
                 column: "TokenHash",
@@ -199,6 +247,11 @@ namespace RapidRelief.Api.Features.Auth.Data.Migrations
                 name: "IX_auth_role_claims_RoleId",
                 table: "auth_role_claims",
                 column: "RoleId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_auth_role_permissions_PermissionId",
+                table: "auth_role_permissions",
+                column: "PermissionId");
 
             migrationBuilder.CreateIndex(
                 name: "RoleNameIndex",
@@ -243,6 +296,9 @@ namespace RapidRelief.Api.Features.Auth.Data.Migrations
                 name: "auth_role_claims");
 
             migrationBuilder.DropTable(
+                name: "auth_role_permissions");
+
+            migrationBuilder.DropTable(
                 name: "auth_user_claims");
 
             migrationBuilder.DropTable(
@@ -253,6 +309,9 @@ namespace RapidRelief.Api.Features.Auth.Data.Migrations
 
             migrationBuilder.DropTable(
                 name: "auth_user_tokens");
+
+            migrationBuilder.DropTable(
+                name: "auth_permissions");
 
             migrationBuilder.DropTable(
                 name: "auth_roles");

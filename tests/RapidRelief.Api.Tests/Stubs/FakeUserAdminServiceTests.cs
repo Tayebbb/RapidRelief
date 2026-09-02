@@ -7,14 +7,14 @@ namespace RapidRelief.Api.Tests.Stubs;
 public sealed class FakeUserAdminServiceTests
 {
     [Fact]
-    public async Task GetUsersAsync_returns_the_four_seeded_identities_with_fake_auth_guids()
+    public async Task GetUsersAsync_returns_the_three_seeded_identities_with_fake_auth_guids()
     {
         var service = new FakeUserAdminService();
 
         var result = await service.GetUsersAsync();
 
-        Assert.Equal(4, result.TotalCount);
-        Assert.Equal(4, result.Items.Count);
+        Assert.Equal(3, result.TotalCount);
+        Assert.Equal(3, result.Items.Count);
         foreach (var role in Roles.All)
         {
             var user = Assert.Single(result.Items, u => u.Roles.Contains(role));
@@ -38,7 +38,7 @@ public sealed class FakeUserAdminServiceTests
     public async Task SetLockedAsync_locks_a_known_user_in_memory()
     {
         var service = new FakeUserAdminService();
-        var adminId = FakeAuthHandler.SeedUserIds[Roles.Admin];
+        var adminId = FakeAuthHandler.SeedUserIds[Roles.Government];
 
         var result = await service.SetLockedAsync(adminId, locked: true);
 
@@ -53,14 +53,14 @@ public sealed class FakeUserAdminServiceTests
         var service = new FakeUserAdminService();
         var citizenId = FakeAuthHandler.SeedUserIds[Roles.Citizen];
 
-        var unknown = await service.SetRolesAsync(Guid.Parse("88888888-8888-8888-8888-888888888888"), [Roles.Admin]);
-        var known = await service.SetRolesAsync(citizenId, [Roles.Citizen, Roles.Rescue]);
+        var unknown = await service.SetRolesAsync(Guid.Parse("88888888-8888-8888-8888-888888888888"), [Roles.Government]);
+        var known = await service.SetRolesAsync(citizenId, [Roles.Citizen, Roles.Rescuer]);
 
         Assert.False(unknown);
         Assert.True(known);
         var users = await service.GetUsersAsync();
         var citizen = users.Items.Single(u => u.Id == citizenId);
-        Assert.Equal(new[] { Roles.Citizen, Roles.Rescue }, citizen.Roles);
+        Assert.Equal(new[] { Roles.Citizen, Roles.Rescuer }, citizen.Roles);
     }
 
     [Fact]
@@ -68,9 +68,9 @@ public sealed class FakeUserAdminServiceTests
     {
         var service = new FakeUserAdminService();
 
-        var page = await service.GetUsersAsync(page: 2, pageSize: 3);
+        var page = await service.GetUsersAsync(page: 2, pageSize: 2);
 
-        Assert.Equal(4, page.TotalCount);
+        Assert.Equal(3, page.TotalCount);
         Assert.Single(page.Items);
     }
 }

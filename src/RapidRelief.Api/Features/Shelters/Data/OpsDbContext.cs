@@ -18,6 +18,8 @@ public sealed class OpsDbContext : DbContext
     }
 
     public DbSet<Shelter> Shelters => Set<Shelter>();
+    public DbSet<ShelterSupply> ShelterSupplies => Set<ShelterSupply>();
+    public DbSet<SafetyZone> SafetyZones => Set<SafetyZone>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -40,6 +42,24 @@ public sealed class OpsDbContext : DbContext
                     v => JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null) ?? new List<string>()
                 );
             }
+        });
+
+        modelBuilder.Entity<ShelterSupply>(supply =>
+        {
+            supply.ToTable("ops_shelter_supplies");
+            supply.HasKey(s => s.Id);
+            supply.Property(s => s.SupplyType).IsRequired().HasMaxLength(100);
+            supply.Property(s => s.Unit).HasMaxLength(30);
+            supply.HasIndex(s => s.ShelterId);
+        });
+
+        modelBuilder.Entity<SafetyZone>(zone =>
+        {
+            zone.ToTable("ops_safety_zones");
+            zone.HasKey(z => z.Id);
+            zone.Property(z => z.Name).IsRequired().HasMaxLength(150);
+            zone.Property(z => z.ZoneType).HasMaxLength(50);
+            zone.Property(z => z.RiskLevel).HasMaxLength(30);
         });
     }
 }

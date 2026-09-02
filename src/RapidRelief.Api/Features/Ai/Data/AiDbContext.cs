@@ -22,6 +22,8 @@ public sealed class AiDbContext : DbContext
     /// <summary>F16 server-owned conversation turns (D-048).</summary>
     public DbSet<AssistantMessage> AssistantMessages => Set<AssistantMessage>();
 
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<AssistantMessage>(message =>
@@ -68,6 +70,18 @@ public sealed class AiDbContext : DbContext
                     v => v.UtcTicks,
                     v => new DateTimeOffset(v, TimeSpan.Zero));
             }
+        });
+
+        modelBuilder.Entity<AuditLog>(log =>
+        {
+            log.ToTable("audit_logs");
+            log.HasKey(x => x.Id);
+            log.Property(x => x.Action).IsRequired().HasMaxLength(100);
+            log.Property(x => x.EntityType).HasMaxLength(100);
+            log.Property(x => x.EntityId).HasMaxLength(100);
+            log.Property(x => x.IpAddress).HasMaxLength(50);
+            log.HasIndex(x => x.UserId);
+            log.HasIndex(x => x.TimestampUtc);
         });
     }
 }

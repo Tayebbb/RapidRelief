@@ -12,8 +12,8 @@ using RapidRelief.Api.Features.Ai.Data;
 namespace RapidRelief.Api.Features.Ai.Data.Migrations
 {
     [DbContext(typeof(AiDbContext))]
-    [Migration("20260901235420_AssistantOwnerSessionIndex")]
-    partial class AssistantOwnerSessionIndex
+    [Migration("20260902163234_InitialAi")]
+    partial class InitialAi
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -134,6 +134,51 @@ namespace RapidRelief.Api.Features.Ai.Data.Migrations
                     b.HasIndex("UserId", "SessionId", "CreatedAtUtc");
 
                     b.ToTable("ai_assistant_messages", (string)null);
+                });
+
+            modelBuilder.Entity("RapidRelief.Api.Features.Ai.Domain.AuditLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("DetailsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("EntityId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("IpAddress")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset>("TimestampUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TimestampUtc");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("audit_logs", (string)null);
                 });
 #pragma warning restore 612, 618
         }

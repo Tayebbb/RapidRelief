@@ -19,6 +19,8 @@ public sealed class AuthDbContext : IdentityDbContext<AppUser, IdentityRole<Guid
     }
 
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<AppPermission> Permissions => Set<AppPermission>();
+    public DbSet<AppRolePermission> RolePermissions => Set<AppRolePermission>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -37,6 +39,32 @@ public sealed class AuthDbContext : IdentityDbContext<AppUser, IdentityRole<Guid
         builder.Entity<IdentityUserLogin<Guid>>().ToTable("auth_user_logins");
         builder.Entity<IdentityUserToken<Guid>>().ToTable("auth_user_tokens");
         builder.Entity<IdentityRoleClaim<Guid>>().ToTable("auth_role_claims");
+
+        builder.Entity<AppPermission>(p =>
+        {
+            p.ToTable("auth_permissions");
+            p.HasKey(x => x.Id);
+            p.Property(x => x.Code).IsRequired().HasMaxLength(100);
+            p.HasIndex(x => x.Code).IsUnique();
+            p.Property(x => x.Name).IsRequired().HasMaxLength(150);
+            p.Property(x => x.Category).IsRequired().HasMaxLength(50);
+            p.Property(x => x.Description).HasMaxLength(500);
+            p.Property(x => x.PageRoute).HasMaxLength(200);
+        });
+
+        builder.Entity<AppRolePermission>(rp =>
+        {
+            rp.ToTable("auth_role_permissions");
+            rp.HasKey(x => new { x.RoleId, x.PermissionId });
+            rp.HasOne(x => x.Role)
+                .WithMany()
+                .HasForeignKey(x => x.RoleId)
+                .OnDelete(DeleteBehavior.Cascade);
+            rp.HasOne(x => x.Permission)
+                .WithMany(p => p.RolePermissions)
+                .HasForeignKey(x => x.PermissionId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
 
         builder.Entity<RefreshToken>(token =>
         {

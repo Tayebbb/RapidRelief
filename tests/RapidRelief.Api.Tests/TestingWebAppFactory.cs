@@ -44,8 +44,9 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
             AddSqliteContext<RapidRelief.Api.Features.Shelters.Data.OpsDbContext>(services);
             AddSqliteContext<AiDbContext>(services);
             AddSqliteContext<NotificationsDbContext>(services);
-            // Future contexts (IncidentsDbContext, …): add one line here
-            // and one EnsureCreated<TContext> line in CreateHost.
+            AddSqliteContext<RapidRelief.Api.Features.Incidents.Data.IncidentsDbContext>(services);
+            AddSqliteContext<RapidRelief.Api.Features.Rescue.Data.RescueDbContext>(services);
+            AddSqliteContext<RapidRelief.Api.Features.Relief.Data.ReliefDbContext>(services);
         });
     }
 
@@ -58,6 +59,9 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
         EnsureCreated<RapidRelief.Api.Features.Shelters.Data.OpsDbContext>(host);
         EnsureCreated<AiDbContext>(host);
         EnsureCreated<NotificationsDbContext>(host);
+        EnsureCreated<RapidRelief.Api.Features.Incidents.Data.IncidentsDbContext>(host);
+        EnsureCreated<RapidRelief.Api.Features.Rescue.Data.RescueDbContext>(host);
+        EnsureCreated<RapidRelief.Api.Features.Relief.Data.ReliefDbContext>(host);
 
         // MigrationRunner is skipped in Testing, so module seeding never runs — seed here (risk 3).
         using (var scope = host.Services.CreateScope())

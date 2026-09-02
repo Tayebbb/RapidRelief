@@ -12,8 +12,8 @@ using RapidRelief.Api.Features.Sample.Data;
 namespace RapidRelief.Api.Features.Sample.Data.Migrations
 {
     [DbContext(typeof(SampleDbContext))]
-    [Migration("20260901081052_Initial")]
-    partial class Initial
+    [Migration("20260902163244_InitialSample")]
+    partial class InitialSample
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
