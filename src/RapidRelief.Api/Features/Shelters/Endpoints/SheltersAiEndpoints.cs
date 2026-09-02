@@ -34,7 +34,7 @@ public static class SheltersAiEndpoints
         // For now, per D-022 and F3 plan, explicitly fall back to nearest available shelter.
 
         var origin = new GeoPoint(lat, lng);
-
+        var nearest = await shelterReadService.GetNearestAsync(origin, 5, ct);
         // Try to find the closest open shelter, otherwise closest full/closed shelter
         var recommended = nearest.FirstOrDefault(s => s.IsOpen) ?? nearest.FirstOrDefault();
 
