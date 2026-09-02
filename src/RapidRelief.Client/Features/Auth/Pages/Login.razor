@@ -6,30 +6,39 @@
 
 <PageTitle>Sign in — RapidRelief</PageTitle>
 
-<h1>Sign in</h1>
+<div class="rr-auth-shell">
+    <div class="rr-auth-card rr-reveal">
+        <div class="rr-auth-brand">
+            <AppIcon Name="shield-plus" Size="22" />
+            <span>RapidRelief</span>
+        </div>
+        <h1>Welcome back</h1>
+        <p class="rr-auth-lede">Sign in to see your notifications, profile and assistant history.</p>
 
-@if (_error is not null)
-{
-    <div class="alert alert-danger" role="alert">@_error</div>
-}
+        @if (_error is not null)
+        {
+            <div class="alert alert-danger" role="alert">@_error</div>
+        }
 
-<form @onsubmit="SubmitAsync" @onsubmit:preventDefault>
-    <div class="mb-3">
-        <label class="form-label" for="login-email">Email</label>
-        <input id="login-email" class="form-control" type="email" autocomplete="username" @bind="_email"
-               @bind:event="oninput" />
+        <form @onsubmit="SubmitAsync" @onsubmit:preventDefault>
+            <div class="mb-3">
+                <label class="form-label" for="login-email">Email</label>
+                <input id="login-email" class="form-control" type="email" autocomplete="username" @bind="_email"
+                       @bind:event="oninput" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="login-password">Password</label>
+                <input id="login-password" class="form-control" type="password" autocomplete="current-password"
+                       @bind="_password" @bind:event="oninput" />
+            </div>
+            <button class="btn btn-primary w-100" type="submit" disabled="@_busy">
+                @(_busy ? "Signing in…" : "Sign in")
+            </button>
+        </form>
+
+        <p class="rr-auth-foot">No account yet? <a href="register">Register</a>.</p>
     </div>
-    <div class="mb-3">
-        <label class="form-label" for="login-password">Password</label>
-        <input id="login-password" class="form-control" type="password" autocomplete="current-password"
-               @bind="_password" @bind:event="oninput" />
-    </div>
-    <button class="btn btn-primary" type="submit" disabled="@_busy">
-        @(_busy ? "Signing in…" : "Sign in")
-    </button>
-</form>
-
-<p class="mt-3">No account yet? <a href="register">Register</a>.</p>
+</div>
 
 @code {
     private string _email = string.Empty;

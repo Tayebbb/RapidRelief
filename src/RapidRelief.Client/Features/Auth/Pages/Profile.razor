@@ -8,89 +8,110 @@
 
 <PageTitle>Profile — RapidRelief</PageTitle>
 
-<h1>My profile</h1>
+<div class="rr-page-narrow">
+    <header class="rr-page-head rr-reveal">
+        <h1>My profile</h1>
+        <p class="rr-page-lede">Your account details and how responders can reach you.</p>
+    </header>
 
-@if (_notice is not null)
-{
-    <div class="alert alert-warning" role="alert">@_notice</div>
-}
-
-@if (_profile is null)
-{
-    @if (_notice is null)
+    @if (_notice is not null)
     {
-        <p><em>Loading profile…</em></p>
-    }
-}
-else
-{
-    @if (_saved)
-    {
-        <div class="alert alert-success" role="alert">Profile saved.</div>
+        <div class="alert alert-warning" role="alert">@_notice</div>
     }
 
-    <form @onsubmit="SaveAsync" @onsubmit:preventDefault>
-        <div class="mb-3">
-            <label class="form-label" for="profile-email">Email</label>
-            <input id="profile-email" class="form-control" value="@_profile.Email" disabled />
-            <small class="text-muted">Email can't be changed.</small>
-        </div>
-        <div class="mb-3">
-            <label class="form-label" for="profile-display-name">Display name</label>
-            <input id="profile-display-name" class="form-control" @bind="_displayName" @bind:event="oninput" />
-            @foreach (var message in ErrorsFor("DisplayName"))
-            {
-                <div class="text-danger"><small>@message</small></div>
-            }
-        </div>
-        <div class="mb-3">
-            <label class="form-label" for="profile-phone">Phone number</label>
-            <input id="profile-phone" class="form-control" type="tel" @bind="_phoneNumber" @bind:event="oninput" />
-            @foreach (var message in ErrorsFor("PhoneNumber"))
-            {
-                <div class="text-danger"><small>@message</small></div>
-            }
-        </div>
-        <div class="mb-3">
-            <label class="form-label" for="profile-emergency">Emergency contact</label>
-            <input id="profile-emergency" class="form-control" @bind="_emergencyContact" @bind:event="oninput" />
-            @foreach (var message in ErrorsFor("EmergencyContact"))
-            {
-                <div class="text-danger"><small>@message</small></div>
-            }
-        </div>
-        <p><small class="text-muted">Roles: @string.Join(", ", _profile.Roles)</small></p>
-        <button class="btn btn-primary" type="submit" disabled="@_saving">
-            @(_saving ? "Saving…" : "Save changes")
-        </button>
-    </form>
-
-    <hr />
-
-    <h2>Profile photo</h2>
-
-    @if (_photoDataUri is not null)
+    @if (_profile is null)
     {
-        @* Data URI render: an <img src> can't send the Bearer header (D-015 / risk 6). *@
-        <img src="@_photoDataUri" alt="Profile photo" class="img-thumbnail mb-2" style="max-width: 160px; max-height: 160px;" />
+        @if (_notice is null)
+        {
+            <div class="rr-card" aria-busy="true" aria-label="Loading profile">
+                <span class="rr-skeleton" style="width: 40%; height: 1.1rem; margin-bottom: 1rem;"></span>
+                <span class="rr-skeleton" style="width: 100%; height: 2.4rem; margin-bottom: 0.75rem;"></span>
+                <span class="rr-skeleton" style="width: 100%; height: 2.4rem; margin-bottom: 0.75rem;"></span>
+                <span class="rr-skeleton" style="width: 60%; height: 2.4rem;"></span>
+            </div>
+        }
     }
     else
     {
-        <p><em>No photo uploaded yet.</em></p>
-    }
+        @if (_saved)
+        {
+            <div class="alert alert-success" role="alert">Profile saved.</div>
+        }
 
-    <div class="mb-2">
-        <InputFile OnChange="OnFileSelected" accept=".jpg,.jpeg,.png,.webp" />
-    </div>
-    <p><small class="text-muted">JPG, JPEG, PNG or WebP — up to 10 MiB.</small></p>
-    @if (_photoError is not null)
-    {
-        <div class="text-danger mb-2"><small>@_photoError</small></div>
+        <section class="rr-card rr-section rr-reveal rr-reveal-1">
+            <h2>Account details</h2>
+            <form class="rr-form" @onsubmit="SaveAsync" @onsubmit:preventDefault>
+                <div class="mb-3">
+                    <label class="form-label" for="profile-email">Email</label>
+                    <input id="profile-email" class="form-control" value="@_profile.Email" disabled />
+                    <div class="rr-field-help">Email can't be changed.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="profile-display-name">Display name</label>
+                    <input id="profile-display-name" class="form-control" @bind="_displayName" @bind:event="oninput" />
+                    @foreach (var message in ErrorsFor("DisplayName"))
+                    {
+                        <div class="rr-field-error">@message</div>
+                    }
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="profile-phone">Phone number</label>
+                    <input id="profile-phone" class="form-control" type="tel" @bind="_phoneNumber" @bind:event="oninput" />
+                    @foreach (var message in ErrorsFor("PhoneNumber"))
+                    {
+                        <div class="rr-field-error">@message</div>
+                    }
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="profile-emergency">Emergency contact</label>
+                    <input id="profile-emergency" class="form-control" @bind="_emergencyContact" @bind:event="oninput" />
+                    @foreach (var message in ErrorsFor("EmergencyContact"))
+                    {
+                        <div class="rr-field-error">@message</div>
+                    }
+                </div>
+                <div class="mb-3">
+                    @foreach (var role in _profile.Roles)
+                    {
+                        <span class="rr-chip rr-chip-info me-1">@role</span>
+                    }
+                </div>
+                <button class="btn btn-primary" type="submit" disabled="@_saving">
+                    @(_saving ? "Saving…" : "Save changes")
+                </button>
+            </form>
+        </section>
+
+        <section class="rr-card rr-section rr-reveal rr-reveal-2">
+            <h2>Profile photo</h2>
+
+            <div class="d-flex align-items-center gap-3 mb-3">
+                @if (_photoDataUri is not null)
+                {
+                    @* Data URI render: an <img src> can't send the Bearer header (D-015 / risk 6). *@
+                    <img src="@_photoDataUri" alt="Profile photo" class="rr-avatar-preview" />
+                }
+                else
+                {
+                    <span class="rr-avatar-placeholder" aria-hidden="true">
+                        <AppIcon Name="user" Size="28" />
+                    </span>
+                }
+                <div>
+                    <InputFile OnChange="OnFileSelected" accept=".jpg,.jpeg,.png,.webp" />
+                    <div class="rr-field-help">JPG, JPEG, PNG or WebP — up to 10 MiB.</div>
+                </div>
+            </div>
+            @if (_photoError is not null)
+            {
+                <div class="rr-field-error mb-2">@_photoError</div>
+            }
+            <button class="btn btn-secondary" @onclick="UploadPhotoAsync" disabled="@(_selectedFile is null || _uploading)">
+                @(_uploading ? "Uploading…" : "Upload photo")
+            </button>
+        </section>
     }
-    <button class="btn btn-secondary" @onclick="UploadPhotoAsync" disabled="@(_selectedFile is null || _uploading)">
-        @(_uploading ? "Uploading…" : "Upload photo")
-    </button>
-}
+</div>
 
 @code {
     private const long MaxPhotoBytes = 10 * 1024 * 1024;

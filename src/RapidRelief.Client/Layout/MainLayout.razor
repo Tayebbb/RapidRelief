@@ -1,29 +1,31 @@
 ﻿@inherits LayoutComponentBase
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
+<a class="skip-link" href="#rr-main">Skip to main content</a>
 
-    <main>
-        <div class="top-row px-4">
-            @* Visible in every environment for now — harmless in prod because the server only
-               honors X-Dev-Role where FakeAuth is registered (Development/Testing). The picker
-               disables itself while a real session is active. *@
-            <DevRolePicker />
-            <AuthorizeView>
-                <Authorized>
-                    <NotificationBell />
-                </Authorized>
-            </AuthorizeView>
-            <LoginDisplay />
-        </div>
+<div class="page @(_navOpen ? "nav-open" : null)">
+    <aside class="sidebar" aria-label="Primary navigation">
+        <NavMenu OnNavigated="CloseNav" />
+    </aside>
+    <div class="backdrop" @onclick="CloseNav" aria-hidden="true"></div>
 
-        <article class="content px-4">
+    <div class="main-col">
+        @* DevRolePicker stays in the header in every environment — harmless in prod because the
+           server only honors X-Dev-Role where FakeAuth is registered (Development/Testing). *@
+        <AppHeader MenuOpen="_navOpen" OnMenuToggle="ToggleNav" />
+
+        <main id="rr-main" class="content">
             @Body
-        </article>
-    </main>
+        </main>
+    </div>
 </div>
 
 @* Live push toasts. Rendered outside AuthorizeView so a dev-role session (D-035) sees them too;
    nothing is drawn until a notification actually arrives. *@
 <ToastHost />
+
+@code {
+    private bool _navOpen;
+
+    private void ToggleNav() => _navOpen = !_navOpen;
+
+    private void CloseNav() => _navOpen = false;
+}

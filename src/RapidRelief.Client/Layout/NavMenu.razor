@@ -1,68 +1,61 @@
-<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">RapidRelief</a>
-        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
-            <span class="navbar-toggler-icon"></span>
+<div class="nav-shell">
+    <div class="nav-head">
+        <a class="brand" href="" @onclick="Navigated">
+            <span class="brand-badge">
+                <AppIcon Name="shield-plus" Size="20" />
+            </span>
+            <span class="brand-text">RapidRelief</span>
+        </a>
+        <button class="rr-icon-btn nav-close" type="button" @onclick="Navigated" aria-label="Close navigation">
+            <AppIcon Name="close" Size="20" />
         </button>
+    </div>
+
+    @* Clicking any link closes the mobile drawer (same pattern as the template it replaces). *@
+    <nav class="nav-body" @onclick="Navigated">
+        <span class="nav-section">Response</span>
+        <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+            <AppIcon Name="home" Size="19" /><span>Home</span>
+        </NavLink>
+        <NavLink class="nav-link" href="shelters/finder">
+            <AppIcon Name="map-pin" Size="19" /><span>Find shelter</span>
+        </NavLink>
+        <NavLink class="nav-link" href="assistant">
+            <AppIcon Name="chat" Size="19" /><span>Assistant</span>
+        </NavLink>
+        <NavLink class="nav-link" href="sample">
+            <AppIcon Name="map" Size="19" /><span>Live map</span>
+        </NavLink>
+
+        <AuthorizeView>
+            <Authorized>
+                <span class="nav-section">Personal</span>
+                <NavLink class="nav-link" href="notifications">
+                    <AppIcon Name="bell" Size="19" /><span>Notifications</span>
+                </NavLink>
+                <NavLink class="nav-link" href="profile">
+                    <AppIcon Name="user" Size="19" /><span>Profile</span>
+                </NavLink>
+            </Authorized>
+        </AuthorizeView>
+
+        <span class="nav-section">Administration</span>
+        <NavLink class="nav-link" href="admin/shelters">
+            <AppIcon Name="shield" Size="19" /><span>Manage shelters</span>
+            <span class="nav-tag">Admin</span>
+        </NavLink>
+    </nav>
+
+    <div class="nav-foot">
+        <div class="nav-emergency">
+            <AppIcon Name="phone" Size="16" />
+            <span>Life-threatening emergency? Call <strong>999</strong> first.</span>
+        </div>
     </div>
 </div>
 
-<div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
-    <nav class="flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="sample">
-                <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Sample
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="shelters/finder">
-                <span class="bi bi-geo-alt-fill-nav-menu" aria-hidden="true"></span> Find Shelter
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="admin/shelters">
-                <span class="bi bi-shield-lock-fill-nav-menu" aria-hidden="true"></span> Manage Shelters
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="admin/command-center">
-                <span class="bi bi-speedometer2" aria-hidden="true"></span> Command Center
-            </NavLink>
-        </div>
-        <AuthorizeView>
-            <Authorized>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="assistant">
-                        <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Assistant
-                    </NavLink>
-                </div>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="notifications">
-                        <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Notifications
-                    </NavLink>
-                </div>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="profile">
-                        <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Profile
-                    </NavLink>
-                </div>
-            </Authorized>
-        </AuthorizeView>
-    </nav>
-</div>
-
 @code {
-    private bool collapseNavMenu = true;
+    [Parameter] public EventCallback OnNavigated { get; set; }
 
-    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
-
-    private void ToggleNavMenu()
-    {
-        collapseNavMenu = !collapseNavMenu;
-    }
+    private Task Navigated() => OnNavigated.InvokeAsync();
 }
