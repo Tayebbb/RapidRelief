@@ -6,6 +6,7 @@ using RapidRelief.Client;
 using RapidRelief.Client.Common.Auth;
 using RapidRelief.Client.Common.Realtime;
 using RapidRelief.Client.Features.Assistant;
+using RapidRelief.Client.Features.Alerts;
 using RapidRelief.Client.Features.Auth;
 using RapidRelief.Client.Features.Shelters;
 
@@ -35,6 +36,7 @@ builder.Services.AddScoped(sp => ApiClient(sp));
 
 // F16 assistant rides the MAIN scoped client so Bearer / X-Dev-Role behave as everywhere else.
 builder.Services.AddScoped<IAssistantApi>(sp => new AssistantApi(sp.GetRequiredService<HttpClient>()));
+builder.Services.AddScoped<IAlertsApi>(sp => new AlertsApi(sp.GetRequiredService<HttpClient>()));
 
 // Realtime (F9). The notification singletons outlive the scoped main client, so they get their
 // own instance of the SAME handler chain — Bearer and X-Dev-Role behave identically.
