@@ -49,6 +49,10 @@
 
                                 <div class="nav-profile-dropdown-divider"></div>
 
+                                <a class="nav-profile-item" href="@DashboardLink" @onclick="CloseProfileMenu">
+                                    <AppIcon Name="layers" Size="15" />
+                                    <span>Dashboard</span>
+                                </a>
                                 <a class="nav-profile-item" href="profile" @onclick="CloseProfileMenu">
                                     <AppIcon Name="user" Size="15" />
                                     <span>Profile & Contacts</span>
@@ -142,6 +146,7 @@
 @code {
     [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
     private string UserRole = "Citizen";
+    private string DashboardLink = "c";
     private bool _mobileOpen;
     private bool _profileMenuOpen;
 
@@ -151,10 +156,12 @@
         {
             var auth = await AuthStateProvider.GetAuthenticationStateAsync();
             UserRole = auth.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "Citizen";
+            DashboardLink = AuthRouteHelper.GetDashboardRoute(auth.User);
         }
         catch
         {
             UserRole = "Citizen";
+            DashboardLink = "c";
         }
     }
 
