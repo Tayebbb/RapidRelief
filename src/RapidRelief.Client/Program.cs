@@ -8,6 +8,7 @@ using RapidRelief.Client.Common.Realtime;
 using RapidRelief.Client.Features.Assistant;
 using RapidRelief.Client.Features.Auth;
 using RapidRelief.Client.Features.Shelters;
+using RapidRelief.Client.Features.CommandCenter;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
@@ -51,6 +52,9 @@ builder.Services.AddSingleton(sp => new NotificationHubClient(
 
 // F3 Client
 builder.Services.AddScoped(sp => new SheltersClient(sp.GetRequiredService<HttpClient>()));
+
+// F7 Client
+builder.Services.AddScoped(sp => new CommandCenterClient(sp.GetRequiredService<HttpClient>()));
 
 var host = builder.Build();
 
