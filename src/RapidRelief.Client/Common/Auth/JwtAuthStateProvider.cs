@@ -21,6 +21,9 @@ public sealed class JwtAuthStateProvider : AuthenticationStateProvider
 
     public bool HasSession => AccessToken is not null;
 
+    /// <summary>The signed-in user's id, or null when anonymous.</summary>
+    public string? UserId => _user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
     public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
         Task.FromResult(new AuthenticationState(_user));
 

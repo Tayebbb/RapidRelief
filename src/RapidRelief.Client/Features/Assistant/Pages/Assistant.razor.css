@@ -1,0 +1,71 @@
+.chat-thread {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    max-width: 44rem;
+    margin-bottom: 1rem;
+}
+
+.chat-turn {
+    border-radius: 0.4rem;
+    padding: 0.5rem 0.75rem;
+    background: #f4f4f6;
+}
+
+.chat-turn-user {
+    background: #e7f0ff;
+    align-self: flex-end;
+    max-width: 90%;
+}
+
+.chat-turn-model {
+    align-self: flex-start;
+    max-width: 90%;
+}
+
+.chat-role {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    opacity: 0.6;
+}
+
+/* D-051: the ONLY newline mechanism for model text — no MarkupString, no Markdown renderer. */
+.chat-text {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    margin: 0;
+}
+
+.chat-typing {
+    opacity: 0.6;
+    font-style: italic;
+}
+
+.chat-chip {
+    display: inline-block;
+    margin-top: 0.35rem;
+    padding: 0.05rem 0.4rem;
+    border-radius: 0.7rem;
+    background: #ddd;
+    font-size: 0.7rem;
+}
+
+.chat-composer {
+    display: flex;
+    gap: 0.5rem;
+    max-width: 44rem;
+    margin-bottom: 0.5rem;
+}
+
+.chat-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    max-width: 44rem;
+}
+
+.chat-privacy {
+    max-width: 44rem;
+    margin-top: 0.5rem;
+}

@@ -1,0 +1,261 @@
+@page "/assistant"
+@using RapidRelief.Client.Features.Assistant
+@attribute [Authorize]
+@implements IAsyncDisposable
+@inject IAssistantApi Api
+@inject IJSRuntime Js
+
+<PageTitle>Emergency assistant — RapidRelief</PageTitle>
+
+<h1>Emergency assistant</h1>
+
+<div class="alert alert-warning" role="alert">
+    <strong>AI guidance — always call emergency services.</strong>
+    This is not a substitute for them. In a life-threatening emergency call <strong>999</strong> immediately.
+</div>
+
+@if (_notice is not null)
+{
+    <div class="alert alert-info" role="status">@_notice</div>
+}
+
+<div class="chat-thread" aria-live="polite">
+    @if (_messages.Count == 0)
+    {
+        <p><em>Ask what to do right now — for example "there is flooding near my house".</em></p>
+    }
+    @* D-051: model text is rendered with plain @-interpolation inside a pre-wrap element.
+       Never MarkupString, never innerHTML, never a Markdown renderer. *@
+    @foreach (var entry in _messages)
+    {
+        <div class="chat-turn @(entry.FromUser ? "chat-turn-user" : "chat-turn-model")">
+            <div class="chat-role">@(entry.FromUser ? "You" : "Assistant")</div>
+            <p class="chat-text">@entry.Text</p>
+            @if (!entry.FromUser && entry.Provider is not null && entry.Provider != LiveProvider)
+            {
+                <span class="chat-chip">offline guidance</span>
+            }
+            @if (entry.Truncated)
+            {
+                <span class="chat-chip">shortened — ask again for more</span>
+            }
+        </div>
+    }
+    @if (_pending)
+    {
+        <div class="chat-turn chat-turn-model">
+            <div class="chat-role">Assistant</div>
+            <p class="chat-text chat-typing">Thinking…</p>
+        </div>
+    }
+</div>
+
+<form class="chat-composer" @onsubmit="SendAsync" @onsubmit:preventDefault>
+    <label class="visually-hidden" for="assistant-input">Your message</label>
+    <input id="assistant-input" class="form-control" type="text" autocomplete="off"
+           placeholder="Describe your situation…" maxlength="@MaxMessageLength" disabled="@_pending" @bind="_draft"
+           @bind:event="oninput" />
+    <button class="btn btn-primary" type="submit" disabled="@(_pending || string.IsNullOrWhiteSpace(_draft))">
+        @(_pending ? "Sending…" : "Send")
+    </button>
+</form>
+
+<div class="chat-controls">
+    @if (_location is null)
+    {
+        <button class="btn btn-outline-secondary btn-sm" type="button" disabled="@(_pending || _locating)"
+                @onclick="ShareLocationAsync">
+            @(_locating ? "Locating…" : "Use my location")
+        </button>
+    }
+    else
+    {
+        <button class="btn btn-outline-secondary btn-sm" type="button" @onclick="StopSharingLocation">
+            Stop sharing location
+        </button>
+    }
+    <button class="btn btn-outline-secondary btn-sm" type="button" disabled="@(_pending || _sessionId is null)"
+            @onclick="ReloadAsync">
+        Reload conversation
+    </button>
+    <button class="btn btn-outline-secondary btn-sm" type="button" disabled="@_pending" @onclick="NewChatAsync">
+        New chat
+    </button>
+</div>
+
+<p class="text-muted chat-privacy">
+    <small>
+        @if (_location is { } fix)
+        {
+            <text>Sharing your location (@fix.Lat.ToString("F4"), @fix.Lng.ToString("F4")) with your next
+                message, so answers can name nearby open shelters. Your message text and these coordinates are
+                the only things sent.</text>
+            }
+        else
+            {
+                <text>Location is off — answers won't name nearby shelters. Only your message text is sent.</text>
+            }
+            @if (_locationNotice is not null)
+            {
+                <text> @_locationNotice</text>
+            }
+        </small>
+    </p>
+
+@code {
+    private const string LiveProvider = "OpenRouter";
+    private const int MaxMessageLength = 1000;
+    private const int LocationTimeoutMs = 10000;
+
+    // Component memory only — no localStorage/sessionStorage (F1/F9 rule). The server owns history.
+    private readonly List<ChatEntry> _messages = [];
+
+    private IJSObjectReference? _geo;
+    private Guid? _sessionId;
+    private string _draft = string.Empty;
+    private bool _pending;
+    private bool _locating;
+    private bool _disposed;
+    private string? _notice;
+    private string? _locationNotice;
+    private GeoFix? _location;
+
+    private sealed record ChatEntry(bool FromUser, string Text, string? Provider, bool Truncated);
+
+    private sealed record GeoFix(double Lat, double Lng);
+
+    private async Task SendAsync()
+    {
+        var message = _draft.Trim();
+        if (_pending || message.Length == 0)
+        {
+            return;
+        }
+
+        _pending = true;
+        _notice = null;
+        _draft = string.Empty;
+        _messages.Add(new ChatEntry(FromUser: true, message, null, Truncated: false));
+        try
+        {
+            var result = await Api.SendAsync(_sessionId, message, _location?.Lat, _location?.Lng);
+            _messages.Add(new ChatEntry(FromUser: false, result.Answer.Text, result.Answer.Provider,
+                result.Answer.Truncated));
+            _sessionId = result.SessionId ?? _sessionId;
+            _notice = result.Notice ?? (result.Degraded
+                ? "History is unavailable right now — the assistant still answers, but this chat isn't being saved."
+                : null);
+        }
+        finally
+        {
+            _pending = false;
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        if (_sessionId is not { } sessionId)
+        {
+            return;
+        }
+
+        var history = await Api.GetHistoryAsync(sessionId);
+        if (history is null)
+        {
+            _notice = "Couldn't reload this conversation. What you see here is still valid.";
+            return;
+        }
+
+        _messages.Clear();
+        _messages.AddRange(history.Messages.Select(m => new ChatEntry(
+            FromUser: string.Equals(m.Role, "User", StringComparison.OrdinalIgnoreCase),
+            m.Text, m.Provider, Truncated: false)));
+        _notice = null;
+    }
+
+    private async Task NewChatAsync()
+    {
+        // "New chat" must not claim an erasure that did not happen: an unconfirmed delete
+        // leaves the rows on the server for up to 7 days, so the session is kept and said so.
+        if (_sessionId is { } sessionId && !await Api.DeleteSessionAsync(sessionId))
+        {
+            _notice = "Couldn't clear this conversation on the server — it will be deleted automatically within 7 days.";
+            return;
+        }
+
+        _messages.Clear();
+        _sessionId = null;
+        _draft = string.Empty;
+        _notice = null;
+    }
+
+    private async Task ShareLocationAsync()
+    {
+        _locating = true;
+        _locationNotice = null;
+        try
+        {
+            var module = await GeoModuleAsync();
+            var fix = module is null
+                ? null
+                : await module.InvokeAsync<GeoFix?>("tryGetPosition", LocationTimeoutMs);
+            if (fix is null)
+            {
+                _locationNotice = "Location unavailable — the assistant will answer without nearby shelters.";
+                return;
+            }
+
+            // Rounded to ~11 m before it is displayed AND sent, so the disclosure above is exact
+            // and no more precision than shelter selection needs ever leaves the browser.
+            _location = new GeoFix(Math.Round(fix.Lat, 4), Math.Round(fix.Lng, 4));
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException)
+        {
+            _locationNotice = "Location unavailable — the assistant will answer without nearby shelters.";
+        }
+        finally
+        {
+            _locating = false;
+        }
+    }
+
+    private void StopSharingLocation()
+    {
+        _location = null;
+        _locationNotice = null;
+    }
+
+    private async Task<IJSObjectReference?> GeoModuleAsync()
+    {
+        if (_geo is not null || _disposed)
+        {
+            return _geo;
+        }
+
+        var module = await Js.InvokeAsync<IJSObjectReference>("import", "./js/geo.js");
+        if (_disposed)
+        {
+            await module.DisposeAsync();
+            return null;
+        }
+
+        _geo = module;
+        return _geo;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _disposed = true;
+        try
+        {
+            if (_geo is not null)
+            {
+                await _geo.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+            // Page already gone — nothing to clean up on the JS side.
+        }
+    }
+}

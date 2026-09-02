@@ -6,6 +6,7 @@ using RapidRelief.Api.Infrastructure.Auth;
 using RapidRelief.Api.Infrastructure.Eventing;
 using RapidRelief.Api.Infrastructure.Modules;
 using RapidRelief.Api.Infrastructure.Persistence;
+using RapidRelief.Api.Infrastructure.RateLimiting;
 using RapidRelief.Api.Infrastructure.Storage;
 using RapidRelief.Shared.Contracts.Eventing;
 using RapidRelief.Shared.Contracts.Services;
@@ -91,6 +92,40 @@ try
                         Window = TimeSpan.FromSeconds(rateLimiting.GetValue("Reports:WindowSeconds", 60)),
                         QueueLimit = 0,
                     }));
+
+            options.AddPolicy("ai", httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimiting.GetValue("Ai:PermitLimit", 30),
+                        Window = TimeSpan.FromSeconds(rateLimiting.GetValue("Ai:WindowSeconds", 60)),
+                        QueueLimit = 0,
+                    }));
+
+            // D-054: one POST is one live OpenRouter call, so the assistant gets a much tighter
+            // per-user budget than the "ai" read policy it shares a group with.
+            options.AddPolicy("assistant", httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    RateLimitPartitions.UserOrIp(httpContext),
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimiting.GetValue("Assistant:PermitLimit", 12),
+                        Window = TimeSpan.FromSeconds(rateLimiting.GetValue("Assistant:WindowSeconds", 300)),
+                        QueueLimit = 0,
+                    }));
+
+            // Realtime endpoints are all RequireAuthorization, so a caller key always exists:
+            // partitioning per user keeps shared-IP clients off each other's budget.
+            options.AddPolicy("realtime", httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    RateLimitPartitions.UserOrIp(httpContext),
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimiting.GetValue("Realtime:PermitLimit", 120),
+                        Window = TimeSpan.FromSeconds(rateLimiting.GetValue("Realtime:WindowSeconds", 60)),
+                        QueueLimit = 0,
+                    }));
         });
     }
 
@@ -153,13 +188,15 @@ try
     app.UseStaticFiles();
 
     // B6 step 12.
+    app.UseAuthentication();
+
+    // B6 step 13 — AFTER authentication so RateLimitPartitions.UserOrIp sees the real caller;
+    // before authorization so unauthenticated floods still consume permits.
     if (!isTesting)
     {
         app.UseRateLimiter();
     }
 
-    // B6 step 13.
-    app.UseAuthentication();
     app.UseAuthorization();
 
     // B6 step 14 — each module maps its own endpoints.

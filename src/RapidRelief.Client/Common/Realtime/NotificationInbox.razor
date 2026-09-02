@@ -1,0 +1,86 @@
+@page "/notifications"
+@namespace RapidRelief.Client.Common.Realtime
+@attribute [Authorize]
+@implements IDisposable
+@inject NotificationState State
+
+<PageTitle>Notifications — RapidRelief</PageTitle>
+
+<h1>Notifications</h1>
+
+<p class="text-muted">
+    <small>
+        @(State.HubConnected ? "Live updates on." : "Live updates off — polling for new notifications.")
+        @if (State.UnreadCount > 0)
+        {
+            <span> @State.UnreadCount unread.</span>
+        }
+    </small>
+</p>
+
+<div class="mb-3">
+    <button class="btn btn-outline-secondary btn-sm" type="button" disabled="@_busy" @onclick="RefreshAsync">
+        Refresh
+    </button>
+    <button class="btn btn-outline-secondary btn-sm" type="button" disabled="@(_busy || State.UnreadCount == 0)"
+            @onclick="MarkAllAsync">
+        Mark all read
+    </button>
+</div>
+
+@* Plain @-interpolation only — notification text can come from AI output or user content. *@
+@if (State.Items.Count == 0)
+{
+    <p><em>No notifications yet. New alerts and AI assessments will appear here.</em></p>
+}
+else
+{
+    <ul class="list-unstyled">
+        @foreach (var item in State.Items)
+        {
+            <li class="border-top py-2">
+                <div class="@(item.IsRead ? "" : "fw-semibold")">@item.Summary</div>
+                <div class="text-muted">
+                    <small>@item.Topic · @item.CreatedAtUtc.ToLocalTime().ToString("g")</small>
+                </div>
+                @if (!item.IsRead)
+                {
+                    <button class="btn btn-link btn-sm p-0" type="button" disabled="@_busy" @onclick="() => MarkReadAsync(item.Id)">
+                        Mark read
+                    </button>
+                }
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private bool _busy;
+
+    protected override void OnInitialized() => State.Changed += OnStateChanged;
+
+    protected override Task OnInitializedAsync() => State.LoadAsync();
+
+    private void OnStateChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private Task RefreshAsync() => RunAsync(() => State.LoadAsync());
+
+    private Task MarkAllAsync() => RunAsync(async () => await State.MarkAllReadAsync());
+
+    private Task MarkReadAsync(Guid id) => RunAsync(async () => await State.MarkReadAsync(id));
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        _busy = true;
+        try
+        {
+            await action();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    public void Dispose() => State.Changed -= OnStateChanged;
+}

@@ -10,6 +10,11 @@
                honors X-Dev-Role where FakeAuth is registered (Development/Testing). The picker
                disables itself while a real session is active. *@
             <DevRolePicker />
+            <AuthorizeView>
+                <Authorized>
+                    <NotificationBell />
+                </Authorized>
+            </AuthorizeView>
             <LoginDisplay />
         </div>
 
@@ -18,3 +23,7 @@
         </article>
     </main>
 </div>
+
+@* Live push toasts. Rendered outside AuthorizeView so a dev-role session (D-035) sees them too;
+   nothing is drawn until a notification actually arrives. *@
+<ToastHost />

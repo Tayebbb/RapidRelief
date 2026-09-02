@@ -7,7 +7,7 @@ namespace RapidRelief.Client.Common.Auth;
 /// </summary>
 public sealed class DevRoleHandler : DelegatingHandler
 {
-    private const string HeaderName = "X-Dev-Role";
+    internal const string HeaderName = "X-Dev-Role";
     private readonly DevRoleState _state;
     private readonly Uri? _baseAddress;
 
