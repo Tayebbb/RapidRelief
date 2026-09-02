@@ -16,13 +16,13 @@ else) and are part of Contracts v1: additive-only changes (§4.6).
 
 ## What is on the bus today
 
-| Event              | Published by                                                             | Handled by                                                                 |
-| ------------------ | ------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
-| `PingCreated`      | `Features/Sample` — `POST /api/sample/pings`                             | `PingCreatedLoggingHandler` (Sample)                                        |
+| Event              | Published by                                                                                   | Handled by                                                                                                                                                                      |
+| ------------------ | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PingCreated`      | `Features/Sample` — `POST /api/sample/pings`                                                   | `PingCreatedLoggingHandler` (Sample)                                                                                                                                            |
 | `AuthEvent`        | `Features/Auth` — register, login, failed login, logout, lock/unlock, role change, token reuse | `AuthEventDisconnectHandler` (Realtime): `Lock`/`RoleChange`/`TokenReuse` abort live hub sockets; all other actions are ignored, and **no** notification row is written (D-036) |
-| `IncidentAssessed` | `Features/Ai` — `AiAnalysisWorker` after a successful assessment          | `IncidentAssessedNotificationHandler` (Realtime) → topic `ai.incident.assessed` to roles Rescue + Admin |
-| `IncidentCreated`  | **F2, not yet built** — today only tests publish it                       | `IncidentCreatedHandler` (Ai) → enqueues to the bounded AI channel (D-021)   |
-| `AlertPublished`   | **F10, not yet built** — today only tests publish it                      | `AlertPublishedNotificationHandler` (Realtime) → topic `alerts.published` to all |
+| `IncidentAssessed` | `Features/Ai` — `AiAnalysisWorker` after a successful assessment                               | `IncidentAssessedNotificationHandler` (Realtime) → topic `ai.incident.assessed` to roles Rescue + Admin                                                                         |
+| `IncidentCreated`  | **F2, not yet built** — today only tests publish it                                            | `IncidentCreatedHandler` (Ai) → enqueues to the bounded AI channel (D-021)                                                                                                      |
+| `AlertPublished`   | **F10, not yet built** — today only tests publish it                                           | `AlertPublishedNotificationHandler` (Realtime) → topic `alerts.published` to all                                                                                                |
 
 The last two rows are the zero-blocking model working as designed: the subscriber ships before the
 publisher exists, and publishing the event is the only integration step F2/F10 have to take.

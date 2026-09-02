@@ -17,25 +17,25 @@ Cross-cutting capabilities: interactive maps everywhere, real-time updates, offl
 
 The product is essentially **five actor-facing applications sharing one platform**: Citizen app, Rescue app, Admin command center, Relief/NGO operations, and an AI engine that enriches everything. This decomposition is what makes clean vertical ownership possible.
 
-### 1.1 Technology Selection (decided *after* requirements analysis)
+### 1.1 Technology Selection (decided _after_ requirements analysis)
 
 > **Implementation note (2026-09-02):** the stack below is the original plan. Where reality diverged, [PROJECT-CONTEXT.md](PROJECT-CONTEXT.md) §7 decisions are authoritative — notably D-006 (hand-rolled event bus replaced MediatR), D-060…D-066 (AI provider is OpenRouter free models, not Gemini), D-032 (Realtime tri-state mode). See PROJECT-CONTEXT.md for the live stack.
 
 Only .NET is mandated. Choices below optimize for: one language for the whole team, zero licensing cost, offline support, real-time support, and demo reliability.
 
-| Concern | Choice | Why (and what was rejected) |
-|---|---|---|
-| Backend | **ASP.NET Core 8 (LTS) Web API** — modular monolith, vertical slice architecture | Microservices rejected: massive ops overhead for 4 students, kills the semester. Modular monolith gives feature isolation *and* one-command run. |
-| Frontend | **Blazor WebAssembly (hosted) + PWA** | One language (C#) for all 4 devs — no one is blocked on learning React. PWA template gives the service worker needed for offline reporting (wow feature). Blazor Server rejected: no offline story. React rejected: splits team across two stacks. |
-| Database | **PostgreSQL 16 + EF Core 8 (Npgsql)** | Free everywhere (local via Docker, cloud via Neon/Supabase free tier). SQL Server Express is an acceptable fallback if the whole team stays on Windows — EF Core makes the swap cheap. |
-| Real-time | **SignalR** | Built into ASP.NET Core; C# client in Blazor. No third-party cost. |
-| Maps | **Leaflet + OpenStreetMap** via a small JS-interop wrapper component | Completely free, no API key, no quota risk during the demo. Google Maps rejected: billing account requirement. Directions = straight-line distance + "Open in Google Maps" deep link (free). |
-| AI | **Google Gemini free tier** (text + vision) behind an `IAiAnalysisService` interface, with a **rule-based fallback implementation** | Free multimodal API covers image analysis + classification. The rule-based fallback means the demo *cannot fail* due to quota/network — and it's the key to independence (see §1.5). ML.NET optional stretch for the predictive feature. |
-| Auth | **ASP.NET Core Identity + JWT (+ refresh tokens)** | Standard, well-documented, works with SignalR and Blazor WASM. |
-| File storage | Local disk in dev behind `IFileStorage`; Cloudinary free tier or Azure Blob for deployment | Interface-first so the swap is one DI line. |
-| Testing | **xUnit** + `WebApplicationFactory` integration tests; NetArchTest for architecture rules | Architecture tests mechanically enforce module isolation (impressive for faculty, protective for the team). |
-| CI/CD | **GitHub Actions** (build + test on every PR) | Free for education. |
-| Deployment | Azure App Service (student credits) or Render free tier; **local run is the demo fallback** | Never bet the demo on free-tier cold starts. |
+| Concern      | Choice                                                                                                                              | Why (and what was rejected)                                                                                                                                                                                                                        |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Backend      | **ASP.NET Core 8 (LTS) Web API** — modular monolith, vertical slice architecture                                                    | Microservices rejected: massive ops overhead for 4 students, kills the semester. Modular monolith gives feature isolation _and_ one-command run.                                                                                                   |
+| Frontend     | **Blazor WebAssembly (hosted) + PWA**                                                                                               | One language (C#) for all 4 devs — no one is blocked on learning React. PWA template gives the service worker needed for offline reporting (wow feature). Blazor Server rejected: no offline story. React rejected: splits team across two stacks. |
+| Database     | **PostgreSQL 16 + EF Core 8 (Npgsql)**                                                                                              | Free everywhere (local via Docker, cloud via Neon/Supabase free tier). SQL Server Express is an acceptable fallback if the whole team stays on Windows — EF Core makes the swap cheap.                                                             |
+| Real-time    | **SignalR**                                                                                                                         | Built into ASP.NET Core; C# client in Blazor. No third-party cost.                                                                                                                                                                                 |
+| Maps         | **Leaflet + OpenStreetMap** via a small JS-interop wrapper component                                                                | Completely free, no API key, no quota risk during the demo. Google Maps rejected: billing account requirement. Directions = straight-line distance + "Open in Google Maps" deep link (free).                                                       |
+| AI           | **Google Gemini free tier** (text + vision) behind an `IAiAnalysisService` interface, with a **rule-based fallback implementation** | Free multimodal API covers image analysis + classification. The rule-based fallback means the demo _cannot fail_ due to quota/network — and it's the key to independence (see §1.5). ML.NET optional stretch for the predictive feature.           |
+| Auth         | **ASP.NET Core Identity + JWT (+ refresh tokens)**                                                                                  | Standard, well-documented, works with SignalR and Blazor WASM.                                                                                                                                                                                     |
+| File storage | Local disk in dev behind `IFileStorage`; Cloudinary free tier or Azure Blob for deployment                                          | Interface-first so the swap is one DI line.                                                                                                                                                                                                        |
+| Testing      | **xUnit** + `WebApplicationFactory` integration tests; NetArchTest for architecture rules                                           | Architecture tests mechanically enforce module isolation (impressive for faculty, protective for the team).                                                                                                                                        |
+| CI/CD        | **GitHub Actions** (build + test on every PR)                                                                                       | Free for education.                                                                                                                                                                                                                                |
+| Deployment   | Azure App Service (student credits) or Render free tier; **local run is the demo fallback**                                         | Never bet the demo on free-tier cold starts.                                                                                                                                                                                                       |
 
 **Total external cost: $0.**
 
@@ -75,17 +75,17 @@ RapidRelief.sln
 
 This is the contract that makes "I never wait for a teammate" true from **Day 3** onward.
 
-| # | Mechanism | What it means in practice |
-|---|---|---|
-| 1 | **Contract-first Week 1** | Days 1–2: whole team runs a "contract workshop" and freezes `Shared/Contracts` v1 — all DTOs, enums, event records, and cross-module interface signatures. After that, changing a contract requires a special PR (see §9). You code against contracts, not against teammates. |
-| 2 | **Stub every shared service on Day 1** | Foundation ships working fakes: `FakeAuthHandler` (dev-only — any request with header `X-Dev-Role: Admin` is authenticated in that role), `RuleBasedAiService`, `NoOpRealtimeNotifier` (+ polling fallback component), `LocalDiskFileStorage`. Real implementations replace fakes via DI with **zero consumer changes**. |
-| 3 | **Fake read services + rich seed data** | Every cross-module *read* goes through a contract interface (e.g., `IIncidentReadService`, `IShelterReadService`). Foundation ships fake implementations returning realistic seeded data. Example: Tanjim builds the entire command center against `FakeIncidentReadService` — he needs **zero lines** of Shehab's code. When Shehab's module registers the real implementation, Tanjim's screens light up with real data automatically. |
-| 4 | **One DbContext + migration set per owner domain** | `AuthDbContext`, `IncidentsDbContext` (incidents + missions), `OpsDbContext` (shelters/analytics/audit), `ReliefDbContext` (relief/resources/registry), `AiDbContext`. Separate migration histories = **EF migration merge conflicts are structurally impossible** between developers (the #1 classic team blocker). |
-| 5 | **No cross-module foreign keys or navigation properties** | Reference other modules by plain `Guid` ID only. Your schema changes never break anyone else's migrations or entities. Enforced by architecture tests. |
-| 6 | **Event-driven integration, fire-and-forget** | Modules communicate via in-process events (`IncidentCreated`, `IncidentAssessed`, `MissionStatusChanged`, `ReliefRequested`, …) on a simple event bus (MediatR notifications). Publisher doesn't care if zero or five subscribers exist — a missing subscriber breaks nothing. |
-| 7 | **Seeded demo users & data per module** | `citizen1@rr.dev`, `rescue1@rr.dev`, `admin1@rr.dev`, `ngo1@rr.dev` (password `Demo!123`) + sample incidents/shelters/resources seeded on startup. Nobody needs anyone else's UI flow to test their own screens. |
-| 8 | **Folder ownership + CODEOWNERS** | Each dev merges freely inside their `Features/X` folders. Merge conflicts approach zero because files are never co-edited. |
-| 9 | **Integration days, not integration coupling** | Three scheduled half-day integration checkpoints (end of Wk 4, 7, 10) where fakes are swapped for real implementations pair-by-pair and smoke-tested. Between checkpoints, everyone runs fully standalone. |
+| #   | Mechanism                                                 | What it means in practice                                                                                                                                                                                                                                                                                                                                                                                                                |
+| --- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Contract-first Week 1**                                 | Days 1–2: whole team runs a "contract workshop" and freezes `Shared/Contracts` v1 — all DTOs, enums, event records, and cross-module interface signatures. After that, changing a contract requires a special PR (see §9). You code against contracts, not against teammates.                                                                                                                                                            |
+| 2   | **Stub every shared service on Day 1**                    | Foundation ships working fakes: `FakeAuthHandler` (dev-only — any request with header `X-Dev-Role: Admin` is authenticated in that role), `RuleBasedAiService`, `NoOpRealtimeNotifier` (+ polling fallback component), `LocalDiskFileStorage`. Real implementations replace fakes via DI with **zero consumer changes**.                                                                                                                 |
+| 3   | **Fake read services + rich seed data**                   | Every cross-module _read_ goes through a contract interface (e.g., `IIncidentReadService`, `IShelterReadService`). Foundation ships fake implementations returning realistic seeded data. Example: Tanjim builds the entire command center against `FakeIncidentReadService` — he needs **zero lines** of Shehab's code. When Shehab's module registers the real implementation, Tanjim's screens light up with real data automatically. |
+| 4   | **One DbContext + migration set per owner domain**        | `AuthDbContext`, `IncidentsDbContext` (incidents + missions), `OpsDbContext` (shelters/analytics/audit), `ReliefDbContext` (relief/resources/registry), `AiDbContext`. Separate migration histories = **EF migration merge conflicts are structurally impossible** between developers (the #1 classic team blocker).                                                                                                                     |
+| 5   | **No cross-module foreign keys or navigation properties** | Reference other modules by plain `Guid` ID only. Your schema changes never break anyone else's migrations or entities. Enforced by architecture tests.                                                                                                                                                                                                                                                                                   |
+| 6   | **Event-driven integration, fire-and-forget**             | Modules communicate via in-process events (`IncidentCreated`, `IncidentAssessed`, `MissionStatusChanged`, `ReliefRequested`, …) on a simple event bus (MediatR notifications). Publisher doesn't care if zero or five subscribers exist — a missing subscriber breaks nothing.                                                                                                                                                           |
+| 7   | **Seeded demo users & data per module**                   | `citizen1@rr.dev`, `rescue1@rr.dev`, `admin1@rr.dev`, `ngo1@rr.dev` (password `Demo!123`) + sample incidents/shelters/resources seeded on startup. Nobody needs anyone else's UI flow to test their own screens.                                                                                                                                                                                                                         |
+| 8   | **Folder ownership + CODEOWNERS**                         | Each dev merges freely inside their `Features/X` folders. Merge conflicts approach zero because files are never co-edited.                                                                                                                                                                                                                                                                                                               |
+| 9   | **Integration days, not integration coupling**            | Three scheduled half-day integration checkpoints (end of Wk 4, 7, 10) where fakes are swapped for real implementations pair-by-pair and smoke-tested. Between checkpoints, everyone runs fully standalone.                                                                                                                                                                                                                               |
 
 > **Net effect:** the dependency graph in §5 has exactly **one** hard shared node — the Week-1 foundation. Every cross-developer edge is "soft": satisfied by a stub until the real thing lands, never blocking.
 
@@ -93,28 +93,28 @@ This is the contract that makes "I never wait for a teammate" true from **Day 3*
 
 ## 2. Feature Inventory
 
-Complexity: L / M / H / VH. Effort in developer-hours. "F0 (contracts)" as a dependency means: *needs only the Week-1 contracts + stubs — never a teammate's finished feature.*
+Complexity: L / M / H / VH. Effort in developer-hours. "F0 (contracts)" as a dependency means: _needs only the Week-1 contracts + stubs — never a teammate's finished feature._
 
-| ID | Feature | Primary Actor | Complexity | Effort | Dependencies |
-|----|---------|---------------|-----------|--------|--------------|
-| F0 | Platform Foundation & Shared Kernel | All (dev team) | H | 22h | — |
-| F1 | Authentication, Profiles & RBAC | All users | H | 24h | F0 |
-| F2 | Disaster Reporting & SOS | Citizen | VH | 38h | F0 (contracts) |
-| F3 | Shelter Management & Nearby-Shelter Finder | Admin + Citizen | M | 24h | F0 (contracts) |
-| F4 | Relief Requests & Tracking | Citizen | M | 24h | F0 (contracts) |
-| F5 | Rescue Team Operations (queue, missions, status) | Rescue | VH | 36h | F0 (contracts) |
-| F6 | Mission Assignment & Team Registry | Admin + Rescue | H | 18h | F5 (same owner) |
-| F7 | Admin Command Center & Incident Verification | Admin | H | 32h | F0 (contracts) |
-| F8 | AI Analysis Engine (classify, severity, image, priority, duplicates, recommendations) | System (AI) | VH | 34h | F0 (contracts) |
-| F9 | Real-Time Hub & Notification Center | All users | H | 22h | F0 |
-| F10 | Emergency Broadcast Alerts | Admin → Citizen | M | 16h | F0 (contracts) |
-| F11 | Resource Inventory, Allocation & Delivery Tracking | Admin + NGO | M–H | 30h | F0 + F4 (same owner) |
-| F12 | Analytics, Heatmaps & Response Metrics | Admin | M–H | 26h | F0 (contracts, read-only) |
-| F13 | Hospital, Volunteer & NGO Registry | Admin + NGO | M | 22h | F0 (contracts) |
-| F14 | Audit Trail | Admin | M | 14h | F0 (event bus) |
-| F15 | Offline Reporting & Auto-Sync (PWA) | Citizen | H | 22h | F2 (same owner) |
-| F16 | AI Emergency Assistant (chat) | Citizen | M–H | 16h | F8 (same owner) |
-| F17 | Safety Zones & Road Closures *(stretch)* | Admin + Citizen | M | 12h | F7 (same owner) |
+| ID  | Feature                                                                               | Primary Actor   | Complexity | Effort | Dependencies              |
+| --- | ------------------------------------------------------------------------------------- | --------------- | ---------- | ------ | ------------------------- |
+| F0  | Platform Foundation & Shared Kernel                                                   | All (dev team)  | H          | 22h    | —                         |
+| F1  | Authentication, Profiles & RBAC                                                       | All users       | H          | 24h    | F0                        |
+| F2  | Disaster Reporting & SOS                                                              | Citizen         | VH         | 38h    | F0 (contracts)            |
+| F3  | Shelter Management & Nearby-Shelter Finder                                            | Admin + Citizen | M          | 24h    | F0 (contracts)            |
+| F4  | Relief Requests & Tracking                                                            | Citizen         | M          | 24h    | F0 (contracts)            |
+| F5  | Rescue Team Operations (queue, missions, status)                                      | Rescue          | VH         | 36h    | F0 (contracts)            |
+| F6  | Mission Assignment & Team Registry                                                    | Admin + Rescue  | H          | 18h    | F5 (same owner)           |
+| F7  | Admin Command Center & Incident Verification                                          | Admin           | H          | 32h    | F0 (contracts)            |
+| F8  | AI Analysis Engine (classify, severity, image, priority, duplicates, recommendations) | System (AI)     | VH         | 34h    | F0 (contracts)            |
+| F9  | Real-Time Hub & Notification Center                                                   | All users       | H          | 22h    | F0                        |
+| F10 | Emergency Broadcast Alerts                                                            | Admin → Citizen | M          | 16h    | F0 (contracts)            |
+| F11 | Resource Inventory, Allocation & Delivery Tracking                                    | Admin + NGO     | M–H        | 30h    | F0 + F4 (same owner)      |
+| F12 | Analytics, Heatmaps & Response Metrics                                                | Admin           | M–H        | 26h    | F0 (contracts, read-only) |
+| F13 | Hospital, Volunteer & NGO Registry                                                    | Admin + NGO     | M          | 22h    | F0 (contracts)            |
+| F14 | Audit Trail                                                                           | Admin           | M          | 14h    | F0 (event bus)            |
+| F15 | Offline Reporting & Auto-Sync (PWA)                                                   | Citizen         | H          | 22h    | F2 (same owner)           |
+| F16 | AI Emergency Assistant (chat)                                                         | Citizen         | M–H        | 16h    | F8 (same owner)           |
+| F17 | Safety Zones & Road Closures _(stretch)_                                              | Admin + Citizen | M          | 12h    | F7 (same owner)           |
 
 **Total: ~420h core (F0–F16) + 12h stretch (F17).**
 
@@ -190,7 +190,7 @@ Note how every dependency that crosses a developer boundary is "F0 (contracts)" 
 
 - **Purpose:** The government's single pane of glass.
 - **Owner:** Tanjim. **Complexity:** H · 32h.
-- **Scope:** Ops board — filterable incident table + multi-layer map (incidents/teams/shelters via read contracts, each layer independent); incident verification workflow (approve/reject; shows AI severity, summary, and duplicate suggestions *when present* — fields simply hidden if AI hasn't populated them); user management UI via `IUserAdminService` contract; dashboards shell that hosts F12; built entirely against fake read services first.
+- **Scope:** Ops board — filterable incident table + multi-layer map (incidents/teams/shelters via read contracts, each layer independent); incident verification workflow (approve/reject; shows AI severity, summary, and duplicate suggestions _when present_ — fields simply hidden if AI hasn't populated them); user management UI via `IUserAdminService` contract; dashboards shell that hosts F12; built entirely against fake read services first.
 - **DoD:** Admin monitors seeded + real incidents on map/table, verifies or rejects with reason, manages users — all functional with fakes only, automatically richer as real modules land.
 </details>
 
@@ -288,26 +288,26 @@ Note how every dependency that crosses a developer boundary is "F0 (contracts)" 
 
 ## 3. Team Ownership
 
-| Feature | Owner | Complexity | Effort | Why Assigned |
-|---|---|---|---|---|
-| F0 Foundation & Shared Kernel | **Tayeb** | H | 22h | Strongest architect; foundation quality determines everyone's velocity. |
-| F1 Auth, Profiles & RBAC | **Tayeb** | H | 24h | Security backbone belongs with the foundation owner; pairs naturally with F0's JWT plumbing. |
-| F8 AI Analysis Engine | **Tayeb** | VH | 34h | Highest technical risk (external API, resilience, scoring design) → strongest dev. |
-| F9 Real-Time Hub & Notifications | **Tayeb** | H | 22h | SignalR + auth integration is infrastructure-grade; he owns both sides of it. |
-| F16 AI Emergency Assistant | **Tayeb** | M–H | 16h | Reuses his F8 provider chain — near-zero ramp-up. |
-| F2 Disaster Reporting & SOS | **Shehab** | VH | 38h | The system's most important workflow → second-strongest dev owns the Incident aggregate. |
-| F5 Rescue Team Operations | **Shehab** | VH | 36h | Reporting + rescue form one continuous incident lifecycle — one owner keeps the state machine coherent. |
-| F6 Mission Assignment & Team Registry | **Shehab** | H | 18h | Assignment mutates missions (his aggregate); keeping it in-lane avoids cross-dev coupling. |
-| F15 Offline Reporting & Sync | **Shehab** | H | 22h | Extends his own report form; splitting it would create the exact dependency we're avoiding. |
-| F3 Shelter Management & Finder | **Tanjim** | M | 24h | Self-contained warm-up with real depth (geo-distance, map layer) before his bigger build. |
-| F7 Admin Command Center | **Tanjim** | H | 32h | Meaty, visible, medium-high difficulty — reads everything via contracts so it's technically demanding but never blocked. |
-| F12 Analytics & Heatmaps | **Tanjim** | M–H | 26h | Natural extension of his command center; read-only = independent. |
-| F14 Audit Trail | **Tanjim** | M | 14h | Completes his "governance" theme; pure event subscriber = zero coupling. |
-| F17 Safety Zones *(stretch)* | **Tanjim** | M | 12h | Optional flex capacity if ahead of schedule. |
-| F4 Relief Requests | **Mugdho** | M | 24h | Complete, citizen-visible vertical with forms, state machine, and admin queue — substantial but well-bounded. |
-| F11 Resource Inventory & Allocation | **Mugdho** | M–H | 30h | His most challenging piece; consumes *his own* F4, so complexity grows inside his lane. |
-| F13 Hospital/Volunteer/NGO Registry | **Mugdho** | M | 22h | Three clean CRUD-plus-map verticals; high demo visibility. |
-| F10 Emergency Broadcast Alerts | **Mugdho** | M | 16h | End-to-end and demo-impressive, with realtime complexity absorbed by the notifier contract. |
+| Feature                               | Owner      | Complexity | Effort | Why Assigned                                                                                                             |
+| ------------------------------------- | ---------- | ---------- | ------ | ------------------------------------------------------------------------------------------------------------------------ |
+| F0 Foundation & Shared Kernel         | **Tayeb**  | H          | 22h    | Strongest architect; foundation quality determines everyone's velocity.                                                  |
+| F1 Auth, Profiles & RBAC              | **Tayeb**  | H          | 24h    | Security backbone belongs with the foundation owner; pairs naturally with F0's JWT plumbing.                             |
+| F8 AI Analysis Engine                 | **Tayeb**  | VH         | 34h    | Highest technical risk (external API, resilience, scoring design) → strongest dev.                                       |
+| F9 Real-Time Hub & Notifications      | **Tayeb**  | H          | 22h    | SignalR + auth integration is infrastructure-grade; he owns both sides of it.                                            |
+| F16 AI Emergency Assistant            | **Tayeb**  | M–H        | 16h    | Reuses his F8 provider chain — near-zero ramp-up.                                                                        |
+| F2 Disaster Reporting & SOS           | **Shehab** | VH         | 38h    | The system's most important workflow → second-strongest dev owns the Incident aggregate.                                 |
+| F5 Rescue Team Operations             | **Shehab** | VH         | 36h    | Reporting + rescue form one continuous incident lifecycle — one owner keeps the state machine coherent.                  |
+| F6 Mission Assignment & Team Registry | **Shehab** | H          | 18h    | Assignment mutates missions (his aggregate); keeping it in-lane avoids cross-dev coupling.                               |
+| F15 Offline Reporting & Sync          | **Shehab** | H          | 22h    | Extends his own report form; splitting it would create the exact dependency we're avoiding.                              |
+| F3 Shelter Management & Finder        | **Tanjim** | M          | 24h    | Self-contained warm-up with real depth (geo-distance, map layer) before his bigger build.                                |
+| F7 Admin Command Center               | **Tanjim** | H          | 32h    | Meaty, visible, medium-high difficulty — reads everything via contracts so it's technically demanding but never blocked. |
+| F12 Analytics & Heatmaps              | **Tanjim** | M–H        | 26h    | Natural extension of his command center; read-only = independent.                                                        |
+| F14 Audit Trail                       | **Tanjim** | M          | 14h    | Completes his "governance" theme; pure event subscriber = zero coupling.                                                 |
+| F17 Safety Zones _(stretch)_          | **Tanjim** | M          | 12h    | Optional flex capacity if ahead of schedule.                                                                             |
+| F4 Relief Requests                    | **Mugdho** | M          | 24h    | Complete, citizen-visible vertical with forms, state machine, and admin queue — substantial but well-bounded.            |
+| F11 Resource Inventory & Allocation   | **Mugdho** | M–H        | 30h    | His most challenging piece; consumes _his own_ F4, so complexity grows inside his lane.                                  |
+| F13 Hospital/Volunteer/NGO Registry   | **Mugdho** | M          | 22h    | Three clean CRUD-plus-map verticals; high demo visibility.                                                               |
+| F10 Emergency Broadcast Alerts        | **Mugdho** | M          | 16h    | End-to-end and demo-impressive, with realtime complexity absorbed by the notifier contract.                              |
 
 Mugdho's lane forms one coherent story he fully owns — **the entire relief supply chain plus the response directory** — end-to-end, visible, and essential to the demo. Not documentation, not trivial CRUD: state machines, stock math, allocation logic, and map layers.
 
@@ -316,16 +316,20 @@ Mugdho's lane forms one coherent story he fully owns — **the entire relief sup
 ## 4. Workload Balance
 
 ### Tayeb — 118h · 5 features (infrastructure + intelligence)
+
 F0 (22) + F1 (24) + F8 (34) + F9 (22) + F16 (16). Highest architectural risk, front-loaded (foundation Week 1). His features are horizontal-ish by nature but each is still a complete vertical he demos himself (auth flows, AI assessment panel, live notifications, assistant chat).
 
 ### Shehab — 114h · 4 features (the incident lifecycle)
+
 F2 (38) + F5 (36) + F6 (18) + F15 (22). Two VH features = the core demo path (report → rescue). Owns the Incident/Mission aggregates entirely, so the most intricate state logic never crosses a developer boundary.
 
 ### Tanjim — 96h core (+12h stretch) · 4 features (+1)
+
 F3 (24) + F7 (32) + F12 (26) + F14 (14) [+ F17 (12)]. Medium-to-high complexity with real technical depth (geo queries, map layers, projections, charts) but shielded from the riskiest tech by read contracts.
 
 ### Mugdho — 92h · 4 features (the relief supply chain)
-F4 (24) + F11 (30) + F13 (22) + F10 (16). Low-to-medium complexity, but four *complete* end-to-end modules with visible demo moments (request→delivery chain, broadcast banner, registry maps).
+
+F4 (24) + F11 (30) + F13 (22) + F10 (16). Low-to-medium complexity, but four _complete_ end-to-end modules with visible demo moments (request→delivery chain, broadcast banner, registry maps).
 
 **Balance check:** 118 / 114 / 96 / 92 = ~28% / 27% / 23% / 22% of ~420h. The gradient matches the skill hierarchy (Tayeb ≈ Shehab > Tanjim > Mugdho) without dumping all hard work on the top two: Tanjim and Mugdho each own headline demo features. At ~10h/week, everyone finishes core scope by Week 11–12 with buffer. ✅ Reasonably balanced.
 
@@ -406,14 +410,14 @@ graph TD
 
 Adapted from the suggested phasing: because the independence model opens all four lanes at once, actor-based phases (Citizen → Rescue → Admin) would idle three developers. Instead, phases are **maturity stages across all four parallel lanes**.
 
-| Phase | Weeks | Goal | Exit Criteria |
-|---|---|---|---|
-| **P0 — Foundation & Contracts** | Wk 1 | F0 complete; contract workshop; Contracts v1 frozen; stubs live; everyone runs the app | 4/4 devs run seeded app locally; sample slice merged |
-| **P1 — Core Slices v1** | Wk 2–4 | First working version of each lane's cornerstone: F1, F2, F3, F4 (+F8 rule-based pipeline started) | **Integration Day I1 (end Wk 4):** real auth replaces FakeAuth; incident read contract goes real; smoke test |
-| **P2 — MVP Complete** | Wk 5–7 | F5, F6 (manual assign), F7, F8 v1 (rule-based full pipeline), F11 basic chain | **Integration Day I2 (end Wk 7):** full golden path demo — report → AI assess → verify → assign → rescue → resolve; relief request → allocate → deliver. **MVP gate: scope cut decision here.** |
-| **P3 — Advanced & Wow** | Wk 8–10 | F9 live realtime, F15 offline sync, F8 Gemini upgrade (vision + duplicates), F12 analytics/heatmap, F10 alerts, F13 registry, F14 audit, F16 assistant | **Integration Day I3 (end Wk 10):** all real implementations swapped in; cross-feature flows verified live |
-| **P4 — Hardening & Release** | Wk 11–12 | Bug bash, security pass (validation/authz/rate limits/file checks), E2E test of demo script, deployment, seed "demo scenario" dataset, F17 if time allows | Deployed build + local fallback both run the full demo script cleanly |
-| **P5 — Demo Prep** | Wk 13 | Buffer, rehearsals, presentation | Two full rehearsals done; every member presents their own features |
+| Phase                           | Weeks    | Goal                                                                                                                                                      | Exit Criteria                                                                                                                                                                                   |
+| ------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **P0 — Foundation & Contracts** | Wk 1     | F0 complete; contract workshop; Contracts v1 frozen; stubs live; everyone runs the app                                                                    | 4/4 devs run seeded app locally; sample slice merged                                                                                                                                            |
+| **P1 — Core Slices v1**         | Wk 2–4   | First working version of each lane's cornerstone: F1, F2, F3, F4 (+F8 rule-based pipeline started)                                                        | **Integration Day I1 (end Wk 4):** real auth replaces FakeAuth; incident read contract goes real; smoke test                                                                                    |
+| **P2 — MVP Complete**           | Wk 5–7   | F5, F6 (manual assign), F7, F8 v1 (rule-based full pipeline), F11 basic chain                                                                             | **Integration Day I2 (end Wk 7):** full golden path demo — report → AI assess → verify → assign → rescue → resolve; relief request → allocate → deliver. **MVP gate: scope cut decision here.** |
+| **P3 — Advanced & Wow**         | Wk 8–10  | F9 live realtime, F15 offline sync, F8 Gemini upgrade (vision + duplicates), F12 analytics/heatmap, F10 alerts, F13 registry, F14 audit, F16 assistant    | **Integration Day I3 (end Wk 10):** all real implementations swapped in; cross-feature flows verified live                                                                                      |
+| **P4 — Hardening & Release**    | Wk 11–12 | Bug bash, security pass (validation/authz/rate limits/file checks), E2E test of demo script, deployment, seed "demo scenario" dataset, F17 if time allows | Deployed build + local fallback both run the full demo script cleanly                                                                                                                           |
+| **P5 — Demo Prep**              | Wk 13    | Buffer, rehearsals, presentation                                                                                                                          | Two full rehearsals done; every member presents their own features                                                                                                                              |
 
 ---
 
@@ -421,20 +425,20 @@ Adapted from the suggested phasing: because the independence model opens all fou
 
 Nobody appears in anyone else's row. That's the point.
 
-| Period | Tayeb | Shehab | Tanjim | Mugdho |
-|---|---|---|---|---|
-| **Wk 1** | F0 foundation build | Contract workshop; slice scaffold; F2 schema design | Contract workshop; slice scaffold; F3 schema design | Contract workshop; slice scaffold; F4 schema design |
-| **Wk 2–3** | F1 auth + RBAC | F2 report wizard + uploads + My Reports | F3 shelter CRUD + finder + map layer | F4 relief request flow + admin queue |
-| **Wk 4** | F1 finish; F8 pipeline skeleton · **I1** | F2 SOS + status timeline · **I1** | F3 finish; F7 ops board vs fakes · **I1** | F4 finish; F13 registry start · **I1** |
-| **Wk 5–6** | F8 rule-based pipeline + priority + recommendations | F5 rescue dashboard + queue + missions | F7 verification workflow + user mgmt UI | F13 hospitals/volunteers/NGOs + map layers |
-| **Wk 7** | F8 v1 done; F9 hub start · **I2 / MVP gate** | F6 team registry + manual assignment · **I2** | F7 done · **I2** | F11 inventory + allocation basic · **I2** |
-| **Wk 8–9** | F9 realtime + notification center | F15 offline queue + auto-sync | F12 KPIs + response metrics + heatmap | F11 dispatch + delivery tracking |
-| **Wk 10** | F8 Gemini vision + duplicates; F16 start · **I3** | F15 polish; F5/F6 live-update wiring · **I3** | F14 audit trail · **I3** | F10 broadcast alerts · **I3** |
-| **Wk 11** | F16 assistant | Bug bash own lane + golden-path E2E | F12 polish; F17 if ahead | F10 finish; relief-chain E2E |
-| **Wk 12** | Security pass + deployment | Demo scenario data + rehearsal script | Analytics polish + audit verification | Registry/relief polish |
-| **Wk 13** | Demo rehearsal (all) | Demo rehearsal (all) | Demo rehearsal (all) | Demo rehearsal (all) |
+| Period     | Tayeb                                               | Shehab                                              | Tanjim                                              | Mugdho                                              |
+| ---------- | --------------------------------------------------- | --------------------------------------------------- | --------------------------------------------------- | --------------------------------------------------- |
+| **Wk 1**   | F0 foundation build                                 | Contract workshop; slice scaffold; F2 schema design | Contract workshop; slice scaffold; F3 schema design | Contract workshop; slice scaffold; F4 schema design |
+| **Wk 2–3** | F1 auth + RBAC                                      | F2 report wizard + uploads + My Reports             | F3 shelter CRUD + finder + map layer                | F4 relief request flow + admin queue                |
+| **Wk 4**   | F1 finish; F8 pipeline skeleton · **I1**            | F2 SOS + status timeline · **I1**                   | F3 finish; F7 ops board vs fakes · **I1**           | F4 finish; F13 registry start · **I1**              |
+| **Wk 5–6** | F8 rule-based pipeline + priority + recommendations | F5 rescue dashboard + queue + missions              | F7 verification workflow + user mgmt UI             | F13 hospitals/volunteers/NGOs + map layers          |
+| **Wk 7**   | F8 v1 done; F9 hub start · **I2 / MVP gate**        | F6 team registry + manual assignment · **I2**       | F7 done · **I2**                                    | F11 inventory + allocation basic · **I2**           |
+| **Wk 8–9** | F9 realtime + notification center                   | F15 offline queue + auto-sync                       | F12 KPIs + response metrics + heatmap               | F11 dispatch + delivery tracking                    |
+| **Wk 10**  | F8 Gemini vision + duplicates; F16 start · **I3**   | F15 polish; F5/F6 live-update wiring · **I3**       | F14 audit trail · **I3**                            | F10 broadcast alerts · **I3**                       |
+| **Wk 11**  | F16 assistant                                       | Bug bash own lane + golden-path E2E                 | F12 polish; F17 if ahead                            | F10 finish; relief-chain E2E                        |
+| **Wk 12**  | Security pass + deployment                          | Demo scenario data + rehearsal script               | Analytics polish + audit verification               | Registry/relief polish                              |
+| **Wk 13**  | Demo rehearsal (all)                                | Demo rehearsal (all)                                | Demo rehearsal (all)                                | Demo rehearsal (all)                                |
 
-**Blocking analysis:** the only all-hands dependency is Week 1 (F0). During Week 1, the other three aren't waiting — they're in the contract workshop, designing their schemas, and scaffolding their slice folders against the sample slice. From Week 2, all four lanes run to the end of the semester without a single cross-lane wait. Integration Days are half-day *events*, not phases.
+**Blocking analysis:** the only all-hands dependency is Week 1 (F0). During Week 1, the other three aren't waiting — they're in the contract workshop, designing their schemas, and scaffolding their slice folders against the sample slice. From Week 2, all four lanes run to the end of the semester without a single cross-lane wait. Integration Days are half-day _events_, not phases.
 
 ---
 
@@ -454,7 +458,7 @@ Everything below ships in Week 1 inside F0 — deliberately minimal; anything no
 10. **CI + quality gates** — GitHub Actions (build, test, architecture tests); PR template with DoD checklist.
 11. **Config & environments** — appsettings layering, user-secrets for API keys, `.env.example`.
 
-**Ownership:** Tayeb builds F0, but Contracts v1 is authored by all four in the Day 1–2 workshop (each dev drafts the contracts their lane exposes/consumes). This makes contracts a *team asset* — and makes everyone able to fake everyone else.
+**Ownership:** Tayeb builds F0, but Contracts v1 is authored by all four in the Day 1–2 workshop (each dev drafts the contracts their lane exposes/consumes). This makes contracts a _team asset_ — and makes everyone able to fake everyone else.
 
 ---
 
@@ -464,7 +468,7 @@ Everything below ships in Week 1 inside F0 — deliberately minimal; anything no
 - **Branches:** short-lived feature branches — `feat/f02-reporting-wizard`, `feat/f07-verification`, `fix/f05-queue-sort`. One branch per task (≤ ~3 days of work), not per whole feature.
 - **Commits:** Conventional Commits — `feat(reporting): add photo validation`, `fix(shelters): correct distance sort`, `test(ai): duplicate detection golden cases`.
 - **PRs:** small (< ~400 lines diff when possible); description links the issue; DoD checklist in template; **1 approval** required. Review pairing: Tayeb ↔ Shehab, Tanjim ↔ Mugdho for routine PRs; anyone may review anything.
-- **Contracts are special:** any change under `Shared/Contracts` → PR labeled `contracts`, requires **2 approvals** + a note in the team channel. Contracts are *added to*, never broken: new fields optional, no renames after v1 freeze without a team decision.
+- **Contracts are special:** any change under `Shared/Contracts` → PR labeled `contracts`, requires **2 approvals** + a note in the team channel. Contracts are _added to_, never broken: new fields optional, no renames after v1 freeze without a team decision.
 - **CODEOWNERS:** each `Features/X` folder (Api + Client) mapped to its owner → auto review-request, and accidental cross-lane edits are visible immediately.
 - **Merge conflict prevention:** file-level ownership means conflicts are structurally rare. The only shared hot spots — DI registration and route registration — are solved with **one `{Feature}Module.cs` self-registration file per feature** (each dev only ever edits their own module file).
 - **Issues & boards:** GitHub Projects; one epic issue per feature (F1–F17) with a task checklist; milestones per phase (P0–P5); labels `mvp`, `advanced`, `wow`, `contracts`, `blocked` (target: `blocked` label is never used).
@@ -475,18 +479,18 @@ Everything below ships in Week 1 inside F0 — deliberately minimal; anything no
 
 ## 10. MVP (mandatory for the final demonstration)
 
-| Feature | Scope at MVP level |
-|---|---|
-| F0 Foundation | Complete |
-| F1 Authentication & RBAC | Register/login/JWT, roles, profiles |
-| F2 Disaster Reporting & SOS | Report + photos + GPS/manual pin + My Reports + status; SOS |
-| F3 Shelters | Admin CRUD + citizen nearby finder on map |
-| F4 Relief Requests | Submit + track + admin approve/reject |
-| F5 Rescue Operations | Queue + accept + status updates + history |
-| F6 Mission Assignment | Team registry + **manual** assignment |
-| F7 Command Center | Incident table + map + verification + user management |
-| F8 AI Engine v1 | **Rule-based** classification, severity, priority score, summary |
-| F11 Resources | Inventory + basic allocation + status chain |
+| Feature                     | Scope at MVP level                                               |
+| --------------------------- | ---------------------------------------------------------------- |
+| F0 Foundation               | Complete                                                         |
+| F1 Authentication & RBAC    | Register/login/JWT, roles, profiles                              |
+| F2 Disaster Reporting & SOS | Report + photos + GPS/manual pin + My Reports + status; SOS      |
+| F3 Shelters                 | Admin CRUD + citizen nearby finder on map                        |
+| F4 Relief Requests          | Submit + track + admin approve/reject                            |
+| F5 Rescue Operations        | Queue + accept + status updates + history                        |
+| F6 Mission Assignment       | Team registry + **manual** assignment                            |
+| F7 Command Center           | Incident table + map + verification + user management            |
+| F8 AI Engine v1             | **Rule-based** classification, severity, priority score, summary |
+| F11 Resources               | Inventory + basic allocation + status chain                      |
 
 The golden demo path works end-to-end at the Week-7 MVP gate — everything after that is enhancement, not risk.
 
@@ -504,7 +508,7 @@ The golden demo path works end-to-end at the Week-7 MVP gate — everything afte
 
 ## 12. Wow-Factor Features (demo centerpieces)
 
-1. **Offline SOS (F15)** — airplane mode ON, file a report, reconnect, watch it sync and get AI-assessed live. Uniquely credible for a *disaster* app.
+1. **Offline SOS (F15)** — airplane mode ON, file a report, reconnect, watch it sync and get AI-assessed live. Uniquely credible for a _disaster_ app.
 2. **AI photo analysis + duplicate detection (F8)** — upload a flood photo; severity, damage summary, and "possible duplicate of incident #42" appear in seconds; then kill the API key and show the rule-based fallback still working (resilience engineering — faculty love it).
 3. **Live command center (F7+F9+F12)** — two screens: citizen reports on a phone; marker + heatmap + notification appear on the projector in real time.
 4. **Priority engine (F8+F5)** — file a minor report and an SOS; watch the SOS jump the rescue queue with an explainable score breakdown.
@@ -514,25 +518,25 @@ The golden demo path works end-to-end at the Week-7 MVP gate — everything afte
 
 ## 13. Final Roadmap
 
-| Timeline | Milestone |
-|---|---|
-| **Wk 1** | Architecture: F0 foundation, contract workshop, Contracts v1 freeze, stubs + seeds, CI green, all devs running locally |
-| **Wk 2–4** | Development I: four lanes open (auth, reporting, shelters, relief) — **I1: real auth swapped in** |
-| **Wk 5–7** | Development II: rescue ops, command center, AI v1, resources — **I2 + MVP gate: golden path demo works** |
+| Timeline    | Milestone                                                                                                                  |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------- |
+| **Wk 1**    | Architecture: F0 foundation, contract workshop, Contracts v1 freeze, stubs + seeds, CI green, all devs running locally     |
+| **Wk 2–4**  | Development I: four lanes open (auth, reporting, shelters, relief) — **I1: real auth swapped in**                          |
+| **Wk 5–7**  | Development II: rescue ops, command center, AI v1, resources — **I2 + MVP gate: golden path demo works**                   |
 | **Wk 8–10** | Development III (advanced/wow): realtime, offline, Gemini, analytics, alerts, registry, audit — **I3: all stubs replaced** |
-| **Wk 11** | Integration & testing: bug bash, E2E of demo script, security pass |
-| **Wk 12** | Deployment: cloud deploy + local fallback, demo dataset, dry run |
-| **Wk 13** | Final demo: two rehearsals, presentation, submission |
+| **Wk 11**   | Integration & testing: bug bash, E2E of demo script, security pass                                                         |
+| **Wk 12**   | Deployment: cloud deploy + local fallback, demo dataset, dry run                                                           |
+| **Wk 13**   | Final demo: two rehearsals, presentation, submission                                                                       |
 
 ### Risk Register (top 5)
 
-| Risk | Mitigation |
-|---|---|
-| Gemini quota/outage during demo | Rule-based fallback is a first-class implementation, demoed deliberately |
-| A developer falls behind | Every feature has MVP-scope vs plus-scope; Week-7 gate cuts plus-scope first; stretch F17 absorbs spare capacity |
-| SignalR complexity overruns | All consumers keep polling fallback; realtime is additive, never load-bearing |
-| Scope creep | MVP list is frozen; new ideas go to `advanced` label, decided only at Week-7 gate |
-| Merge pain near deadline | Ownership boundaries + contracts freeze + trunk-based small PRs; Integration Days surface issues early |
+| Risk                            | Mitigation                                                                                                       |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Gemini quota/outage during demo | Rule-based fallback is a first-class implementation, demoed deliberately                                         |
+| A developer falls behind        | Every feature has MVP-scope vs plus-scope; Week-7 gate cuts plus-scope first; stretch F17 absorbs spare capacity |
+| SignalR complexity overruns     | All consumers keep polling fallback; realtime is additive, never load-bearing                                    |
+| Scope creep                     | MVP list is frozen; new ideas go to `advanced` label, decided only at Week-7 gate                                |
+| Merge pain near deadline        | Ownership boundaries + contracts freeze + trunk-based small PRs; Integration Days surface issues early           |
 
 ---
 

@@ -19,15 +19,15 @@ Citizens report disasters (GPS, photos, offline-capable SOS) → AI classifies, 
 
 ## What works today
 
-| Area                         | You get                                                                                                                             |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| **Foundation** (F0)          | Modular-monolith host, self-registering feature modules, in-process event bus, per-feature EF contexts, degraded-mode startup, hosted Blazor WASM PWA, vendored Leaflet map component |
-| **Contracts v1**             | `RapidRelief.Shared/Contracts` — enums, read models, events and the 7 service interfaces every feature integrates through (frozen, additive-only) |
-| **Stubs + seed data** (F0)   | Deterministic Dhaka dataset (28 incidents, 8 shelters, 6 hospitals, 10 volunteers, 5 NGOs, 6 teams) behind every contract interface, so a feature can be built before its producer exists |
-| **Auth** (F1)                | Real accounts: `/register`, `/login`, `/profile` pages; JWT + rotating refresh cookie; role policies; admin user management. `X-Dev-Role` fake auth still works when signed out |
-| **AI engine** (F8)           | `IncidentCreated` → background worker → severity/priority/duplicate assessment → `IncidentAssessed`. OpenRouter free models when a key is configured, rule-based always |
-| **Realtime** (F9)            | `/hubs/notifications` SignalR push + notification inbox at `/notifications` + bell + toasts, with permanent 5 s polling fallback |
-| **AI assistant** (F16)       | `/assistant` chat page with server-owned history, canned safety answers when OpenRouter is off, opt-in location sharing |
+| Area                       | You get                                                                                                                                                                                   |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Foundation** (F0)        | Modular-monolith host, self-registering feature modules, in-process event bus, per-feature EF contexts, degraded-mode startup, hosted Blazor WASM PWA, vendored Leaflet map component     |
+| **Contracts v1**           | `RapidRelief.Shared/Contracts` — enums, read models, events and the 7 service interfaces every feature integrates through (frozen, additive-only)                                         |
+| **Stubs + seed data** (F0) | Deterministic Dhaka dataset (28 incidents, 8 shelters, 6 hospitals, 10 volunteers, 5 NGOs, 6 teams) behind every contract interface, so a feature can be built before its producer exists |
+| **Auth** (F1)              | Real accounts: `/register`, `/login`, `/profile` pages; JWT + rotating refresh cookie; role policies; admin user management. `X-Dev-Role` fake auth still works when signed out           |
+| **AI engine** (F8)         | `IncidentCreated` → background worker → severity/priority/duplicate assessment → `IncidentAssessed`. OpenRouter free models when a key is configured, rule-based always                   |
+| **Realtime** (F9)          | `/hubs/notifications` SignalR push + notification inbox at `/notifications` + bell + toasts, with permanent 5 s polling fallback                                                          |
+| **AI assistant** (F16)     | `/assistant` chat page with server-owned history, canned safety answers when OpenRouter is off, opt-in location sharing                                                                   |
 
 The foundation, contracts, stubs and AI fallback all run with **no database and no API key** — see
 [degraded mode](#3-no-database-at-all--degraded-mode-d-005) for exactly what is and isn't reachable.
@@ -86,11 +86,11 @@ Signed-in users get a bell (unread badge, `99+` above 99), an inbox at `/notific
 
 `Realtime:Mode` (appsettings / `Realtime__Mode`) is a **tri-state** operational switch (D-032):
 
-| Mode          | Hub route            | Notifications persisted | Client behaviour                                        |
-| ------------- | -------------------- | ----------------------- | ------------------------------------------------------- |
-| `Hub`         | mapped               | yes                     | live push + slow poll                                    |
-| `PollingOnly` | 404 (clean JSON)     | yes                     | connect fails silently, 5 s polling delivers everything   |
-| `Off`         | 404 (clean JSON)     | no (no-op notifier)     | inbox stays empty, no errors                             |
+| Mode          | Hub route        | Notifications persisted | Client behaviour                                        |
+| ------------- | ---------------- | ----------------------- | ------------------------------------------------------- |
+| `Hub`         | mapped           | yes                     | live push + slow poll                                   |
+| `PollingOnly` | 404 (clean JSON) | yes                     | connect fails silently, 5 s polling delivers everything |
+| `Off`         | 404 (clean JSON) | no (no-op notifier)     | inbox stays empty, no errors                            |
 
 Notification text is rendered with plain Blazor interpolation (auto HTML-encoded) — never `MarkupString`, because payloads can carry AI output and user-submitted content. In degraded mode (no DB) the inbox endpoints return 503 and the client simply shows nothing new; no error banner, no retry storm.
 
@@ -124,40 +124,40 @@ All keys live in `src/RapidRelief.Api/appsettings.json` and can be overridden by
 variable (`__` replaces `:`) or `dotnet user-secrets`. Secrets belong in user-secrets/env vars —
 never in the JSON.
 
-| Key                                        | Default             | Purpose                                                              |
-| ------------------------------------------ | ------------------- | -------------------------------------------------------------------- |
-| `ConnectionStrings:Postgres`               | _empty_             | Postgres connection string; empty ⇒ degraded mode                     |
-| `Jwt:Issuer` / `Jwt:Audience`              | `RapidRelief`       | Token issuer/audience                                                 |
-| `Jwt:SigningKey`                           | _empty_             | HS256 key; **required outside Development/Testing** (startup fails without it) |
-| `Jwt:AccessTokenMinutes`                   | `30`                | Access-token TTL (D-013)                                              |
-| `Jwt:RefreshTokenDays`                     | `7`                 | Absolute refresh-token lifetime (D-013)                               |
-| `Auth:PasswordHasherIterations`            | `210000`            | PBKDF2 iterations (D-018)                                             |
-| `FileStorage:Root`                         | `App_Data/uploads`  | Upload root, relative to the content root unless absolute             |
-| `FileStorage:MaxSizeBytes`                 | `10485760`          | Per-file size cap (not in the JSON; code default)                     |
-| `Ai:OpenRouter:ApiKey`                     | _empty_             | Empty ⇒ rule-based/canned only, zero external calls (`OPENROUTER_API_KEY` gates the live smokes) |
-| `Ai:OpenRouter:TextModel` / `TextFallbackModel` | `z-ai/glm-5.2:free` / `nvidia/nemotron-3-super-120b-a12b:free` | D-061 text pair — sent as the `models` array, OpenRouter falls back in order |
-| `Ai:OpenRouter:VisionModel` / `VisionFallbackModel` | `google/gemma-4-31b-it:free` / `minimax/minimax-m3:free` | D-061/D-062 vision pair for photo requests |
-| `Ai:OpenRouter:TimeoutSecondsText` / `…Vision` | `10` / `20`     | Per-request timeouts, zero retries (D-026/D-060)                       |
-| `Ai:OpenRouter:BreakerFailures` / `BreakerOpenMinutes` | `3` / `2` | Shared circuit breaker (D-025)                                        |
-| `Ai:Pipeline:ChannelCapacity`              | `100`               | Bounded analysis queue; full ⇒ drop + log (D-021)                     |
-| `Ai:Assistant:MaxOutputTokens`             | `512`               | Assistant answer budget                                               |
-| `Ai:Assistant:HistoryTurns`                | `10`                | Turns sent to the model (D-048)                                       |
-| `Ai:Assistant:MaxSessionMessages`          | `50`                | Hard cap per session; over ⇒ 400                                      |
-| `Ai:Assistant:MaxMessageLength`            | `1000`              | Inbound message cap                                                   |
-| `Ai:Assistant:MaxAnswerLength`             | `1500`              | Sanitizer clamp (D-051)                                               |
-| `Ai:Assistant:ShelterCount`                | `3`                 | Shelters injected as context (D-052)                                  |
-| `Ai:Assistant:RetentionDays` / `RetentionSweepHours` | `7` / `6` | Chat retention sweep (D-048)                                          |
-| `Realtime:Mode`                            | `Hub`               | `Hub` · `PollingOnly` · `Off` (D-032)                                 |
-| `Realtime:RetentionDays` / `RetentionSweepHours` | `30` / `6`    | Notification retention sweep (D-034)                                  |
-| `Realtime:PollSecondsConnected` / `…Disconnected` | `60` / `5`   | Documented poll cadence; the WASM client hard-codes the same values (D-044), so changing these does not move the client |
-| `RateLimiting:Global`                      | `100` / `10 s`      | Per-IP global limiter                                                 |
-| `RateLimiting:Auth`                        | `10` / `60 s`       | Per-IP, on register/login/refresh                                     |
-| `RateLimiting:Reports`                     | `30` / `60 s`       | Per-IP, reserved for F2 report endpoints                              |
-| `RateLimiting:Ai`                          | `30` / `60 s`       | Per-IP, `/api/ai/*` + assistant reads                                 |
-| `RateLimiting:Assistant`                   | `12` / `300 s`      | **Per-user**, assistant POST only (D-054)                             |
-| `RateLimiting:Realtime`                    | `120` / `60 s`      | **Per-user**, notification inbox                                      |
-| `Proxy:Enabled`                            | `false` (absent)    | Opt-in forwarded headers; required behind a reverse proxy (D-011)     |
-| `Proxy:KnownProxies`                       | _absent_            | Explicit proxy IPs; only then is default trust cleared                |
+| Key                                                    | Default                                                        | Purpose                                                                                                                 |
+| ------------------------------------------------------ | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `ConnectionStrings:Postgres`                           | _empty_                                                        | Postgres connection string; empty ⇒ degraded mode                                                                       |
+| `Jwt:Issuer` / `Jwt:Audience`                          | `RapidRelief`                                                  | Token issuer/audience                                                                                                   |
+| `Jwt:SigningKey`                                       | _empty_                                                        | HS256 key; **required outside Development/Testing** (startup fails without it)                                          |
+| `Jwt:AccessTokenMinutes`                               | `30`                                                           | Access-token TTL (D-013)                                                                                                |
+| `Jwt:RefreshTokenDays`                                 | `7`                                                            | Absolute refresh-token lifetime (D-013)                                                                                 |
+| `Auth:PasswordHasherIterations`                        | `210000`                                                       | PBKDF2 iterations (D-018)                                                                                               |
+| `FileStorage:Root`                                     | `App_Data/uploads`                                             | Upload root, relative to the content root unless absolute                                                               |
+| `FileStorage:MaxSizeBytes`                             | `10485760`                                                     | Per-file size cap (not in the JSON; code default)                                                                       |
+| `Ai:OpenRouter:ApiKey`                                 | _empty_                                                        | Empty ⇒ rule-based/canned only, zero external calls (`OPENROUTER_API_KEY` gates the live smokes)                        |
+| `Ai:OpenRouter:TextModel` / `TextFallbackModel`        | `z-ai/glm-5.2:free` / `nvidia/nemotron-3-super-120b-a12b:free` | D-061 text pair — sent as the `models` array, OpenRouter falls back in order                                            |
+| `Ai:OpenRouter:VisionModel` / `VisionFallbackModel`    | `google/gemma-4-31b-it:free` / `minimax/minimax-m3:free`       | D-061/D-062 vision pair for photo requests                                                                              |
+| `Ai:OpenRouter:TimeoutSecondsText` / `…Vision`         | `10` / `20`                                                    | Per-request timeouts, zero retries (D-026/D-060)                                                                        |
+| `Ai:OpenRouter:BreakerFailures` / `BreakerOpenMinutes` | `3` / `2`                                                      | Shared circuit breaker (D-025)                                                                                          |
+| `Ai:Pipeline:ChannelCapacity`                          | `100`                                                          | Bounded analysis queue; full ⇒ drop + log (D-021)                                                                       |
+| `Ai:Assistant:MaxOutputTokens`                         | `512`                                                          | Assistant answer budget                                                                                                 |
+| `Ai:Assistant:HistoryTurns`                            | `10`                                                           | Turns sent to the model (D-048)                                                                                         |
+| `Ai:Assistant:MaxSessionMessages`                      | `50`                                                           | Hard cap per session; over ⇒ 400                                                                                        |
+| `Ai:Assistant:MaxMessageLength`                        | `1000`                                                         | Inbound message cap                                                                                                     |
+| `Ai:Assistant:MaxAnswerLength`                         | `1500`                                                         | Sanitizer clamp (D-051)                                                                                                 |
+| `Ai:Assistant:ShelterCount`                            | `3`                                                            | Shelters injected as context (D-052)                                                                                    |
+| `Ai:Assistant:RetentionDays` / `RetentionSweepHours`   | `7` / `6`                                                      | Chat retention sweep (D-048)                                                                                            |
+| `Realtime:Mode`                                        | `Hub`                                                          | `Hub` · `PollingOnly` · `Off` (D-032)                                                                                   |
+| `Realtime:RetentionDays` / `RetentionSweepHours`       | `30` / `6`                                                     | Notification retention sweep (D-034)                                                                                    |
+| `Realtime:PollSecondsConnected` / `…Disconnected`      | `60` / `5`                                                     | Documented poll cadence; the WASM client hard-codes the same values (D-044), so changing these does not move the client |
+| `RateLimiting:Global`                                  | `100` / `10 s`                                                 | Per-IP global limiter                                                                                                   |
+| `RateLimiting:Auth`                                    | `10` / `60 s`                                                  | Per-IP, on register/login/refresh                                                                                       |
+| `RateLimiting:Reports`                                 | `30` / `60 s`                                                  | Per-IP, reserved for F2 report endpoints                                                                                |
+| `RateLimiting:Ai`                                      | `30` / `60 s`                                                  | Per-IP, `/api/ai/*` + assistant reads                                                                                   |
+| `RateLimiting:Assistant`                               | `12` / `300 s`                                                 | **Per-user**, assistant POST only (D-054)                                                                               |
+| `RateLimiting:Realtime`                                | `120` / `60 s`                                                 | **Per-user**, notification inbox                                                                                        |
+| `Proxy:Enabled`                                        | `false` (absent)                                               | Opt-in forwarded headers; required behind a reverse proxy (D-011)                                                       |
+| `Proxy:KnownProxies`                                   | _absent_                                                       | Explicit proxy IPs; only then is default trust cleared                                                                  |
 
 Rate limiting is disabled entirely in the `Testing` environment. Every `RateLimiting:*` entry is a
 `PermitLimit` / `WindowSeconds` pair. `appsettings.Development.json` overrides two of the defaults

@@ -10,14 +10,14 @@ The Sample slice (`Features/Sample`) is the living reference for everything belo
 
 Groups in force today:
 
-| Group                         | Owner      | Auth                      |
-| ----------------------------- | ---------- | ------------------------- |
-| `/api/foundation`             | Foundation | mixed (`/whoami` authorized, `/demo-incidents` anonymous) |
-| `/api/sample`                 | Sample     | mixed (POST = Admin policy, GET = anonymous) |
+| Group                         | Owner      | Auth                                                                          |
+| ----------------------------- | ---------- | ----------------------------------------------------------------------------- |
+| `/api/foundation`             | Foundation | mixed (`/whoami` authorized, `/demo-incidents` anonymous)                     |
+| `/api/sample`                 | Sample     | mixed (POST = Admin policy, GET = anonymous)                                  |
 | `/api/auth`                   | Auth       | mixed (register/login/refresh anonymous, rest authorized, user admin = Admin) |
-| `/api/ai`                     | Ai         | any authenticated role     |
-| `/api/ai/assistant`           | Ai (F16)   | any authenticated role (D-047, D-054) |
-| `/api/realtime/notifications` | Realtime   | any authenticated role     |
+| `/api/ai`                     | Ai         | any authenticated role                                                        |
+| `/api/ai/assistant`           | Ai (F16)   | any authenticated role (D-047, D-054)                                         |
+| `/api/realtime/notifications` | Realtime   | any authenticated role                                                        |
 
 The SignalR hub at `/hubs/notifications` is the one non-`/api` surface (push-only, D-032/D-043).
 Unknown `/api/**` routes return a ProblemDetails 404 — never the SPA shell.
@@ -60,14 +60,14 @@ skipped entirely in the `Testing` environment. `UseRateLimiter` runs **after** `
 so per-user partitions see the real caller (and before `UseAuthorization`, so anonymous floods
 still consume permits).
 
-| Policy     | Partition                              | Default budget | Applied to                                              |
-| ---------- | -------------------------------------- | -------------- | ------------------------------------------------------- |
-| _global_   | per-IP                                 | 100 / 10 s     | every request                                            |
-| `auth`     | per-IP                                 | 10 / 60 s      | `/api/auth` register, login, refresh (D-011)             |
-| `reports`  | per-IP                                 | 30 / 60 s      | F2 report endpoints — **mandatory** when F2 lands (D-011) |
-| `ai`       | per-IP                                 | 30 / 60 s      | `/api/ai/*` and the assistant `GET`/`DELETE`             |
-| `assistant`| per-user (`RateLimitPartitions.UserOrIp`) | 12 / 300 s  | `POST /api/ai/assistant/messages` only (D-054)           |
-| `realtime` | per-user (`RateLimitPartitions.UserOrIp`) | 120 / 60 s  | `/api/realtime/notifications/*`                          |
+| Policy      | Partition                                 | Default budget | Applied to                                                |
+| ----------- | ----------------------------------------- | -------------- | --------------------------------------------------------- |
+| _global_    | per-IP                                    | 100 / 10 s     | every request                                             |
+| `auth`      | per-IP                                    | 10 / 60 s      | `/api/auth` register, login, refresh (D-011)              |
+| `reports`   | per-IP                                    | 30 / 60 s      | F2 report endpoints — **mandatory** when F2 lands (D-011) |
+| `ai`        | per-IP                                    | 30 / 60 s      | `/api/ai/*` and the assistant `GET`/`DELETE`              |
+| `assistant` | per-user (`RateLimitPartitions.UserOrIp`) | 12 / 300 s     | `POST /api/ai/assistant/messages` only (D-054)            |
+| `realtime`  | per-user (`RateLimitPartitions.UserOrIp`) | 120 / 60 s     | `/api/realtime/notifications/*`                           |
 
 Apply one with `.RequireRateLimiting("<policy>")` on the group (or on the single endpoint when the
 budget differs per verb, as the assistant does). Per-IP partitioning behind a reverse proxy
@@ -132,12 +132,12 @@ dotnet ef database update --project src/RapidRelief.Api --context SampleDbContex
 
 Four contexts are live today — substitute your own row:
 
-| Context                 | Owner    | Tables            | History table                     | `--output-dir`                        |
-| ----------------------- | -------- | ----------------- | --------------------------------- | ------------------------------------- |
-| `SampleDbContext`       | Sample   | `sample_*`        | `__efmigrationshistory_sample`    | `Features/Sample/Data/Migrations`     |
-| `AuthDbContext`         | Auth     | `auth_*`          | `__efmigrationshistory_auth`      | `Features/Auth/Data/Migrations`       |
-| `AiDbContext`           | Ai       | `ai_*`            | `__efmigrationshistory_ai`        | `Features/Ai/Data/Migrations`         |
-| `NotificationsDbContext`| Realtime | `notifications_*` | `__efmigrationshistory_notifications` | `Features/Realtime/Data/Migrations` |
+| Context                  | Owner    | Tables            | History table                         | `--output-dir`                      |
+| ------------------------ | -------- | ----------------- | ------------------------------------- | ----------------------------------- |
+| `SampleDbContext`        | Sample   | `sample_*`        | `__efmigrationshistory_sample`        | `Features/Sample/Data/Migrations`   |
+| `AuthDbContext`          | Auth     | `auth_*`          | `__efmigrationshistory_auth`          | `Features/Auth/Data/Migrations`     |
+| `AiDbContext`            | Ai       | `ai_*`            | `__efmigrationshistory_ai`            | `Features/Ai/Data/Migrations`       |
+| `NotificationsDbContext` | Realtime | `notifications_*` | `__efmigrationshistory_notifications` | `Features/Realtime/Data/Migrations` |
 
 (The `notifications_` prefix on a `Features/Realtime` folder is deliberate — D-042.)
 

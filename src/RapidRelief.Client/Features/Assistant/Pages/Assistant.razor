@@ -53,8 +53,8 @@
 <form class="chat-composer" @onsubmit="SendAsync" @onsubmit:preventDefault>
     <label class="visually-hidden" for="assistant-input">Your message</label>
     <input id="assistant-input" class="form-control" type="text" autocomplete="off"
-           placeholder="Describe your situation…" maxlength="@MaxMessageLength"
-           disabled="@_pending" @bind="_draft" @bind:event="oninput" />
+           placeholder="Describe your situation…" maxlength="@MaxMessageLength" disabled="@_pending" @bind="_draft"
+           @bind:event="oninput" />
     <button class="btn btn-primary" type="submit" disabled="@(_pending || string.IsNullOrWhiteSpace(_draft))">
         @(_pending ? "Sending…" : "Send")
     </button>
@@ -74,8 +74,8 @@
             Stop sharing location
         </button>
     }
-    <button class="btn btn-outline-secondary btn-sm" type="button"
-            disabled="@(_pending || _sessionId is null)" @onclick="ReloadAsync">
+    <button class="btn btn-outline-secondary btn-sm" type="button" disabled="@(_pending || _sessionId is null)"
+            @onclick="ReloadAsync">
         Reload conversation
     </button>
     <button class="btn btn-outline-secondary btn-sm" type="button" disabled="@_pending" @onclick="NewChatAsync">
@@ -88,19 +88,19 @@
         @if (_location is { } fix)
         {
             <text>Sharing your location (@fix.Lat.ToString("F4"), @fix.Lng.ToString("F4")) with your next
-            message, so answers can name nearby open shelters. Your message text and these coordinates are
-            the only things sent.</text>
-        }
+                message, so answers can name nearby open shelters. Your message text and these coordinates are
+                the only things sent.</text>
+            }
         else
-        {
-            <text>Location is off — answers won't name nearby shelters. Only your message text is sent.</text>
-        }
-        @if (_locationNotice is not null)
-        {
-            <text> @_locationNotice</text>
-        }
-    </small>
-</p>
+            {
+                <text>Location is off — answers won't name nearby shelters. Only your message text is sent.</text>
+            }
+            @if (_locationNotice is not null)
+            {
+                <text> @_locationNotice</text>
+            }
+        </small>
+    </p>
 
 @code {
     private const string LiveProvider = "OpenRouter";

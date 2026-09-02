@@ -22,8 +22,8 @@
     <button class="btn btn-outline-secondary btn-sm" type="button" disabled="@_busy" @onclick="RefreshAsync">
         Refresh
     </button>
-    <button class="btn btn-outline-secondary btn-sm" type="button"
-            disabled="@(_busy || State.UnreadCount == 0)" @onclick="MarkAllAsync">
+    <button class="btn btn-outline-secondary btn-sm" type="button" disabled="@(_busy || State.UnreadCount == 0)"
+            @onclick="MarkAllAsync">
         Mark all read
     </button>
 </div>
@@ -45,8 +45,7 @@ else
                 </div>
                 @if (!item.IsRead)
                 {
-                    <button class="btn btn-link btn-sm p-0" type="button" disabled="@_busy"
-                            @onclick="() => MarkReadAsync(item.Id)">
+                    <button class="btn btn-link btn-sm p-0" type="button" disabled="@_busy" @onclick="() => MarkReadAsync(item.Id)">
                         Mark read
                     </button>
                 }

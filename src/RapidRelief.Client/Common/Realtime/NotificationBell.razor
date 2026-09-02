@@ -7,8 +7,7 @@
    defence. MarkupString / innerHTML are forbidden here. *@
 <div class="notification-bell">
     <button class="btn btn-sm btn-outline-secondary position-relative" type="button"
-            title="@(State.HubConnected ? "Live" : "Polling")"
-            aria-label="@($"Notifications ({State.UnreadCount} unread)")"
+            title="@(State.HubConnected ? "Live" : "Polling")" aria-label="@($"Notifications ({State.UnreadCount} unread)")"
             @onclick="Toggle">
         <span aria-hidden="true">🔔</span>
         @if (State.BadgeText.Length > 0)
