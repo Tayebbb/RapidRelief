@@ -136,7 +136,7 @@ public static class AuthSeeder
         {
             ("citizen1@rr.dev", Roles.Citizen, Guid.Parse("11111111-1111-1111-1111-111111111111"), "Citizen One"),
             ("rescuer1@rr.dev", Roles.Rescuer, Guid.Parse("22222222-2222-2222-2222-222222222222"), "Rescuer One"),
-            ("government1@rr.dev", Roles.Government, Guid.Parse("33333333-3333-3333-3333-333333333333"), "Government Admin One"),
+            ("government1@rr.dev", Roles.Government, Guid.Parse("33333333-3333-3333-3333-333333333333"), "Government One"),
             // Legacy aliases for backward compatibility
             ("admin1@rr.dev", Roles.Government, Guid.Parse("33333333-3333-3333-3333-333333333334"), "Admin One"),
             ("rescue1@rr.dev", Roles.Rescuer, Guid.Parse("22222222-2222-2222-2222-222222222224"), "Rescue One"),

@@ -48,8 +48,8 @@ public sealed class ProfileTests : IClassFixture<TestingWebAppFactory>
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         var data = body.RootElement.GetProperty("data");
-        Assert.Equal(FakeAuthHandler.SeedUserIds[Roles.Admin], data.GetProperty("id").GetGuid());
-        Assert.Equal("admin1@rr.dev", data.GetProperty("email").GetString());
+        Assert.Equal(FakeAuthHandler.SeedUserIds[Roles.Government], data.GetProperty("id").GetGuid());
+        Assert.Equal("government1@rr.dev", data.GetProperty("email").GetString());
     }
 
     [Fact] // ㉒ — PUT happy + persistence + email immutability

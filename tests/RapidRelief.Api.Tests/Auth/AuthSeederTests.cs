@@ -23,8 +23,8 @@ public sealed class AuthSeederTests : IClassFixture<TestingWebAppFactory>
         var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
         var usersBefore = await db.Users.CountAsync();
         var rolesBefore = await db.Roles.CountAsync();
-        Assert.Equal(4, usersBefore);
-        Assert.Equal(4, rolesBefore);
+        Assert.Equal(6, usersBefore);
+        Assert.Equal(3, rolesBefore);
 
         await AuthSeeder.SeedAsync(scope.ServiceProvider, CancellationToken.None);
 
