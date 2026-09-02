@@ -33,6 +33,3 @@ Thumbs.db
 # RapidRelief — uploaded files live outside git (blueprint B1)
 App_Data/
 
-# Agent skills & config
-.agents/skills/
-.agents/
