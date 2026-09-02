@@ -1,0 +1,146 @@
+@page "/reports/my"
+@layout MainLayout
+@namespace RapidRelief.Client.Features.Reports.Pages
+@using RapidRelief.Shared.Contracts.Enums
+@using RapidRelief.Client.Common.Ui
+@inject NavigationManager Navigation
+
+<PageTitle>Track My Reports — RapidRelief</PageTitle>
+
+<div class="dash-layout">
+    <!-- Header -->
+    <div class="dash-header-banner">
+        <div class="dash-title-group">
+            <div class="dash-role-badge citizen">
+                <AppIcon Name="clock" Size="14" />
+                <span>Incident Status Tracker</span>
+            </div>
+            <h1 class="dash-title">My Emergency Reports</h1>
+            <p class="dash-subtitle">Track real-time response updates, assigned rescue units, and mission progress.</p>
+        </div>
+
+        <div class="dash-header-actions">
+            <a href="reports/new" class="btn-dash-primary">
+                <AppIcon Name="plus" Size="15" />
+                <span>File New Report</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Active Reports List -->
+    <div class="d-flex flex-column gap-4">
+        @foreach (var report in _myReports)
+        {
+            <div class="dash-card">
+                <div class="dash-card-header">
+                    <div>
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                            <span class="badge @report.UrgencyBadge rounded-pill px-2 py-1 small">@report.Urgency</span>
+                            <span class="text-secondary small fw-bold">Ticket: #@report.TicketId</span>
+                        </div>
+                        <h2 class="dash-card-title">@report.Title</h2>
+                        <div class="dash-item-sub mt-1">
+                            <span><AppIcon Name="map-pin" Size="13" /> @report.Location</span>
+                            <span>• Filed @report.FiledTime</span>
+                            <span>• People: @report.PeopleCount</span>
+                        </div>
+                    </div>
+
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge @report.StatusBadge rounded-pill px-3 py-2 fs-6">@report.Status</span>
+                    </div>
+                </div>
+
+                <!-- Mission Progression Stepper -->
+                <div class="tactical-stepper mb-3">
+                    <div class="stepper-node @(report.Step >= 1 ? (report.Step == 1 ? "active" : "completed") : "")">
+                        1. Reported
+                    </div>
+                    <div class="stepper-node @(report.Step >= 2 ? (report.Step == 2 ? "active" : "completed") : "")">
+                        2. Verified by EOC
+                    </div>
+                    <div class="stepper-node @(report.Step >= 3 ? (report.Step == 3 ? "active" : "completed") : "")">
+                        3. Unit Dispatched
+                    </div>
+                    <div class="stepper-node @(report.Step >= 4 ? "completed active" : "")">
+                        4. Resolved / Safe
+                    </div>
+                </div>
+
+                <div class="p-3 rounded-3 d-flex align-items-center justify-content-between flex-wrap gap-3" style="background: var(--rr-surface-2); border: 1px solid var(--rr-border);">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="dash-kpi-icon-wrap forest" style="width: 40px; height: 40px;">
+                            <AppIcon Name="navigation" Size="20" />
+                        </div>
+                        <div>
+                            <div class="fw-bold" style="font-size: 0.92rem;">Assigned Responder: @report.AssignedUnit</div>
+                            <div class="text-secondary small">Status: @report.UnitStatus • ETA: @report.Eta</div>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <a href="sample" class="btn-dash-outline">
+                            <AppIcon Name="map" Size="14" />
+                            <span>View on Map</span>
+                        </a>
+                        <a href="assistant" class="btn-dash-outline">
+                            <AppIcon Name="chat" Size="14" />
+                            <span>Ask Assistant</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private readonly List<UserReport> _myReports = new()
+    {
+        new UserReport(
+            "RR-9812",
+            "Water Surging Around 2-Story Residential Home",
+            "Sector 3, Riverside Road, Dhaka (23.8103° N, 90.4125° E)",
+            "Critical",
+            "bg-danger text-white",
+            "Dispatched",
+            "bg-danger-subtle text-danger border border-danger-subtle",
+            3,
+            "45 minutes ago",
+            3,
+            "Search & Rescue Unit Alpha-7 (Boat 02)",
+            "En route to coordinates",
+            "~12 minutes"
+        ),
+        new UserReport(
+            "RR-8419",
+            "Minor Roadblock & Fallen Tree",
+            "Near Community Clinic, Ward 5",
+            "Moderate",
+            "bg-warning text-dark",
+            "Resolved",
+            "bg-success-subtle text-success border border-success-subtle",
+            2,
+            "Yesterday, 4:20 PM",
+            4,
+            "Municipal Quick Response Crew",
+            "Obstacle cleared and traffic restored",
+            "Completed"
+        ),
+    };
+
+    private sealed record UserReport(
+        string TicketId,
+        string Title,
+        string Location,
+        string Urgency,
+        string UrgencyBadge,
+        string Status,
+        string StatusBadge,
+        int Step,
+        string FiledTime,
+        int PeopleCount,
+        string AssignedUnit,
+        string UnitStatus,
+        string Eta
+    );
+}

@@ -1,4 +1,7 @@
 @namespace RapidRelief.Client.Features.Landing.Components
+@using RapidRelief.Client.Features.Auth
+@inject AuthApi Auth
+@inject NavigationManager Navigation
 
 <header class="landing-nav-container" aria-label="Main landing navigation">
     <nav class="landing-nav">
@@ -22,11 +25,56 @@
             <AuthorizeView>
                 <Authorized>
                     <NotificationBell />
-                    <LoginDisplay />
                     <a class="btn-nav-signup" href="@DashboardLink" style="padding: 7px 14px; font-size: 0.85rem;">
                         <AppIcon Name="layers" Size="14" />
                         <span>Dashboard</span>
                     </a>
+
+                    <!-- Profile Icon & Dropdown -->
+                    <div class="nav-profile-wrapper">
+                        <button type="button" class="nav-profile-btn @(_profileMenuOpen ? "is-active" : null)" 
+                                @onclick="ToggleProfileMenu" title="Account: @context.User.Identity?.Name" aria-label="Open profile menu">
+                            <AppIcon Name="user" Size="18" />
+                        </button>
+
+                        @if (_profileMenuOpen)
+                        {
+                            <div class="nav-profile-backdrop" @onclick="CloseProfileMenu"></div>
+                            <div class="nav-profile-dropdown" @onclick:stopPropagation="true">
+                                <div class="nav-profile-dropdown-header">
+                                    <div class="nav-profile-dropdown-avatar">
+                                        <AppIcon Name="user" Size="18" />
+                                    </div>
+                                    <div class="nav-profile-dropdown-info">
+                                        <span class="nav-profile-name">@context.User.Identity?.Name</span>
+                                        <span class="nav-profile-role">@UserRole</span>
+                                    </div>
+                                </div>
+
+                                <div class="nav-profile-dropdown-divider"></div>
+
+                                <a class="nav-profile-item" href="@DashboardLink" @onclick="CloseProfileMenu">
+                                    <AppIcon Name="layers" Size="15" />
+                                    <span>My Dashboard</span>
+                                </a>
+                                <a class="nav-profile-item" href="profile" @onclick="CloseProfileMenu">
+                                    <AppIcon Name="user" Size="15" />
+                                    <span>Profile & Contacts</span>
+                                </a>
+                                <a class="nav-profile-item" href="notifications" @onclick="CloseProfileMenu">
+                                    <AppIcon Name="bell" Size="15" />
+                                    <span>Emergency Alerts</span>
+                                </a>
+
+                                <div class="nav-profile-dropdown-divider"></div>
+
+                                <button type="button" class="nav-profile-item text-danger" @onclick="SignOutAsync">
+                                    <AppIcon Name="logout" Size="15" />
+                                    <span>Sign Out</span>
+                                </button>
+                            </div>
+                        }
+                    </div>
                 </Authorized>
                 <NotAuthorized>
                     <a class="btn-nav-signin" href="auth/signin">
@@ -76,8 +124,18 @@
         <div class="pt-2 border-top d-flex flex-column gap-2">
             <AuthorizeView>
                 <Authorized>
+                    <div class="d-flex align-items-center gap-2 px-2 py-1 mb-1">
+                        <div class="nav-profile-dropdown-avatar" style="width: 30px; height: 30px;">
+                            <AppIcon Name="user" Size="16" />
+                        </div>
+                        <div class="d-flex flex-column">
+                            <span class="small fw-bold">@context.User.Identity?.Name</span>
+                            <span class="badge bg-success-subtle text-success small" style="width: fit-content; font-size: 0.7rem;">@UserRole</span>
+                        </div>
+                    </div>
                     <a class="btn btn-primary btn-sm w-100" href="@DashboardLink" @onclick="CloseMobileMenu">My Dashboard</a>
                     <a class="btn btn-outline-secondary btn-sm w-100" href="profile" @onclick="CloseMobileMenu">Profile</a>
+                    <button class="btn btn-outline-danger btn-sm w-100" type="button" @onclick="SignOutAsync">Sign Out</button>
                 </Authorized>
                 <NotAuthorized>
                     <div class="d-flex gap-2">
@@ -93,7 +151,9 @@
 @code {
     [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
     private string DashboardLink = "c";
+    private string UserRole = "Citizen";
     private bool _mobileOpen;
+    private bool _profileMenuOpen;
 
     protected override async Task OnInitializedAsync()
     {
@@ -101,11 +161,23 @@
         {
             var auth = await AuthStateProvider.GetAuthenticationStateAsync();
             DashboardLink = RapidRelief.Client.Common.Auth.AuthRouteHelper.GetDashboardRoute(auth.User);
+            UserRole = auth.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "Citizen";
         }
         catch
         {
             DashboardLink = "c";
+            UserRole = "Citizen";
         }
+    }
+
+    private void ToggleProfileMenu() => _profileMenuOpen = !_profileMenuOpen;
+    private void CloseProfileMenu() => _profileMenuOpen = false;
+
+    private async Task SignOutAsync()
+    {
+        CloseProfileMenu();
+        await Auth.LogoutAsync();
+        Navigation.NavigateTo("/", forceLoad: true);
     }
 
     private void ToggleMobileMenu() => _mobileOpen = !_mobileOpen;

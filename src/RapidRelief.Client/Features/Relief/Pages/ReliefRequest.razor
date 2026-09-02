@@ -1,0 +1,207 @@
+@page "/relief/request"
+@layout MainLayout
+@namespace RapidRelief.Client.Features.Relief.Pages
+@using RapidRelief.Shared.Contracts.Enums
+@using RapidRelief.Client.Common.Ui
+@inject NavigationManager Navigation
+
+<PageTitle>Request Emergency Relief Supplies — RapidRelief</PageTitle>
+
+<div class="dash-layout">
+    <!-- Header -->
+    <div class="dash-header-banner">
+        <div class="dash-title-group">
+            <div class="dash-role-badge citizen">
+                <AppIcon Name="shield-plus" Size="14" />
+                <span>Humanitarian Aid</span>
+            </div>
+            <h1 class="dash-title">Emergency Relief & Aid Request</h1>
+            <p class="dash-subtitle">Request drinking water, dry food rations, medical packs & temporary shelter kits.</p>
+        </div>
+
+        <div class="dash-header-actions">
+            <a href="shelters/finder" class="btn-dash-outline">
+                <AppIcon Name="map-pin" Size="16" />
+                <span>Find Shelter Instead</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Active Relief Orders Status Cards -->
+    <div class="dash-card">
+        <div class="dash-card-header">
+            <div>
+                <h2 class="dash-card-title">
+                    <AppIcon Name="layers" Size="18" />
+                    <span>My Active Relief Requests</span>
+                </h2>
+                <p class="dash-card-subtitle">Track humanitarian relief shipments allocated to your family or shelter.</p>
+            </div>
+            <button type="button" class="btn-dash-primary" @onclick="@(() => _showNewForm = !_showNewForm)">
+                <AppIcon Name="@(_showNewForm ? "close" : "plus")" Size="15" />
+                <span>@(_showNewForm ? "Close Form" : "New Relief Request")</span>
+            </button>
+        </div>
+
+        <div class="dash-item-list">
+            @foreach (var order in _orders)
+            {
+                <div class="dash-item-card">
+                    <div class="dash-item-meta">
+                        <div class="dash-item-header">
+                            <span class="dash-item-title">@order.ItemTitle</span>
+                            <span class="badge @order.StatusBadge rounded-pill px-2 py-1 small">@order.Status</span>
+                        </div>
+                        <p class="dash-item-desc">Destination: @order.Destination • Household: @order.FamilySize persons</p>
+                        <div class="dash-item-sub">
+                            <span><AppIcon Name="clock" Size="13" /> Requested @order.RequestedTime</span>
+                            <span>• Tracking ID: #@order.Id</span>
+                            <span>• Fulfilling NGO: @order.Fulfiller</span>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- New Relief Request Form -->
+    @if (_showNewForm)
+    {
+        <div class="dash-card">
+            <div class="dash-card-header">
+                <div>
+                    <h2 class="dash-card-title">
+                        <AppIcon Name="shield-plus" Size="18" />
+                        <span>Submit New Relief Request</span>
+                    </h2>
+                    <p class="dash-card-subtitle">Verified NGO and government inventory will allocate items based on household vulnerability.</p>
+                </div>
+            </div>
+
+            @if (_formSubmitted)
+            {
+                <div class="alert alert-success d-flex align-items-center gap-3 p-4 rounded-3">
+                    <AppIcon Name="check" Size="24" />
+                    <div>
+                        <h5 class="fw-bold mb-1">Relief Request Logged Successfully!</h5>
+                        <p class="mb-0 text-secondary">
+                            Your requisition <strong>#REL-@_newRequestId</strong> has been approved for allocation. A volunteer or relief convoy will be assigned.
+                        </p>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="row g-4">
+                    <!-- Primary Supply Category -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold small">Primary Supplies Needed <span class="text-danger">*</span></label>
+                        <select class="form-select" @bind="_selectedCategory">
+                            <option value="Drinking Water (20L Jerrycans)">Clean Drinking Water (20L Jerrycans + Purification Tablets)</option>
+                            <option value="Dry Food Rations (7-Day Pack)">Dry Food Rations (Rice, Dal, High-Calorie Biscuits, Oil)</option>
+                            <option value="Medical & Hygiene Emergency Kit">Medical & Hygiene Emergency Kit (Bandages, ORS, Antiseptic)</option>
+                            <option value="Baby Food & Infant Care Pack">Baby Food & Infant Care Pack (Milk Formula, Diapers, Wipes)</option>
+                            <option value="Emergency Tarpaulin & Blankets">Emergency Tarpaulin & Bedding Blankets</option>
+                        </select>
+                    </div>
+
+                    <!-- Urgency Level -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold small">Urgency Level <span class="text-danger">*</span></label>
+                        <select class="form-select" @bind="_selectedUrgency">
+                            <option value="Critical (Within 12 Hours)">Critical (Supplies exhausted, infant/elderly present)</option>
+                            <option value="High (Within 24 Hours)">High (Remaining supplies under 24 hours)</option>
+                            <option value="Standard (Within 48 Hours)">Standard (Preparation for upcoming weather)</option>
+                        </select>
+                    </div>
+
+                    <!-- Family Size -->
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold small">Total Family / Household Size</label>
+                        <input type="number" min="1" max="50" class="form-control" @bind="_familySize" />
+                    </div>
+
+                    <!-- Vulnerable Count -->
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold small">Children / Infants (under 5 yrs)</label>
+                        <input type="number" min="0" max="20" class="form-control" @bind="_childrenCount" />
+                    </div>
+
+                    <!-- Elderly Count -->
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold small">Elderly / Disabled Persons</label>
+                        <input type="number" min="0" max="20" class="form-control" @bind="_elderlyCount" />
+                    </div>
+
+                    <!-- Delivery Destination -->
+                    <div class="col-12">
+                        <label class="form-label fw-bold small">Delivery Location / Landmark / Shelter <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" placeholder="e.g. Near Model High School or Sector 4 Building 12, East Bank" @bind="_destinationAddress" />
+                    </div>
+
+                    <!-- Special Medical Needs -->
+                    <div class="col-12">
+                        <label class="form-label fw-bold small">Special Medical / Dietary Requirements</label>
+                        <textarea class="form-control" rows="3" placeholder="Specify if any family member needs insulin refrigeration, specific prescription medicines, or hypoallergenic food..." @bind="_specialNotes"></textarea>
+                    </div>
+
+                    <!-- Submit -->
+                    <div class="col-12 d-flex justify-content-end gap-3 pt-2">
+                        <button type="button" class="btn-dash-outline" @onclick="@(() => _showNewForm = false)">Cancel</button>
+                        <button type="button" class="btn-dash-primary" @onclick="SubmitReliefRequisition">
+                            <AppIcon Name="send" Size="16" />
+                            <span>Request Supplies</span>
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private bool _showNewForm = true;
+    private bool _formSubmitted;
+    private int _newRequestId;
+
+    private string _selectedCategory = "Drinking Water (20L Jerrycans)";
+    private string _selectedUrgency = "Critical (Within 12 Hours)";
+    private int _familySize = 4;
+    private int _childrenCount = 1;
+    private int _elderlyCount = 1;
+    private string _destinationAddress = "Sector 3, Block D, East Bank (near Post Office)";
+    private string _specialNotes = "";
+
+    private readonly List<ReliefOrder> _orders = new()
+    {
+        new ReliefOrder("REL-4819", "Clean Drinking Water (2 x 20L) & ORS", "Sector 3, Block D", 4, "Dispatched", "bg-warning-subtle text-warning border border-warning-subtle", "3 hours ago", "Red Crescent Relief Convoy"),
+        new ReliefOrder("REL-3902", "Emergency Food Rations Pack (7-Day)", "Community Shelter #2", 5, "Delivered", "bg-success-subtle text-success border border-success-subtle", "Yesterday", "UNHCR / Volunteer Corps"),
+    };
+
+    private void SubmitReliefRequisition()
+    {
+        _newRequestId = Random.Shared.Next(1000, 9999);
+        _orders.Insert(0, new ReliefOrder(
+            $"REL-{_newRequestId}",
+            _selectedCategory,
+            _destinationAddress,
+            _familySize,
+            "Approved & In Queue",
+            "bg-info-subtle text-primary border border-info-subtle",
+            "Just now",
+            "Central Logistics Hub"
+        ));
+        _formSubmitted = true;
+    }
+
+    private sealed record ReliefOrder(
+        string Id,
+        string ItemTitle,
+        string Destination,
+        int FamilySize,
+        string Status,
+        string StatusBadge,
+        string RequestedTime,
+        string Fulfiller
+    );
+}

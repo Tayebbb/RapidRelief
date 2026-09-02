@@ -11,45 +11,63 @@
 
     @* Clicking any link closes the mobile drawer (same pattern as the template it replaces). *@
     <nav class="nav-body" @onclick="Navigated">
-        <span class="nav-section">Response</span>
-        <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-            <AppIcon Name="home" Size="19" /><span>Home</span>
+        <!-- Citizen Emergency Services -->
+        <span class="nav-section">Citizen Portal</span>
+        <NavLink class="nav-link" href="c" Match="NavLinkMatch.All">
+            <AppIcon Name="layers" Size="19" /><span>Dashboard</span>
+        </NavLink>
+        <NavLink class="nav-link" href="reports/new">
+            <AppIcon Name="alert-circle" Size="19" /><span>Report Incident & SOS</span>
+        </NavLink>
+        <NavLink class="nav-link" href="reports/my">
+            <AppIcon Name="clock" Size="19" /><span>Track My Reports</span>
         </NavLink>
         <NavLink class="nav-link" href="shelters/finder">
-            <AppIcon Name="map-pin" Size="19" /><span>Find shelter</span>
+            <AppIcon Name="map-pin" Size="19" /><span>Find Shelter</span>
+        </NavLink>
+        <NavLink class="nav-link" href="relief/request">
+            <AppIcon Name="shield-plus" Size="19" /><span>Request Relief</span>
         </NavLink>
         <NavLink class="nav-link" href="assistant">
-            <AppIcon Name="chat" Size="19" /><span>Assistant</span>
+            <AppIcon Name="chat" Size="19" /><span>AI Assistant</span>
         </NavLink>
         <NavLink class="nav-link" href="sample">
-            <AppIcon Name="map" Size="19" /><span>Live map</span>
+            <AppIcon Name="map" Size="19" /><span>Live Disaster Map</span>
         </NavLink>
 
-        <AuthorizeView>
+        <span class="nav-section">Personal & Alerts</span>
+        <NavLink class="nav-link" href="notifications">
+            <AppIcon Name="bell" Size="19" /><span>Emergency Alerts</span>
+        </NavLink>
+        <NavLink class="nav-link" href="profile">
+            <AppIcon Name="user" Size="19" /><span>Profile & Contacts</span>
+        </NavLink>
+
+        <AuthorizeView Roles="Government">
             <Authorized>
-                <span class="nav-section">Dashboard</span>
-                <NavLink class="nav-link" href="@DashboardLink">
-                    <AppIcon Name="layers" Size="19" /><span>My Dashboard</span>
+                <span class="nav-section">Government Command</span>
+                <NavLink class="nav-link" href="g">
+                    <AppIcon Name="shield" Size="19" /><span>Command Center</span>
                 </NavLink>
-                <span class="nav-section">Personal</span>
-                <NavLink class="nav-link" href="notifications">
-                    <AppIcon Name="bell" Size="19" /><span>Notifications</span>
+                <NavLink class="nav-link" href="admin/shelters">
+                    <AppIcon Name="home" Size="19" /><span>Manage Shelters</span>
+                    <span class="nav-tag">Admin</span>
                 </NavLink>
-                <NavLink class="nav-link" href="profile">
-                    <AppIcon Name="user" Size="19" /><span>Profile</span>
+                <NavLink class="nav-link" href="ui-showcase">
+                    <AppIcon Name="layers" Size="19" /><span>UI Showcase</span>
+                    <span class="nav-tag">Dev</span>
                 </NavLink>
             </Authorized>
         </AuthorizeView>
 
-        <span class="nav-section">Administration</span>
-        <NavLink class="nav-link" href="admin/shelters">
-            <AppIcon Name="shield" Size="19" /><span>Manage shelters</span>
-            <span class="nav-tag">Admin</span>
-        </NavLink>
-        <NavLink class="nav-link" href="ui-showcase">
-            <AppIcon Name="layers" Size="19" /><span>UI Showcase</span>
-            <span class="nav-tag">Dev</span>
-        </NavLink>
+        <AuthorizeView Roles="Rescuer">
+            <Authorized>
+                <span class="nav-section">Rescuer Operations</span>
+                <NavLink class="nav-link" href="r">
+                    <AppIcon Name="activity" Size="19" /><span>Rescuer HUD</span>
+                </NavLink>
+            </Authorized>
+        </AuthorizeView>
     </nav>
 
     <div class="nav-foot">

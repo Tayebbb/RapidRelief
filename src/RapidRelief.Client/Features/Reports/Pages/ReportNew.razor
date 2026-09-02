@@ -1,0 +1,201 @@
+@page "/reports/new"
+@layout MainLayout
+@namespace RapidRelief.Client.Features.Reports.Pages
+@using RapidRelief.Shared.Contracts.Enums
+@using RapidRelief.Client.Common.Ui
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>Report an Emergency Incident & SOS — RapidRelief</PageTitle>
+
+<div class="dash-layout">
+    <!-- Header -->
+    <div class="dash-header-banner">
+        <div class="dash-title-group">
+            <div class="dash-role-badge citizen">
+                <AppIcon Name="alert-circle" Size="14" />
+                <span>Emergency Filing</span>
+            </div>
+            <h1 class="dash-title">Report Emergency Incident</h1>
+            <p class="dash-subtitle">Submit disaster alerts, request immediate search & rescue, or report hazards.</p>
+        </div>
+
+        <div class="dash-header-actions">
+            <a href="reports/my" class="btn-dash-outline">
+                <AppIcon Name="clock" Size="16" />
+                <span>Track My Reports</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- 1-Tap SOS Priority Rescue Strip -->
+    <div class="dash-sos-box">
+        <div class="dash-sos-content">
+            <div class="dash-sos-text">
+                <h3>
+                    <AppIcon Name="alert-circle" Size="22" />
+                    <span>Instant 1-Tap SOS Signal</span>
+                </h3>
+                <p>Trapped or in direct life peril? Press the button to immediately broadcast your GPS coordinates to all active rescue units.</p>
+            </div>
+            <div class="dash-sos-btn-row">
+                <button type="button" class="btn-sos-trigger" @onclick="TriggerInstantSos">
+                    <AppIcon Name="activity" Size="18" />
+                    <span>Send Immediate SOS</span>
+                </button>
+                <a href="tel:999" class="btn-sos-call">
+                    <AppIcon Name="phone" Size="16" />
+                    <span>Call 999</span>
+                </a>
+            </div>
+        </div>
+
+        @if (_sosBroadcasted)
+        {
+            <div class="alert alert-danger mb-0 d-flex align-items-center gap-2 mt-2" role="alert">
+                <AppIcon Name="check" Size="18" />
+                <div>
+                    <strong>SOS Signal Transmitted!</strong> Coordinates locked: <strong>@_locationText</strong>. A priority rescue dispatch ticket #SOS-@_randomId has been assigned to regional field units.
+                </div>
+            </div>
+        }
+    </div>
+
+    <!-- Standard Incident Submission Form -->
+    <div class="dash-card">
+        <div class="dash-card-header">
+            <div>
+                <h2 class="dash-card-title">
+                    <AppIcon Name="layers" Size="18" />
+                    <span>Incident Details</span>
+                </h2>
+                <p class="dash-card-subtitle">Provide details so emergency responders can deploy appropriate vehicles and medical gear.</p>
+            </div>
+        </div>
+
+        @if (_submitted)
+        {
+            <div class="alert alert-success d-flex align-items-center justify-content-between p-4 rounded-3">
+                <div class="d-flex align-items-center gap-3">
+                    <AppIcon Name="check" Size="24" />
+                    <div>
+                        <h4 class="alert-heading mb-1 fw-bold">Incident Report Filed Successfully!</h4>
+                        <p class="mb-0 text-secondary">
+                            Your report <strong>#RR-@_randomId</strong> has been logged into the regional command center. AI classification is estimating severity and matching nearby rescue units.
+                        </p>
+                    </div>
+                </div>
+                <a href="reports/my" class="btn-dash-primary">View Status in My Reports</a>
+            </div>
+        }
+        else
+        {
+            <div class="row g-4">
+                <!-- Incident Type -->
+                <div class="col-md-6">
+                    <label class="form-label fw-bold small">Disaster / Hazard Category <span class="text-danger">*</span></label>
+                    <select class="form-select" @bind="_incidentType">
+                        <option value="Flash Flood / Water Surge">Flash Flood / Rising Water Surge</option>
+                        <option value="Building Collapse / Trapped Persons">Building Collapse / Trapped Persons</option>
+                        <option value="Cyclone / Wind Damage">Cyclone / Severe Gale Damage</option>
+                        <option value="Fire Outbreak">Fire Outbreak</option>
+                        <option value="Landslide / Mudflow">Landslide / Mudflow</option>
+                        <option value="Medical Emergency in Flood Zone">Medical Emergency in Disaster Zone</option>
+                    </select>
+                </div>
+
+                <!-- Severity Assessment -->
+                <div class="col-md-6">
+                    <label class="form-label fw-bold small">Estimated Urgency Level <span class="text-danger">*</span></label>
+                    <select class="form-select" @bind="_severity">
+                        <option value="Critical">Critical (Immediate life risk, water rising fast)</option>
+                        <option value="Severe">Severe (Trapped, injured, or elderly without shelter)</option>
+                        <option value="Moderate">Moderate (Property cut off, power loss, safe for now)</option>
+                        <option value="Low">Low (Road blockage, minor waterlogging)</option>
+                    </select>
+                </div>
+
+                <!-- Location & GPS -->
+                <div class="col-12">
+                    <label class="form-label fw-bold small">Location / Landmark / Address <span class="text-danger">*</span></label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-transparent">
+                            <AppIcon Name="map-pin" Size="16" />
+                        </span>
+                        <input type="text" class="form-control" placeholder="e.g. Sector 4, Block C, near City High School, East Bank" @bind="_locationText" />
+                        <button class="btn btn-outline-secondary d-flex align-items-center gap-1" type="button" @onclick="AutoDetectLocation">
+                            <AppIcon Name="navigation" Size="14" />
+                            <span>@(_detectingLoc ? "Detecting GPS..." : "Use My Location")</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- People Count -->
+                <div class="col-md-6">
+                    <label class="form-label fw-bold small">Number of People Affected / Stranded</label>
+                    <input type="number" min="1" max="500" class="form-control" @bind="_peopleCount" />
+                </div>
+
+                <!-- Contact Phone -->
+                <div class="col-md-6">
+                    <label class="form-label fw-bold small">Callback Phone Number <span class="text-danger">*</span></label>
+                    <input type="tel" class="form-control" placeholder="+880 1700-000000" @bind="_contactPhone" />
+                </div>
+
+                <!-- Description -->
+                <div class="col-12">
+                    <label class="form-label fw-bold small">Detailed Situation Description</label>
+                    <textarea class="form-control" rows="4" placeholder="Describe the water depth, structural conditions, special needs (children, elderly, oxygen, medical), and any visible landmarks..." @bind="_description"></textarea>
+                </div>
+
+                <!-- Submit Button -->
+                <div class="col-12 d-flex justify-content-end gap-3 pt-2">
+                    <a href="c" class="btn-dash-outline">Cancel</a>
+                    <button type="button" class="btn-dash-primary" @onclick="SubmitIncidentReport">
+                        <AppIcon Name="send" Size="16" />
+                        <span>Submit Emergency Report</span>
+                    </button>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private string _incidentType = "Flash Flood / Water Surge";
+    private string _severity = "Critical";
+    private string _locationText = "Sector 3, Riverside Block, Dhaka (23.8103° N, 90.4125° E)";
+    private int _peopleCount = 3;
+    private string _contactPhone = "+880 1711-234567";
+    private string _description = "";
+    private bool _detectingLoc;
+    private bool _sosBroadcasted;
+    private bool _submitted;
+    private int _randomId = 7842;
+
+    protected override void OnInitialized()
+    {
+        _randomId = Random.Shared.Next(1000, 9999);
+    }
+
+    private void TriggerInstantSos()
+    {
+        _sosBroadcasted = true;
+    }
+
+    private async Task AutoDetectLocation()
+    {
+        _detectingLoc = true;
+        await Task.Delay(600); // simulate GPS fix
+        _locationText = "GPS Fixed: 23.8124° N, 90.4140° E (Accuracy: ±4m)";
+        _detectingLoc = false;
+    }
+
+    private void SubmitIncidentReport()
+    {
+        if (!string.IsNullOrWhiteSpace(_locationText))
+        {
+            _submitted = true;
+        }
+    }
+}

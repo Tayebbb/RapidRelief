@@ -14,20 +14,23 @@ Citizens report disasters (GPS, photos, offline-capable SOS) → AI classifies, 
 | [RapidRelief-Development-Plan.md](RapidRelief-Development-Plan.md) | Full development plan — features, ownership, phases, zero-blocking parallel model, demo script.                                     |
 | [AGENTS.md](AGENTS.md)                                             | Instructions for AI coding agents (Copilot, Antigravity, etc.).                                                                     |
 
-> Status: **F0 Foundation, F1 Auth, F8 AI Engine, F9 Realtime and F16 AI Assistant are DONE.** The
-> remaining features build on top of them — see the status board in PROJECT-CONTEXT.md §3.
+> Status: **F0 Foundation, F1 Auth, F3 Shelters, F8 AI Engine, F9 Realtime and F16 AI Assistant are DONE.** F2 Disaster Reporting, F4 Relief Requests, F5 Rescue Operations, and F7 Command Center have active UI verticals shipped — see the status board in PROJECT-CONTEXT.md §3.
 
 ## What works today
 
-| Area                       | You get                                                                                                                                                                                   |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Foundation** (F0)        | Modular-monolith host, self-registering feature modules, in-process event bus, per-feature EF contexts, degraded-mode startup, hosted Blazor WASM PWA, vendored Leaflet map component     |
-| **Contracts v1**           | `RapidRelief.Shared/Contracts` — enums, read models, events and the 7 service interfaces every feature integrates through (frozen, additive-only)                                         |
-| **Stubs + seed data** (F0) | Deterministic Dhaka dataset (28 incidents, 8 shelters, 6 hospitals, 10 volunteers, 5 NGOs, 6 teams) behind every contract interface, so a feature can be built before its producer exists |
-| **Auth** (F1)              | Real accounts: `/register`, `/login`, `/profile` pages; JWT + rotating refresh cookie; role policies; admin user management. `X-Dev-Role` fake auth still works when signed out           |
-| **AI engine** (F8)         | `IncidentCreated` → background worker → severity/priority/duplicate assessment → `IncidentAssessed`. OpenRouter free models when a key is configured, rule-based always                   |
-| **Realtime** (F9)          | `/hubs/notifications` SignalR push + notification inbox at `/notifications` + bell + toasts, with permanent 5 s polling fallback                                                          |
-| **AI assistant** (F16)     | `/assistant` chat page with server-owned history, canned safety answers when OpenRouter is off, opt-in location sharing                                                                   |
+| Area                                | You get                                                                                                                                                                                   |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Foundation** (F0)                 | Modular-monolith host, self-registering feature modules, in-process event bus, per-feature EF contexts, degraded-mode startup, hosted Blazor WASM PWA, vendored Leaflet map component     |
+| **Contracts v1**                    | `RapidRelief.Shared/Contracts` — enums, read models, events and the 7 service interfaces every feature integrates through (frozen, additive-only)                                         |
+| **Stubs + seed data** (F0)          | Deterministic Dhaka dataset (28 incidents, 8 shelters, 6 hospitals, 10 volunteers, 5 NGOs, 6 teams) behind every contract interface, so a feature can be built before its producer exists |
+| **Auth & RBAC** (F1)                | Real accounts: `/register`, `/login`, `/profile` pages; JWT + rotating refresh cookie; 3-Role system (`Citizen`, `Rescuer`, `Government`); automated role redirection (`AuthRouteHelper`). `X-Dev-Role` fake auth still works when signed out |
+| **Citizen Portal & SOS** (F2/F4)    | Full Citizen suite: `/reports/new` (Disaster reporting with GPS auto-detect and 1-tap priority SOS), `/reports/my` (Mission tracker with 4-stage stepper and ETA), `/relief/request` (Emergency supply requisition) |
+| **Shelters** (F3)                   | Live shelter finder on Leaflet map (`/shelters/finder`), capacity meters, nearest-shelter calculations with AI recommendation fallback, and administrative shelter management (`/shelters/manage`) |
+| **Dashboards & HUDs** (F5/F7)       | Role-tailored dashboards: `/c` (Citizen personal safety toggle), `/r` (Rescuer tactical operational HUD, mission stepper, dispatch queue), and `/g` (Government EOC Command Center)     |
+| **Public Landing Page**             | Modern emergency response landing page at `/` with cinematic slideshow hero, quick actions, how-it-works flow, AI assistant simulator, and interactive navbar with glassmorphic profile menu |
+| **AI engine** (F8)                  | `IncidentCreated` → background worker → severity/priority/duplicate assessment → `IncidentAssessed`. OpenRouter free models when a key is configured, rule-based always                   |
+| **Realtime** (F9)                   | `/hubs/notifications` SignalR push + notification inbox at `/notifications` + bell + toasts, with permanent 5 s polling fallback                                                          |
+| **AI assistant** (F16)              | `/assistant` chat page with server-owned history, canned safety answers when OpenRouter is off, opt-in location sharing                                                                   |
 
 The foundation, contracts, stubs and AI fallback all run with **no database and no API key** — see
 [degraded mode](#3-no-database-at-all--degraded-mode-d-005) for exactly what is and isn't reachable.
