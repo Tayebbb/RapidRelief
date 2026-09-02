@@ -115,6 +115,16 @@ try
                         QueueLimit = 0,
                     }));
 
+            options.AddPolicy("alerts", httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    RateLimitPartitions.UserOrIp(httpContext),
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimiting.GetValue("Alerts:PermitLimit", 20),
+                        Window = TimeSpan.FromSeconds(rateLimiting.GetValue("Alerts:WindowSeconds", 60)),
+                        QueueLimit = 0,
+                    }));
+
             // Realtime endpoints are all RequireAuthorization, so a caller key always exists:
             // partitioning per user keeps shared-IP clients off each other's budget.
             options.AddPolicy("realtime", httpContext =>
