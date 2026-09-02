@@ -131,6 +131,7 @@ try
 
     // B6 step 4 — FluentValidation validators (EXPLICIT validation only, never auto-MVC).
     builder.Services.AddValidatorsFromAssemblyContaining<Program>();
+    builder.Services.AddHttpClient();
 
     // B6 step 5 — MultiAuth policy scheme + JwtBearer + FakeAuth (Dev/Testing) + role policies.
     builder.Services.AddRapidReliefAuth(builder.Configuration, builder.Environment);

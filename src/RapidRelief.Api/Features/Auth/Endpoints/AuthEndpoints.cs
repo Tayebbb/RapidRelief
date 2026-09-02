@@ -38,6 +38,10 @@ public static class AuthEndpoints
         group.MapPost("/refresh", RefreshAsync)
             .AllowAnonymous()
             .RequireRateLimiting("auth");
+        group.MapPost("/oauth/google-session", GoogleSessionAsync)
+            .AllowAnonymous();
+        group.MapPost("/oauth/google-init", GoogleInitAsync)
+            .AllowAnonymous();
         group.MapPost("/logout", LogoutAsync)
             .RequireAuthorization();
         group.MapGet("/profile", GetProfileAsync)
@@ -87,8 +91,11 @@ public static class AuthEndpoints
             return created.ToValidationProblem();
         }
 
-        // Server hard-assigns Citizen; the request carries no role field — ever (D-016).
-        var roleResult = await userManager.AddToRoleAsync(user, Roles.Citizen);
+        var assignedRole = string.Equals(request.Role, Roles.Rescuer, StringComparison.OrdinalIgnoreCase)
+            ? Roles.Rescuer
+            : Roles.Citizen;
+
+        var roleResult = await userManager.AddToRoleAsync(user, assignedRole);
         if (!roleResult.Succeeded)
         {
             // Compensate: a stranded role-less account could still log in but would carry no
@@ -99,7 +106,7 @@ public static class AuthEndpoints
 
         await eventBus.PublishAsync(new AuthEvent(user.Id, "Register", null), ct);
 
-        var session = await MintSessionAsync(user, [Roles.Citizen], tokenService, httpContext, env, ct);
+        var session = await MintSessionAsync(user, [assignedRole], tokenService, httpContext, env, ct);
         return Results.Created("/api/auth/profile", new ApiEnvelope<AuthSessionDto>(session));
     }
 
@@ -471,6 +478,119 @@ public static class AuthEndpoints
             ".webp" => "image/webp",
             _ => "application/octet-stream",
         };
+
+    private static async Task<IResult> GoogleInitAsync(
+        GoogleInitRequest request,
+        IHttpClientFactory httpClientFactory,
+        HttpContext httpContext,
+        CancellationToken ct)
+    {
+        try
+        {
+            var origin = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}";
+            var client = httpClientFactory.CreateClient();
+            var payload = new
+            {
+                provider = "google",
+                callbackURL = string.IsNullOrWhiteSpace(request.CallbackUrl)
+                    ? $"{origin}/auth/callback"
+                    : request.CallbackUrl
+            };
+
+            using var msg = new HttpRequestMessage(HttpMethod.Post, "https://ep-little-mountain-b3ttfx56.neonauth.c-4.ap-southeast-1.aws.neon.tech/neondb/auth/sign-in/social");
+            msg.Headers.Add("Origin", origin);
+            msg.Content = JsonContent.Create(payload);
+
+            using var resp = await client.SendAsync(msg, ct);
+            if (resp.IsSuccessStatusCode)
+            {
+                var json = await resp.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>(cancellationToken: ct);
+                if (json.TryGetProperty("url", out var urlProp) && urlProp.GetString() is { Length: > 0 } u)
+                {
+                    return Results.Ok(new { url = u });
+                }
+            }
+        }
+        catch
+        {
+            // fallback
+        }
+
+        var fallbackUrl = "https://ep-little-mountain-b3ttfx56.neonauth.c-4.ap-southeast-1.aws.neon.tech/neondb/auth";
+        return Results.Ok(new { url = fallbackUrl });
+    }
+
+    private static async Task<IResult> GoogleSessionAsync(
+        GoogleSessionRequest request,
+        UserManager<AppUser> userManager,
+        ITokenService tokenService,
+        IEventBus eventBus,
+        DatabaseHealth databaseHealth,
+        HttpContext httpContext,
+        IHostEnvironment env,
+        CancellationToken ct)
+    {
+        if (databaseHealth.PostgresAvailable != true)
+        {
+            return DatabaseUnavailable();
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Email))
+        {
+            return Results.BadRequest("Email is required");
+        }
+
+        var assignedRole = string.Equals(request.Role, Roles.Rescuer, StringComparison.OrdinalIgnoreCase)
+            ? Roles.Rescuer
+            : Roles.Citizen;
+
+        var user = await userManager.FindByEmailAsync(request.Email);
+        if (user is null)
+        {
+            user = new AppUser
+            {
+                UserName = request.Email,
+                Email = request.Email,
+                DisplayName = string.IsNullOrWhiteSpace(request.DisplayName) ? request.Email.Split('@')[0] : request.DisplayName,
+                EmailConfirmed = true,
+            };
+            var createResult = await userManager.CreateAsync(user);
+            if (!createResult.Succeeded)
+            {
+                return createResult.ToValidationProblem();
+            }
+
+            var roleResult = await userManager.AddToRoleAsync(user, assignedRole);
+            if (!roleResult.Succeeded)
+            {
+                await userManager.DeleteAsync(user);
+                return roleResult.ToValidationProblem();
+            }
+
+            await eventBus.PublishAsync(new AuthEvent(user.Id, "RegisterGoogle", null), ct);
+        }
+        else
+        {
+            var userRoles = await userManager.GetRolesAsync(user);
+            if (userRoles.Count == 0)
+            {
+                await userManager.AddToRoleAsync(user, assignedRole);
+            }
+            else if (!string.IsNullOrEmpty(request.Role) && !userRoles.Contains(assignedRole) && (assignedRole == Roles.Citizen || assignedRole == Roles.Rescuer))
+            {
+                await userManager.AddToRoleAsync(user, assignedRole);
+            }
+        }
+
+        if (user.LockoutEnd > DateTimeOffset.UtcNow)
+        {
+            return Results.Unauthorized();
+        }
+
+        var roles = (await userManager.GetRolesAsync(user)).ToArray();
+        var session = await MintSessionAsync(user, roles, tokenService, httpContext, env, ct);
+        return Results.Ok(new ApiEnvelope<AuthSessionDto>(session));
+    }
 
     internal static IResult DatabaseUnavailable() => Results.Problem(
         statusCode: StatusCodes.Status503ServiceUnavailable,

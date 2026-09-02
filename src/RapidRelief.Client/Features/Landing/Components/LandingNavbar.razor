@@ -25,10 +25,10 @@
                     <LoginDisplay />
                 </Authorized>
                 <NotAuthorized>
-                    <a class="btn-nav-signin" href="login">
+                    <a class="btn-nav-signin" href="auth/signin">
                         Sign In
                     </a>
-                    <a class="btn-nav-signup" href="register">
+                    <a class="btn-nav-signup" href="auth/signup">
                         <span>Sign Up</span>
                         <AppIcon Name="arrow-right" Size="15" />
                     </a>
@@ -75,8 +75,8 @@
                     <a class="btn btn-outline-primary btn-sm w-100" href="profile" @onclick="CloseMobileMenu">Profile</a>
                 </Authorized>
                 <NotAuthorized>
-                    <a class="btn btn-outline-secondary btn-sm flex-fill text-center" href="login" @onclick="CloseMobileMenu">Sign In</a>
-                    <a class="btn btn-primary btn-sm flex-fill text-center" href="register" @onclick="CloseMobileMenu">Sign Up</a>
+                    <a class="btn btn-outline-secondary btn-sm flex-fill text-center" href="auth/signin" @onclick="CloseMobileMenu">Sign In</a>
+                    <a class="btn btn-primary btn-sm flex-fill text-center" href="auth/signup" @onclick="CloseMobileMenu">Sign Up</a>
                 </NotAuthorized>
             </AuthorizeView>
         </div>

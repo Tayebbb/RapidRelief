@@ -57,6 +57,41 @@ public sealed class AuthApi
         }
     }
 
+    public async Task<AuthResult> SyncGoogleSessionAsync(GoogleSessionRequest request)
+    {
+        try
+        {
+            using var response = await _http.PostAsJsonAsync("api/auth/oauth/google-session", request);
+            return await ReadSessionAsync(response);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return AuthResult.Fail(OfflineMessage);
+        }
+    }
+
+    public async Task<string> GetGoogleInitUrlAsync(string? callbackUrl = null)
+    {
+        try
+        {
+            using var response = await _http.PostAsJsonAsync("api/auth/oauth/google-init", new GoogleInitRequest(callbackUrl));
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+                if (json.TryGetProperty("url", out var urlProp) && urlProp.GetString() is { Length: > 0 } url)
+                {
+                    return url;
+                }
+            }
+        }
+        catch
+        {
+            // fallback
+        }
+
+        return "https://ep-little-mountain-b3ttfx56.neonauth.c-4.ap-southeast-1.aws.neon.tech/neondb/auth";
+    }
+
     /// <summary>
     /// Single-flight silent refresh (boot restore + proactive mid-session). 401 clears the session;
     /// degraded/offline outcomes leave the current state untouched and report false.
@@ -197,6 +232,8 @@ public sealed class AuthApi
 public sealed record AuthResult(
     bool Succeeded, string? Error, IReadOnlyDictionary<string, string[]>? FieldErrors)
 {
+    public bool Success => Succeeded;
+
     public static AuthResult Ok() => new(true, null, null);
 
     public static AuthResult Fail(string error) => new(false, error, null);

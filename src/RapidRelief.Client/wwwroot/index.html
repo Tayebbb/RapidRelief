@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta http-equiv="Content-Security-Policy"
-          content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self' https://tile.openstreetmap.org data:; style-src 'self' 'unsafe-inline'; connect-src 'self' https://tile.openstreetmap.org; base-uri 'self'" />
+          content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self' https://tile.openstreetmap.org data: https://*.googleusercontent.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://tile.openstreetmap.org https://ep-little-mountain-b3ttfx56.neonauth.c-4.ap-southeast-1.aws.neon.tech https://*.neon.tech; base-uri 'self'" />
     <meta name="description" content="RapidRelief — AI smart disaster response and emergency management for Dhaka." />
     <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#f6f7f9" />
@@ -18,6 +18,7 @@
     <link rel="stylesheet" href="lib/leaflet/leaflet.css" />
     <link rel="stylesheet" href="css/app.css" />
     <link rel="stylesheet" href="css/landing.css" />
+    <link rel="stylesheet" href="css/auth-pages.css" />
     <link rel="icon" type="image/x-icon" href="favicon.ico?v=3" />
     <link rel="icon" type="image/png" sizes="32x32" href="logo%20(2).png?v=3" />
     <link rel="icon" type="image/png" sizes="16x16" href="logo%20(2).png?v=3" />
@@ -56,6 +57,7 @@
     <!-- Service-worker registration lives in an external file: the CSP forbids inline scripts. -->
     <script src="js/app-init.js"></script>
     <script src="js/landing.js"></script>
+    <script src="js/auth-helper.js"></script>
 </body>
 
 </html>

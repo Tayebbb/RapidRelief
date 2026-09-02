@@ -1,0 +1,34 @@
+@inherits LayoutComponentBase
+@namespace RapidRelief.Client.Layout
+@using RapidRelief.Client.Features.Landing.Components
+
+<div class="auth-layout-root">
+    <div class="auth-layout-ambient-glow" aria-hidden="true"></div>
+
+    <header class="auth-layout-header">
+        <a href="" class="auth-layout-brand">
+            <img src="logo.png" alt="RapidRelief Logo" class="auth-layout-logo" />
+            <span class="auth-layout-brand-text">RapidRelief</span>
+        </a>
+
+        <div class="auth-layout-header-actions">
+            <a href="" class="auth-layout-home-link" title="Return to Homepage">
+                <AppIcon Name="arrow-left" Size="16" />
+                <span>Back to Home</span>
+            </a>
+            <ThemeToggle />
+        </div>
+    </header>
+
+    <main class="auth-layout-main">
+        <div class="auth-layout-container">
+            @Body
+        </div>
+    </main>
+
+    <footer class="auth-layout-footer">
+        <p>&copy; @DateTime.UtcNow.Year RapidRelief. Built for emergency response & safety.</p>
+    </footer>
+</div>
+
+<ToastHost />

@@ -1,0 +1,280 @@
+@page "/auth/signup"
+@page "/register"
+@layout AuthLayout
+@namespace RapidRelief.Client.Features.Auth.Pages
+@using RapidRelief.Shared.Contracts.Enums
+@inject AuthApi AuthApi
+@inject NavigationManager Navigation
+
+<PageTitle>Sign Up — RapidRelief</PageTitle>
+
+<div class="auth-card">
+    <div class="auth-card-header">
+        <div class="auth-card-badge">
+            <AppIcon Name="user-plus" Size="14" />
+            <span>Join RapidRelief</span>
+        </div>
+        <h1 class="auth-card-title">Create an Account</h1>
+        <p class="auth-card-subtitle">Connect with emergency aid, response teams, and real-time alerts.</p>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="auth-banner-alert is-danger" role="alert">
+            <AppIcon Name="alert-triangle" Size="18" />
+            <span>@_errorMessage</span>
+        </div>
+    }
+
+    <!-- Continue with Google (Neon Auth) -->
+    <button type="button" class="btn-google-auth" @onclick="ContinueWithGoogleAsync" disabled="@_isGoogleBusy">
+        @if (_isGoogleBusy)
+        {
+            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            <span>Connecting to Google...</span>
+        }
+        else
+        {
+            <svg class="google-icon-svg" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z" />
+                <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.34 24 12 24z" />
+                <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.16 0 9.94 0 12s.45 3.84 1.25 5.42l4.03-3.15z" />
+                <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z" />
+            </svg>
+            <span>Continue with Google</span>
+        }
+    </button>
+
+    <div class="auth-divider">
+        <span>or sign up with email</span>
+    </div>
+
+    <!-- Registration Form -->
+    <EditForm Model="@_model" OnValidSubmit="HandleRegisterAsync">
+        <!-- Name -->
+        <div class="auth-form-group">
+            <label class="auth-label" for="signup-name">Full Name</label>
+            <div class="auth-input-wrapper">
+                <span class="auth-input-icon">
+                    <AppIcon Name="user" Size="18" />
+                </span>
+                <input id="signup-name" type="text" class="auth-input" placeholder="e.g. Sarah Khan"
+                       @bind="_model.DisplayName" required autocomplete="name" />
+            </div>
+        </div>
+
+        <!-- Email -->
+        <div class="auth-form-group">
+            <label class="auth-label" for="signup-email">Email Address</label>
+            <div class="auth-input-wrapper">
+                <span class="auth-input-icon">
+                    <AppIcon Name="mail" Size="18" />
+                </span>
+                <input id="signup-email" type="email" class="auth-input" placeholder="you@example.com"
+                       @bind="_model.Email" required autocomplete="email" />
+            </div>
+        </div>
+
+        <!-- Role Selection -->
+        <div class="auth-form-group">
+            <label class="auth-label">I am registering as</label>
+            <div class="auth-roles-grid" role="radiogroup" aria-label="Select account role">
+                <div class="auth-role-card @(_model.Role == Roles.Citizen ? "is-selected" : null)"
+                     @onclick="@(() => SelectRole(Roles.Citizen))"
+                     role="radio" aria-checked="@(_model.Role == Roles.Citizen)" tabindex="0">
+                    <div class="auth-role-card-top">
+                        <div class="auth-role-card-icon">
+                            <AppIcon Name="shield" Size="18" />
+                        </div>
+                        <div class="auth-role-radio-dot"></div>
+                    </div>
+                    <h3 class="auth-role-title">I am Citizen</h3>
+                    <p class="auth-role-desc">Report incidents, request emergency aid & locate safe shelters.</p>
+                </div>
+
+                <div class="auth-role-card @(_model.Role == Roles.Rescuer ? "is-selected" : null)"
+                     @onclick="@(() => SelectRole(Roles.Rescuer))"
+                     role="radio" aria-checked="@(_model.Role == Roles.Rescuer)" tabindex="0">
+                    <div class="auth-role-card-top">
+                        <div class="auth-role-card-icon">
+                            <AppIcon Name="activity" Size="18" />
+                        </div>
+                        <div class="auth-role-radio-dot"></div>
+                    </div>
+                    <h3 class="auth-role-title">I am Rescuer</h3>
+                    <p class="auth-role-desc">First responder, field rescue team member & mission operations.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Password -->
+        <div class="auth-form-group">
+            <label class="auth-label" for="signup-password">Password</label>
+            <div class="auth-input-wrapper">
+                <span class="auth-input-icon">
+                    <AppIcon Name="lock" Size="18" />
+                </span>
+                <input id="signup-password" type="@(_showPassword ? "text" : "password")" class="auth-input"
+                       placeholder="At least 8 characters" @bind="_model.Password" required minlength="8" autocomplete="new-password" />
+                <button type="button" class="auth-toggle-pwd" @onclick="TogglePasswordVisibility"
+                        aria-label="@(_showPassword ? "Hide password" : "Show password")">
+                    <AppIcon Name="@(_showPassword ? "eye-off" : "eye")" Size="16" />
+                </button>
+            </div>
+        </div>
+
+        <!-- Confirm Password -->
+        <div class="auth-form-group">
+            <label class="auth-label" for="signup-confirm-password">Confirm Password</label>
+            <div class="auth-input-wrapper">
+                <span class="auth-input-icon">
+                    <AppIcon Name="lock" Size="18" />
+                </span>
+                <input id="signup-confirm-password" type="@(_showPassword ? "text" : "password")" class="auth-input @(_passwordMismatch ? "is-invalid" : null)"
+                       placeholder="Confirm your password" @bind="_model.ConfirmPassword" required minlength="8" autocomplete="new-password" />
+            </div>
+            @if (_passwordMismatch)
+            {
+                <div class="auth-field-error">
+                    <AppIcon Name="alert-circle" Size="14" />
+                    <span>Passwords do not match.</span>
+                </div>
+            }
+        </div>
+
+        <!-- Agreement -->
+        <div class="auth-form-group">
+            <label class="auth-checkbox-label">
+                <input type="checkbox" class="auth-checkbox-input" @bind="_agreedToTerms" required />
+                <span>I understand RapidRelief is an emergency platform and agree to responsible use.</span>
+            </label>
+        </div>
+
+        <button type="submit" class="btn-auth-primary" disabled="@(_isSubmitting || !_agreedToTerms)">
+            @if (_isSubmitting)
+            {
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                <span>Creating Account...</span>
+            }
+            else
+            {
+                <span>Create Account</span>
+                <AppIcon Name="arrow-right" Size="16" />
+            }
+        </button>
+    </EditForm>
+
+    <div class="auth-card-footer">
+        <span>Already have an account? </span>
+        <a href="auth/signin" class="auth-link">Sign In</a>
+    </div>
+</div>
+
+@code {
+    private readonly SignUpViewModel _model = new();
+    private bool _showPassword;
+    private bool _agreedToTerms = true;
+    private bool _passwordMismatch;
+    private bool _isSubmitting;
+    private bool _isGoogleBusy;
+    private string? _errorMessage;
+
+    private void SelectRole(string role) => _model.Role = role;
+    private void TogglePasswordVisibility() => _showPassword = !_showPassword;
+
+    private async Task HandleRegisterAsync()
+    {
+        if (_isSubmitting) return;
+
+        _errorMessage = null;
+        _passwordMismatch = false;
+
+        if (string.IsNullOrWhiteSpace(_model.DisplayName))
+        {
+            _errorMessage = "Please enter your full name.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_model.Email))
+        {
+            _errorMessage = "Please enter a valid email address.";
+            return;
+        }
+
+        if (string.IsNullOrEmpty(_model.Password) || _model.Password.Length < 8)
+        {
+            _errorMessage = "Password must be at least 8 characters.";
+            return;
+        }
+
+        if (_model.Password != _model.ConfirmPassword)
+        {
+            _passwordMismatch = true;
+            _errorMessage = "Passwords do not match.";
+            return;
+        }
+
+        _isSubmitting = true;
+
+        try
+        {
+            var req = new RegisterRequest(
+                Email: _model.Email.Trim(),
+                Password: _model.Password,
+                DisplayName: _model.DisplayName.Trim(),
+                PhoneNumber: null,
+                EmergencyContact: null,
+                Role: _model.Role
+            );
+
+            var result = await AuthApi.RegisterAsync(req);
+
+            if (result.Success)
+            {
+                Navigation.NavigateTo("");
+            }
+            else
+            {
+                _errorMessage = result.Error ?? "Could not create your account. Please try again.";
+            }
+        }
+        catch (Exception)
+        {
+            _errorMessage = "An unexpected error occurred. Please check your connection.";
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private async Task ContinueWithGoogleAsync()
+    {
+        if (_isGoogleBusy) return;
+
+        _errorMessage = null;
+        _isGoogleBusy = true;
+
+        try
+        {
+            // Carry the intent to signup so that callback presents the pop-up role selector if needed
+            var callbackUrl = Navigation.ToAbsoluteUri("auth/callback?intent=signup").ToString();
+            var targetUrl = await AuthApi.GetGoogleInitUrlAsync(callbackUrl);
+            Navigation.NavigateTo(targetUrl, forceLoad: true);
+        }
+        catch (Exception)
+        {
+            _errorMessage = "Could not initialize Google authentication. Please try again.";
+            _isGoogleBusy = false;
+        }
+    }
+
+    private sealed class SignUpViewModel
+    {
+        public string? DisplayName { get; set; }
+        public string? Email { get; set; }
+        public string? Password { get; set; }
+        public string? ConfirmPassword { get; set; }
+        public string Role { get; set; } = Roles.Citizen;
+    }
+}

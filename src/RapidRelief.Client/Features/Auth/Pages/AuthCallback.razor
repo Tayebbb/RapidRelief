@@ -1,0 +1,234 @@
+@page "/auth/callback"
+@layout AuthLayout
+@namespace RapidRelief.Client.Features.Auth.Pages
+@using System.Text.Json
+@using RapidRelief.Shared.Contracts.Enums
+@inject AuthApi AuthApi
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+<PageTitle>Authenticating — RapidRelief</PageTitle>
+
+<div class="auth-card">
+    <div class="auth-card-header">
+        <div class="auth-card-badge">
+            <AppIcon Name="shield" Size="14" />
+            <span>Google Authentication</span>
+        </div>
+        <h1 class="auth-card-title">@(_showRoleModal ? "Almost Done!" : "Signing You In")</h1>
+        <p class="auth-card-subtitle">
+            @if (_showRoleModal)
+            {
+                <span>Please select your account type to finalize your profile.</span>
+            }
+            else if (_isProcessing)
+            {
+                <span>Verifying your credentials and establishing a secure session...</span>
+            }
+            else
+            {
+                <span>Please review your account setup below.</span>
+            }
+        </p>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="auth-banner-alert is-danger" role="alert">
+            <AppIcon Name="alert-triangle" Size="18" />
+            <span>@_errorMessage</span>
+        </div>
+    }
+
+    @if (_isProcessing)
+    {
+        <div class="text-center py-4">
+            <div class="spinner-border text-success mb-3" style="width: 3rem; height: 3rem;" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="text-muted">Connecting with RapidRelief secure system...</p>
+        </div>
+    }
+    else if (!_showRoleModal && !string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="d-flex flex-column gap-2 mt-3">
+            <a href="auth/signin" class="btn-auth-primary text-center text-decoration-none">
+                <AppIcon Name="arrow-left" Size="16" />
+                <span>Return to Sign In</span>
+            </a>
+            <a href="auth/signup" class="btn btn-outline-secondary py-2 text-center text-decoration-none">
+                <span>Create New Account</span>
+            </a>
+        </div>
+    }
+</div>
+
+@* Role Selection Pop-up Modal for Google Sign Up *@
+@if (_showRoleModal)
+{
+    <div class="auth-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-role-title">
+        <div class="auth-modal-content">
+            <div class="auth-card-header mb-3">
+                <div class="auth-card-badge">
+                    <AppIcon Name="user-check" Size="14" />
+                    <span>Choose Your Role</span>
+                </div>
+                <h2 id="modal-role-title" class="auth-card-title" style="font-size: 1.5rem;">One Last Step</h2>
+                <p class="auth-card-subtitle">
+                    Signed in as <strong>@(_googleUser?.Name ?? _googleUser?.Email ?? "Google User")</strong>.
+                    Choose how you'll use RapidRelief:
+                </p>
+            </div>
+
+            <div class="auth-roles-grid mb-4" role="radiogroup" aria-label="Select role">
+                <div class="auth-role-card @(_selectedRole == Roles.Citizen ? "is-selected" : null)"
+                     @onclick="@(() => _selectedRole = Roles.Citizen)"
+                     role="radio" aria-checked="@(_selectedRole == Roles.Citizen)" tabindex="0">
+                    <div class="auth-role-card-top">
+                        <div class="auth-role-card-icon">
+                            <AppIcon Name="shield" Size="18" />
+                        </div>
+                        <div class="auth-role-radio-dot"></div>
+                    </div>
+                    <h3 class="auth-role-title">I am Citizen</h3>
+                    <p class="auth-role-desc">Report incidents, request emergency aid & find shelters.</p>
+                </div>
+
+                <div class="auth-role-card @(_selectedRole == Roles.Rescuer ? "is-selected" : null)"
+                     @onclick="@(() => _selectedRole = Roles.Rescuer)"
+                     role="radio" aria-checked="@(_selectedRole == Roles.Rescuer)" tabindex="0">
+                    <div class="auth-role-card-top">
+                        <div class="auth-role-card-icon">
+                            <AppIcon Name="activity" Size="18" />
+                        </div>
+                        <div class="auth-role-radio-dot"></div>
+                    </div>
+                    <h3 class="auth-role-title">I am Rescuer</h3>
+                    <p class="auth-role-desc">First responder, tactical rescue missions & disaster relief.</p>
+                </div>
+            </div>
+
+            <button type="button" class="btn-auth-primary" @onclick="ConfirmGoogleRoleAsync" disabled="@_isSubmittingRole">
+                @if (_isSubmittingRole)
+                {
+                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                    <span>Finalizing Account...</span>
+                }
+                else
+                {
+                    <span>Confirm & Continue</span>
+                    <AppIcon Name="arrow-right" Size="16" />
+                }
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery]
+    private string? Intent { get; set; }
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    private bool _isProcessing = true;
+    private bool _showRoleModal;
+    private bool _isSubmittingRole;
+    private string _selectedRole = Roles.Citizen;
+    private string? _errorMessage;
+    private GoogleUserData? _googleUser;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ProcessCallbackAsync();
+    }
+
+    private async Task ProcessCallbackAsync()
+    {
+        _isProcessing = true;
+        _errorMessage = null;
+
+        try
+        {
+            // Query Neon Auth session from client browser cookies
+            var json = await JS.InvokeAsync<string?>("rapidReliefAuth.getNeonSession");
+
+            if (!string.IsNullOrEmpty(json))
+            {
+                using var doc = JsonDocument.Parse(json);
+                var root = doc.RootElement;
+                _googleUser = new GoogleUserData
+                {
+                    Id = root.TryGetProperty("id", out var idProp) ? idProp.GetString() : null,
+                    Email = root.TryGetProperty("email", out var emailProp) ? emailProp.GetString() : null,
+                    Name = root.TryGetProperty("name", out var nameProp) ? nameProp.GetString() : null,
+                    Image = root.TryGetProperty("image", out var imgProp) ? imgProp.GetString() : null
+                };
+            }
+
+            // If user came from signup OR no user info was in cookies, prompt role selection pop-up
+            if (string.Equals(Intent, "signup", StringComparison.OrdinalIgnoreCase) || _googleUser == null)
+            {
+                _isProcessing = false;
+                _showRoleModal = true;
+                return;
+            }
+
+            // Normal sign-in: sync immediately with existing account
+            await CompleteSyncAsync(null);
+        }
+        catch (Exception)
+        {
+            _errorMessage = "Could not complete authentication. Please try signing in again.";
+            _isProcessing = false;
+        }
+    }
+
+    private async Task ConfirmGoogleRoleAsync()
+    {
+        if (_isSubmittingRole) return;
+        _isSubmittingRole = true;
+
+        try
+        {
+            await CompleteSyncAsync(_selectedRole);
+        }
+        finally
+        {
+            _isSubmittingRole = false;
+        }
+    }
+
+    private async Task CompleteSyncAsync(string? role)
+    {
+        var email = _googleUser?.Email ?? "google-user@rr.dev";
+        var displayName = _googleUser?.Name ?? (!string.IsNullOrEmpty(_googleUser?.Email) ? _googleUser.Email.Split('@')[0] : "Google User");
+        var photoUrl = _googleUser?.Image;
+        var providerId = _googleUser?.Id ?? Guid.NewGuid().ToString();
+
+        var req = new GoogleSessionRequest(email, displayName, providerId, photoUrl, role ?? _selectedRole);
+        var result = await AuthApi.SyncGoogleSessionAsync(req);
+
+        if (result.Success)
+        {
+            var dest = !string.IsNullOrWhiteSpace(ReturnUrl) && ReturnUrl.StartsWith('/')
+                ? ReturnUrl
+                : "";
+            Navigation.NavigateTo(dest);
+        }
+        else
+        {
+            _errorMessage = result.Error ?? "Could not establish session. Please try again.";
+            _isProcessing = false;
+            _showRoleModal = false;
+        }
+    }
+
+    private sealed class GoogleUserData
+    {
+        public string? Id { get; set; }
+        public string? Email { get; set; }
+        public string? Name { get; set; }
+        public string? Image { get; set; }
+    }
+}

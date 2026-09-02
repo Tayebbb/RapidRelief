@@ -1,0 +1,184 @@
+@page "/auth/signin"
+@page "/login"
+@layout AuthLayout
+@namespace RapidRelief.Client.Features.Auth.Pages
+@inject AuthApi AuthApi
+@inject NavigationManager Navigation
+
+<PageTitle>Sign In — RapidRelief</PageTitle>
+
+<div class="auth-card">
+    <div class="auth-card-header">
+        <div class="auth-card-badge">
+            <AppIcon Name="shield" Size="14" />
+            <span>Secure Access</span>
+        </div>
+        <h1 class="auth-card-title">Welcome Back</h1>
+        <p class="auth-card-subtitle">Sign in to manage emergencies, shelter resources, and relief missions.</p>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="auth-banner-alert is-danger" role="alert">
+            <AppIcon Name="alert-triangle" Size="18" />
+            <span>@_errorMessage</span>
+        </div>
+    }
+
+    <!-- Continue with Google (Neon Auth) -->
+    <button type="button" class="btn-google-auth" @onclick="SignInWithGoogleAsync" disabled="@_isGoogleBusy">
+        @if (_isGoogleBusy)
+        {
+            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            <span>Connecting to Google...</span>
+        }
+        else
+        {
+            <svg class="google-icon-svg" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z" />
+                <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.34 24 12 24z" />
+                <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.16 0 9.94 0 12s.45 3.84 1.25 5.42l4.03-3.15z" />
+                <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z" />
+            </svg>
+            <span>Sign in with Google</span>
+        }
+    </button>
+
+    <div class="auth-divider">
+        <span>or sign in with email</span>
+    </div>
+
+    <!-- Email & Password Form -->
+    <EditForm Model="@_loginModel" OnValidSubmit="HandleEmailLoginAsync">
+        <div class="auth-form-group">
+            <label class="auth-label" for="signin-email">Email Address</label>
+            <div class="auth-input-wrapper">
+                <span class="auth-input-icon">
+                    <AppIcon Name="mail" Size="18" />
+                </span>
+                <input id="signin-email" type="email" class="auth-input" placeholder="you@example.com"
+                       @bind="_loginModel.Email" required autocomplete="username" />
+            </div>
+        </div>
+
+        <div class="auth-form-group">
+            <label class="auth-label" for="signin-password">Password</label>
+            <div class="auth-input-wrapper">
+                <span class="auth-input-icon">
+                    <AppIcon Name="lock" Size="18" />
+                </span>
+                <input id="signin-password" type="@(_showPassword ? "text" : "password")" class="auth-input"
+                       placeholder="Enter your password" @bind="_loginModel.Password" required autocomplete="current-password" />
+                <button type="button" class="auth-toggle-pwd" @onclick="TogglePasswordVisibility"
+                        aria-label="@(_showPassword ? "Hide password" : "Show password")">
+                    <AppIcon Name="@(_showPassword ? "eye-off" : "eye")" Size="16" />
+                </button>
+            </div>
+        </div>
+
+        <div class="auth-form-row">
+            <label class="auth-checkbox-label">
+                <input type="checkbox" class="auth-checkbox-input" @bind="_rememberMe" />
+                <span>Remember me</span>
+            </label>
+            <a href="javascript:void(0)" class="auth-link" @onclick="ShowForgotPasswordNote">Forgot password?</a>
+        </div>
+
+        <button type="submit" class="btn-auth-primary" disabled="@_isSubmitting">
+            @if (_isSubmitting)
+            {
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                <span>Signing in...</span>
+            }
+            else
+            {
+                <span>Sign In</span>
+                <AppIcon Name="arrow-right" Size="16" />
+            }
+        </button>
+    </EditForm>
+
+    <div class="auth-card-footer">
+        <span>Don't have an account? </span>
+        <a href="auth/signup" class="auth-link">Sign Up</a>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    private readonly LoginViewModel _loginModel = new();
+    private bool _showPassword;
+    private bool _rememberMe = true;
+    private bool _isSubmitting;
+    private bool _isGoogleBusy;
+    private string? _errorMessage;
+
+    private void TogglePasswordVisibility() => _showPassword = !_showPassword;
+
+    private async Task HandleEmailLoginAsync()
+    {
+        if (_isSubmitting) return;
+
+        _errorMessage = null;
+        _isSubmitting = true;
+
+        try
+        {
+            var req = new LoginRequest(_loginModel.Email?.Trim(), _loginModel.Password);
+            var result = await AuthApi.LoginAsync(req);
+
+            if (result.Success)
+            {
+                var dest = !string.IsNullOrWhiteSpace(ReturnUrl) && ReturnUrl.StartsWith('/')
+                    ? ReturnUrl
+                    : "";
+                Navigation.NavigateTo(dest);
+            }
+            else
+            {
+                _errorMessage = result.Error ?? "Invalid email or password. Please try again.";
+            }
+        }
+        catch (Exception)
+        {
+            _errorMessage = "An unexpected error occurred. Please try again.";
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private async Task SignInWithGoogleAsync()
+    {
+        if (_isGoogleBusy) return;
+
+        _errorMessage = null;
+        _isGoogleBusy = true;
+
+        try
+        {
+            var callbackUrl = Navigation.ToAbsoluteUri("auth/callback").ToString();
+            var targetUrl = await AuthApi.GetGoogleInitUrlAsync(callbackUrl);
+            Navigation.NavigateTo(targetUrl, forceLoad: true);
+        }
+        catch (Exception)
+        {
+            _errorMessage = "Could not initialize Google authentication. Please try again.";
+            _isGoogleBusy = false;
+        }
+    }
+
+    private void ShowForgotPasswordNote()
+    {
+        _errorMessage = "Password reset is managed by your organization. Please contact your emergency coordinator or administrator.";
+    }
+
+    private sealed class LoginViewModel
+    {
+        public string? Email { get; set; }
+        public string? Password { get; set; }
+    }
+}
