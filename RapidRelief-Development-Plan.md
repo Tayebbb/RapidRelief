@@ -19,6 +19,8 @@ The product is essentially **five actor-facing applications sharing one platform
 
 ### 1.1 Technology Selection (decided *after* requirements analysis)
 
+> **Implementation note (2026-09-02):** the stack below is the original plan. Where reality diverged, [PROJECT-CONTEXT.md](PROJECT-CONTEXT.md) §7 decisions are authoritative — notably D-006 (hand-rolled event bus replaced MediatR), D-060…D-066 (AI provider is OpenRouter free models, not Gemini), D-032 (Realtime tri-state mode). See PROJECT-CONTEXT.md for the live stack.
+
 Only .NET is mandated. Choices below optimize for: one language for the whole team, zero licensing cost, offline support, real-time support, and demo reliability.
 
 | Concern | Choice | Why (and what was rejected) |
