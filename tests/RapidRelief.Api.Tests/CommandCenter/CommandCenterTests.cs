@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 
 using RapidRelief.Shared.Contracts.Common;
+using RapidRelief.Shared.Contracts.ReadModels;
 
 namespace RapidRelief.Api.Tests.CommandCenter;
 
