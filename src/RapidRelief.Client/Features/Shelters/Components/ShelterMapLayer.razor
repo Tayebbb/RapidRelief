@@ -1,0 +1,35 @@
+@using RapidRelief.Client.Common.Map
+@using RapidRelief.Shared.Contracts.Common
+@using RapidRelief.Shared.Contracts.ReadModels
+
+@if (Shelters.Count > 0)
+{
+    <RapidMap InitialCenter="MapCenter" InitialZoom="13" Markers="_markers" />
+}
+else
+{
+    <RapidMap InitialCenter="MapCenter" InitialZoom="13" Markers="_markers" />
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<ShelterSummaryDto> Shelters { get; set; } = [];
+
+    [Parameter]
+    public GeoPoint? Center { get; set; }
+
+    private GeoPoint MapCenter => Center ?? new GeoPoint(23.8103, 90.4125);
+
+    private IReadOnlyList<MapMarker> _markers = [];
+
+    protected override void OnParametersSet()
+    {
+        _markers = Shelters.Select(s => new MapMarker(
+            s.Id.ToString(),
+            s.Location.Latitude,
+            s.Location.Longitude,
+            s.Name,
+            s.IsOpen ? "shelter-open" : "shelter-closed"
+        )).ToList();
+    }
+}

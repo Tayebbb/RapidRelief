@@ -1,0 +1,278 @@
+@page "/admin/shelters"
+@attribute [Authorize(Roles = RapidRelief.Shared.Contracts.Enums.Roles.Admin)]
+@using RapidRelief.Shared.Contracts.Common
+@using RapidRelief.Shared.Contracts.ReadModels
+@inject SheltersClient Client
+
+<PageTitle>Manage Shelters</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>Manage Shelters</h1>
+    <button class="btn btn-primary" @onclick="ShowAddForm">Add Shelter</button>
+</div>
+
+@if (_error is not null)
+{
+    <div class="alert alert-danger" role="alert">@_error</div>
+}
+
+@if (_shelters is null && _error is null)
+{
+    <p><em>Loading shelters...</em></p>
+}
+else if (_shelters is not null && _shelters.Count == 0)
+{
+    <p><em>No shelters found.</em></p>
+}
+else if (_shelters is not null)
+{
+    <table class="table align-middle">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Status</th>
+                <th>Occupancy / Capacity</th>
+                <th>Location</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var shelter in _shelters)
+            {
+                <tr>
+                    <td>@shelter.Name</td>
+                    <td>
+                        @if (shelter.IsOpen)
+                        {
+                            <span class="badge bg-success">Open</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-danger">Closed</span>
+                        }
+                    </td>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="number" class="form-control form-control-sm" style="width: 80px;"
+                                   value="@shelter.Occupancy"
+                                   @onchange="@(e => UpdateOccupancyAsync(shelter.Id, e.Value))" />
+                            <span>/ @shelter.Capacity</span>
+                        </div>
+                    </td>
+                    <td>@shelter.Location.Latitude.ToString("F4"), @shelter.Location.Longitude.ToString("F4")</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => EditShelter(shelter)">Edit</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (_showForm)
+{
+    <div class="card mt-4">
+        <div class="card-header">
+            @(_editingId.HasValue ? "Edit Shelter" : "Add Shelter")
+        </div>
+        <div class="card-body">
+            <form @onsubmit="SaveShelterAsync" @onsubmit:preventDefault>
+                <div class="mb-3">
+                    <label class="form-label">Name</label>
+                    <input class="form-control" @bind="_formModel.Name" required />
+                </div>
+                <div class="row mb-3">
+                    <div class="col">
+                        <label class="form-label">Latitude</label>
+                        <input type="number" step="any" class="form-control" @bind="_formModel.Latitude" required />
+                    </div>
+                    <div class="col">
+                        <label class="form-label">Longitude</label>
+                        <input type="number" step="any" class="form-control" @bind="_formModel.Longitude" required />
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col">
+                        <label class="form-label">Capacity</label>
+                        <input type="number" class="form-control" @bind="_formModel.Capacity" required />
+                    </div>
+                    <div class="col">
+                        <label class="form-label">Status</label>
+                        <select class="form-select" @bind="_formModel.Status">
+                            <option value="@ShelterStatus.Open">Open</option>
+                            <option value="@ShelterStatus.Full">Full</option>
+                            <option value="@ShelterStatus.Closed">Closed</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-end gap-2">
+                    <button type="button" class="btn btn-secondary" @onclick="CancelForm">Cancel</button>
+                    <button type="submit" class="btn btn-primary" disabled="@_saving">
+                        @(_saving ? "Saving..." : "Save")
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+}
+
+@code {
+    private List<ShelterSummaryDto>? _shelters;
+    private string? _error;
+    
+    private bool _showForm;
+    private bool _saving;
+    private Guid? _editingId;
+    
+    // Simple inline model to bind the form to
+    private class ShelterFormModel
+    {
+        public string Name { get; set; } = "";
+        public double Latitude { get; set; } = 23.8103;
+        public double Longitude { get; set; } = 90.4125;
+        public int Capacity { get; set; } = 100;
+        public ShelterStatus Status { get; set; } = ShelterStatus.Open;
+    }
+    
+    private ShelterFormModel _formModel = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSheltersAsync();
+    }
+
+    private async Task LoadSheltersAsync()
+    {
+        try
+        {
+            var result = await Client.GetSheltersAsync();
+            if (result is not null)
+            {
+                _shelters = result.Data.Items.ToList();
+                _error = null;
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            _error = $"Failed to load shelters. Status Code: {ex.StatusCode}";
+        }
+    }
+
+    private async Task UpdateOccupancyAsync(Guid id, object? newValue)
+    {
+        if (int.TryParse(newValue?.ToString(), out var parsedVal))
+        {
+            try
+            {
+                var response = await Client.UpdateOccupancyAsync(id, new UpdateOccupancyRequest(parsedVal));
+                if (response.IsSuccessStatusCode)
+                {
+                    await LoadSheltersAsync();
+                }
+                else
+                {
+                    _error = "Failed to update occupancy.";
+                }
+            }
+            catch (HttpRequestException)
+            {
+                _error = "Network error updating occupancy.";
+            }
+        }
+    }
+
+    private void ShowAddForm()
+    {
+        _editingId = null;
+        _formModel = new ShelterFormModel();
+        _showForm = true;
+    }
+
+    private async Task EditShelter(ShelterSummaryDto shelter)
+    {
+        _editingId = shelter.Id;
+        
+        // Need full shelter details to edit properly (specifically for Status, which Summary lacks full context for if it were complex)
+        // But for MVP, we can map what we know or fetch it.
+        try
+        {
+            var result = await Client.GetShelterAsync(shelter.Id);
+            if (result != null)
+            {
+                var s = result.Data;
+                _formModel = new ShelterFormModel
+                {
+                    Name = s.Name,
+                    Latitude = s.Location.Latitude,
+                    Longitude = s.Location.Longitude,
+                    Capacity = s.Capacity,
+                    Status = s.Status
+                };
+                _showForm = true;
+                StateHasChanged();
+            }
+        }
+        catch (HttpRequestException)
+        {
+            _error = "Failed to load shelter details.";
+            StateHasChanged();
+        }
+    }
+
+    private void CancelForm()
+    {
+        _showForm = false;
+    }
+
+    private async Task SaveShelterAsync()
+    {
+        _saving = true;
+        _error = null;
+        try
+        {
+            HttpResponseMessage response;
+            if (_editingId.HasValue)
+            {
+                var existing = await Client.GetShelterAsync(_editingId.Value);
+                if (existing?.Data is null)
+                {
+                    _error = "Failed to load existing shelter details for update.";
+                    return;
+                }
+
+                var req = new UpdateShelterRequest(
+                    _formModel.Name,
+                    _formModel.Latitude,
+                    _formModel.Longitude,
+                    _formModel.Capacity,
+                    existing.Data.CurrentOccupancy,
+                    existing.Data.Facilities ?? new List<string>(),
+                    _formModel.Status);
+                response = await Client.UpdateShelterAsync(_editingId.Value, req);
+            }
+            else
+            {
+                var req = new CreateShelterRequest(_formModel.Name, _formModel.Latitude, _formModel.Longitude, _formModel.Capacity, 0, new List<string>(), _formModel.Status);
+                response = await Client.CreateShelterAsync(req);
+            }
+
+            if (response.IsSuccessStatusCode)
+            {
+                _showForm = false;
+                await LoadSheltersAsync();
+            }
+            else
+            {
+                _error = $"Save failed with status code {response.StatusCode}";
+            }
+        }
+        catch (HttpRequestException)
+        {
+            _error = "Network error saving shelter.";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

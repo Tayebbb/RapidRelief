@@ -41,6 +41,7 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
         {
             AddSqliteContext<SampleDbContext>(services);
             AddSqliteContext<AuthDbContext>(services);
+            AddSqliteContext<RapidRelief.Api.Features.Shelters.Data.OpsDbContext>(services);
             AddSqliteContext<AiDbContext>(services);
             AddSqliteContext<NotificationsDbContext>(services);
             // Future contexts (IncidentsDbContext, …): add one line here
@@ -54,6 +55,7 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
 
         EnsureCreated<SampleDbContext>(host);
         EnsureCreated<AuthDbContext>(host);
+        EnsureCreated<RapidRelief.Api.Features.Shelters.Data.OpsDbContext>(host);
         EnsureCreated<AiDbContext>(host);
         EnsureCreated<NotificationsDbContext>(host);
 
@@ -61,6 +63,7 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
         using (var scope = host.Services.CreateScope())
         {
             AuthSeeder.SeedAsync(scope.ServiceProvider, CancellationToken.None).GetAwaiter().GetResult();
+            RapidRelief.Api.Tests.Shelters.OpsSeeder.SeedAsync(scope.ServiceProvider, CancellationToken.None).GetAwaiter().GetResult();
         }
 
         // EnsureCreated succeeded ⇒ the relational store is real and reachable, so the

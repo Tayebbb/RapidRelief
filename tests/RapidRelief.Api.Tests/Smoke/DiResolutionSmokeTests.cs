@@ -34,10 +34,15 @@ public sealed class DiResolutionSmokeTests : IClassFixture<TestingWebAppFactory>
         // has displaced FakeUserAdminService (blueprint ㉞); real fallbacks serve the rest.
         using var scope = _factory.Services.CreateScope();
         var services = scope.ServiceProvider;
+        // F2 + F5
+        Assert.IsType<FakeIncidentReadService>(scope.ServiceProvider.GetRequiredService<IIncidentReadService>());
 
-        Assert.IsType<FakeIncidentReadService>(services.GetRequiredService<IIncidentReadService>());
-        Assert.IsType<FakeShelterReadService>(services.GetRequiredService<IShelterReadService>());
-        Assert.IsType<FakeRegistryReadService>(services.GetRequiredService<IRegistryReadService>());
+        // F3 real implementation now registered
+        Assert.IsType<RapidRelief.Api.Features.Shelters.Services.ShelterReadService>(
+            scope.ServiceProvider.GetRequiredService<IShelterReadService>());
+
+        // F13
+        Assert.IsType<FakeRegistryReadService>(scope.ServiceProvider.GetRequiredService<IRegistryReadService>());
         Assert.IsType<IdentityUserAdminService>(services.GetRequiredService<IUserAdminService>());
         // F8: the OpenRouter-with-fallback composite displaces the direct rule-based binding
         // (D-028); the rule-based service stays resolvable concretely — the fallback never dies (§4.5).
