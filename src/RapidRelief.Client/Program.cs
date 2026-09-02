@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using RapidRelief.Client;
 using RapidRelief.Client.Common.Auth;
 using RapidRelief.Client.Common.Realtime;
+using RapidRelief.Client.Features.Assistant;
 using RapidRelief.Client.Features.Auth;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
@@ -30,6 +31,9 @@ builder.Services.AddSingleton(sp => new AuthApi(
 // Main client chain: DevRoleHandler (outer, stamps X-Dev-Role) → AuthMessageHandler (inner,
 // attaches Bearer and strips X-Dev-Role while signed in — real login wins) → fetch.
 builder.Services.AddScoped(sp => ApiClient(sp));
+
+// F16 assistant rides the MAIN scoped client so Bearer / X-Dev-Role behave as everywhere else.
+builder.Services.AddScoped<IAssistantApi>(sp => new AssistantApi(sp.GetRequiredService<HttpClient>()));
 
 // Realtime (F9). The notification singletons outlive the scoped main client, so they get their
 // own instance of the SAME handler chain — Bearer and X-Dev-Role behave identically.

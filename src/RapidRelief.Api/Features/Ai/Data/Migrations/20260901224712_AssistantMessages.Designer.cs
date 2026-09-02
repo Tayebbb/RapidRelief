@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using RapidRelief.Api.Features.Ai.Data;
@@ -11,9 +12,11 @@ using RapidRelief.Api.Features.Ai.Data;
 namespace RapidRelief.Api.Features.Ai.Data.Migrations
 {
     [DbContext(typeof(AiDbContext))]
-    partial class AiDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260901224712_AssistantMessages")]
+    partial class AssistantMessages
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -127,8 +130,6 @@ namespace RapidRelief.Api.Features.Ai.Data.Migrations
                     b.HasIndex("SessionId", "CreatedAtUtc");
 
                     b.HasIndex("UserId", "CreatedAtUtc");
-
-                    b.HasIndex("UserId", "SessionId", "CreatedAtUtc");
 
                     b.ToTable("ai_assistant_messages", (string)null);
                 });

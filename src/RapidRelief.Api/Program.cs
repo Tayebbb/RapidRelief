@@ -103,6 +103,18 @@ try
                         QueueLimit = 0,
                     }));
 
+            // D-054: one POST is one paid Gemini call, so the assistant gets a much tighter
+            // per-user budget than the "ai" read policy it shares a group with.
+            options.AddPolicy("assistant", httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    RateLimitPartitions.UserOrIp(httpContext),
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimiting.GetValue("Assistant:PermitLimit", 12),
+                        Window = TimeSpan.FromSeconds(rateLimiting.GetValue("Assistant:WindowSeconds", 300)),
+                        QueueLimit = 0,
+                    }));
+
             // Realtime endpoints are all RequireAuthorization, so a caller key always exists:
             // partitioning per user keeps shared-IP clients off each other's budget.
             options.AddPolicy("realtime", httpContext =>

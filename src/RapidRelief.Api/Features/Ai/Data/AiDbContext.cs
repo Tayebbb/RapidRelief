@@ -19,8 +19,32 @@ public sealed class AiDbContext : DbContext
 
     public DbSet<AiAssessment> Assessments => Set<AiAssessment>();
 
+    /// <summary>F16 server-owned conversation turns (D-048).</summary>
+    public DbSet<AssistantMessage> AssistantMessages => Set<AssistantMessage>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<AssistantMessage>(message =>
+        {
+            message.ToTable("ai_assistant_messages");
+            message.HasKey(m => m.Id);
+            // Every POST/GET filters UserId AND SessionId then orders by time — one covering index.
+            message.HasIndex(m => new { m.UserId, m.SessionId, m.CreatedAtUtc });
+            // History read + window (SessionId) and ownership filter + retention sweep (UserId).
+            message.HasIndex(m => new { m.SessionId, m.CreatedAtUtc });
+            message.HasIndex(m => new { m.UserId, m.CreatedAtUtc });
+            message.Property(m => m.Text).IsRequired().HasMaxLength(4000);
+            message.Property(m => m.Provider).HasMaxLength(32);
+
+            if (Database.ProviderName == "Microsoft.EntityFrameworkCore.Sqlite")
+            {
+                // ORDER BY / retention WHERE both hit this column — it must compare as ticks.
+                message.Property(m => m.CreatedAtUtc).HasConversion(
+                    v => v.UtcTicks,
+                    v => new DateTimeOffset(v, TimeSpan.Zero));
+            }
+        });
+
         modelBuilder.Entity<AiAssessment>(assessment =>
         {
             assessment.ToTable("ai_assessments"); // feature_ prefix convention (PROJECT-CONTEXT §5)

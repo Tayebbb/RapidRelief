@@ -45,11 +45,15 @@ dotnet run --project src/RapidRelief.Api
 
 `dotnet run --project src/RapidRelief.Api` with nothing listening on 5432 still works: startup retries migrations 3× (2s backoff), logs a prominent warning, and keeps serving. Stub-backed pages keep working; DB-backed endpoints (e.g. `POST`/`GET /api/sample/pings`) return **503 ProblemDetails**; `GET /health` reports `"status": "degraded", "dbConnected": false`. The demo never depends on a network.
 
-### AI data flow & consent (F8)
+### AI data flow & consent (F8, F16)
 
 By default (`Ai:Gemini:ApiKey` empty), incident analysis is **fully local** — the permanent rule-based fallback makes **zero external calls**. When a key is configured (`dotnet user-secrets set Ai:Gemini:ApiKey <key>` in `src/RapidRelief.Api`, or the `Ai__Gemini__ApiKey` env var), the incident **description text and the first photo** are sent to Google Gemini for assessment. Nothing else leaves the machine: no names, emails, phones, GPS coordinates, incident IDs, or timestamps are in the request, and extra photos are never uploaded. Logs record metadata only (provider, model, latency, tokens, status codes) — never the description, photo, or model response, and never the key. Kill the key mid-demo and analysis continues rule-based with no errors.
 
-> **Demo consent note:** while a key is configured, submitted reports may be processed by Google Gemini.
+The **emergency assistant** at `/assistant` (signed-in users, `/api/ai/assistant`) follows the same rule. With no key it answers from a deterministic canned safety taxonomy — **zero external calls**. With a key configured, what goes to Gemini is your **chat text** plus, only if you press "Use my location", the **names, distances and free capacity of up to 3 nearby open shelters** picked server-side. Your coordinates themselves are never sent to Gemini, are rounded to ~11 m in the browser before they leave it, and are only attached to a message while sharing is on (it defaults to off, and the page states exactly what is being shared).
+
+Conversation history is **server-owned** (`ai_assistant_messages`): the client sends only a session id and one message, never past turns, so nobody can forge an assistant turn to rewrite the safety guardrails. History is scoped to its owner, capped at 50 messages per session, deleted by "New chat", and swept after **7 days**. Answers are sanitized server-side (control characters and any URL-shaped token stripped, clamped to 1500 characters) and rendered with plain Blazor interpolation inside a `white-space: pre-wrap` element — never `MarkupString`, never a Markdown renderer. Kill the key or the database mid-chat and the assistant keeps answering: canned guidance, HTTP 200, no error UI.
+
+> **Demo consent note:** while a key is configured, submitted reports and assistant messages may be processed by Google Gemini.
 
 ### Realtime notifications (F9)
 

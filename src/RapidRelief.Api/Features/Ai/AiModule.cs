@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using RapidRelief.Api.Features.Ai.Assistant;
 using RapidRelief.Api.Features.Ai.Data;
 using RapidRelief.Api.Features.Ai.Endpoints;
 using RapidRelief.Api.Features.Ai.Gemini;
@@ -40,6 +41,11 @@ public sealed class AiModule : IFeatureModule
         });
         services.AddSingleton<IGeminiClient, GeminiClient>();
 
+        // F16 (D-047): same feature, same external dependency, same shared breaker.
+        services.AddSingleton(AssistantOptions.Read(config));
+        services.AddSingleton<IAssistantService, GeminiAssistantService>();
+        services.AddHostedService<AssistantRetentionWorker>();
+
         services.AddSingleton(sp => AiChannel.Create(
             config.GetValue("Ai:Pipeline:ChannelCapacity", 100),
             sp.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(AiChannel).FullName!)));
@@ -59,6 +65,7 @@ public sealed class AiModule : IFeatureModule
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
         AiEndpoints.Map(endpoints);
+        AssistantEndpoints.Map(endpoints);
     }
 
     public Task MigrateAsync(IServiceProvider scopedServices, CancellationToken ct)
