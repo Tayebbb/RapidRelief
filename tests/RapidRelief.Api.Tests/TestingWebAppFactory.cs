@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using RapidRelief.Api.Features.Ai.Data;
+using RapidRelief.Api.Features.Alerts.Data;
 using RapidRelief.Api.Features.Auth.Data;
 using RapidRelief.Api.Features.Auth.Services;
 using RapidRelief.Api.Features.Realtime.Data;
@@ -43,6 +44,7 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
             AddSqliteContext<AuthDbContext>(services);
             AddSqliteContext<RapidRelief.Api.Features.Shelters.Data.OpsDbContext>(services);
             AddSqliteContext<AiDbContext>(services);
+            AddSqliteContext<AlertsDbContext>(services);
             AddSqliteContext<NotificationsDbContext>(services);
             AddSqliteContext<RapidRelief.Api.Features.Incidents.Data.IncidentsDbContext>(services);
             AddSqliteContext<RapidRelief.Api.Features.Rescue.Data.RescueDbContext>(services);
@@ -58,6 +60,7 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
         EnsureCreated<AuthDbContext>(host);
         EnsureCreated<RapidRelief.Api.Features.Shelters.Data.OpsDbContext>(host);
         EnsureCreated<AiDbContext>(host);
+        EnsureCreated<AlertsDbContext>(host);
         EnsureCreated<NotificationsDbContext>(host);
         EnsureCreated<RapidRelief.Api.Features.Incidents.Data.IncidentsDbContext>(host);
         EnsureCreated<RapidRelief.Api.Features.Rescue.Data.RescueDbContext>(host);
