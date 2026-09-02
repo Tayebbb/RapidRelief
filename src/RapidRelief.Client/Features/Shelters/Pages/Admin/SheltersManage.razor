@@ -232,7 +232,21 @@ else if (_shelters is not null)
             HttpResponseMessage response;
             if (_editingId.HasValue)
             {
-                var req = new UpdateShelterRequest(_formModel.Name, _formModel.Latitude, _formModel.Longitude, _formModel.Capacity, 0, new List<string>(), _formModel.Status);
+                var existing = await Client.GetShelterAsync(_editingId.Value);
+                if (existing?.Data is null)
+                {
+                    _error = "Failed to load existing shelter details for update.";
+                    return;
+                }
+
+                var req = new UpdateShelterRequest(
+                    _formModel.Name,
+                    _formModel.Latitude,
+                    _formModel.Longitude,
+                    _formModel.Capacity,
+                    existing.Data.CurrentOccupancy,
+                    existing.Data.Facilities ?? new List<string>(),
+                    _formModel.Status);
                 response = await Client.UpdateShelterAsync(_editingId.Value, req);
             }
             else
