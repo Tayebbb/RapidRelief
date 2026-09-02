@@ -78,20 +78,19 @@ public static class SheltersEndpoints
             return DatabaseUnavailable();
         }
 
+        page = Math.Clamp(page, 1, MaxPage);
+        pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
+
         if (lat.HasValue && lng.HasValue)
         {
             // F3 finder functionality, utilizing the IShelterReadService interface for stub resilience
             var origin = new GeoPoint(lat.Value, lng.Value);
             var nearest = await readService.GetNearestAsync(origin, pageSize, ct);
-            
+
             // Paging is mocked out in nearest, but we wrap the result in PagedResult for consistent ApiEnvelope
             var result = new PagedResult<ShelterSummaryDto>(nearest, 1, nearest.Count, nearest.Count);
             return Results.Ok(new ApiEnvelope<PagedResult<ShelterSummaryDto>>(result));
         }
-
-        page = Math.Clamp(page, 1, MaxPage);
-        pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
-
         var totalCount = await db.Shelters.CountAsync(ct);
         var items = await db.Shelters
             .OrderBy(s => s.Id)
