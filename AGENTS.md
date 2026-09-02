@@ -4,6 +4,7 @@
 
 1. Read [PROJECT-CONTEXT.md](PROJECT-CONTEXT.md) — the single source of truth for what is implemented, what is next, and the architecture rules.
 2. For feature work, read that feature's section in [RapidRelief-Development-Plan.md](RapidRelief-Development-Plan.md).
+3. **Before creating or changing ANY page, component or style, read [design.md](design.md)** — the mandatory design system (tokens, components, dark/light rules, a11y gate). UI work that ignores it must not be merged.
 
 ## Hard rules (summary — full versions in PROJECT-CONTEXT.md §4)
 

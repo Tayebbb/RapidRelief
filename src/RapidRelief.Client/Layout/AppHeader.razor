@@ -1,0 +1,31 @@
+@namespace RapidRelief.Client.Layout
+
+<header class="app-header">
+    <button class="rr-icon-btn menu-btn" type="button" @onclick="OnMenuToggle"
+            aria-label="@(MenuOpen ? "Close navigation" : "Open navigation")" aria-expanded="@MenuOpen">
+        <AppIcon Name="@(MenuOpen ? "close" : "menu")" Size="21" />
+    </button>
+
+    <a class="mobile-brand" href="">
+        <AppIcon Name="shield-plus" Size="20" CssClass="mobile-brand-mark" />
+        <span class="mobile-brand-text">RapidRelief</span>
+    </a>
+
+    <div class="header-tools">
+        <div class="role-picker-slot">
+            <DevRolePicker />
+        </div>
+        <ThemeToggle />
+        <AuthorizeView>
+            <Authorized>
+                <NotificationBell />
+            </Authorized>
+        </AuthorizeView>
+        <LoginDisplay />
+    </div>
+</header>
+
+@code {
+    [Parameter] public bool MenuOpen { get; set; }
+    [Parameter] public EventCallback OnMenuToggle { get; set; }
+}

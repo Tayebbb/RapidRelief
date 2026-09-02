@@ -7,91 +7,117 @@
 
 <PageTitle>Emergency assistant — RapidRelief</PageTitle>
 
-<h1>Emergency assistant</h1>
+<div class="rr-page-narrow chat-page">
+    <header class="rr-page-head rr-reveal">
+        <h1>Emergency assistant</h1>
+        <p class="rr-page-lede">Calm, practical guidance for your situation — with your history saved to your account.</p>
+    </header>
 
-<div class="alert alert-warning" role="alert">
-    <strong>AI guidance — always call emergency services.</strong>
-    This is not a substitute for them. In a life-threatening emergency call <strong>999</strong> immediately.
-</div>
+    <div class="alert alert-warning chat-banner rr-reveal rr-reveal-1" role="alert">
+        <strong>AI guidance — always call emergency services.</strong>
+        This is not a substitute for them. In a life-threatening emergency call <strong>999</strong> immediately.
+    </div>
 
-@if (_notice is not null)
-{
-    <div class="alert alert-info" role="status">@_notice</div>
-}
-
-<div class="chat-thread" aria-live="polite">
-    @if (_messages.Count == 0)
+    @if (_notice is not null)
     {
-        <p><em>Ask what to do right now — for example "there is flooding near my house".</em></p>
+        <div class="alert alert-info" role="status">@_notice</div>
     }
-    @* D-051: model text is rendered with plain @-interpolation inside a pre-wrap element.
-       Never MarkupString, never innerHTML, never a Markdown renderer. *@
-    @foreach (var entry in _messages)
-    {
-        <div class="chat-turn @(entry.FromUser ? "chat-turn-user" : "chat-turn-model")">
-            <div class="chat-role">@(entry.FromUser ? "You" : "Assistant")</div>
-            <p class="chat-text">@entry.Text</p>
-            @if (!entry.FromUser && entry.Provider is not null && entry.Provider != LiveProvider)
+
+    <div class="chat-card rr-reveal rr-reveal-2">
+        <div class="chat-thread" aria-live="polite">
+            @if (_messages.Count == 0 && !_pending)
             {
-                <span class="chat-chip">offline guidance</span>
+                <div class="chat-empty">
+                    <span class="chat-empty-icon" aria-hidden="true"><AppIcon Name="chat" Size="24" /></span>
+                    <p>Ask what to do right now — or start from an example:</p>
+                    <div class="chat-examples">
+                        <button type="button" class="chat-example" @onclick="@(() => UseExample("There is flooding near my house — what should I do?"))">
+                            Flooding near my house
+                        </button>
+                        <button type="button" class="chat-example" @onclick="@(() => UseExample("What should I pack in an emergency go-bag?"))">
+                            Pack an emergency go-bag
+                        </button>
+                        <button type="button" class="chat-example" @onclick="@(() => UseExample("How do I stay safe during an earthquake?"))">
+                            Earthquake safety
+                        </button>
+                    </div>
+                </div>
             }
-            @if (entry.Truncated)
+            @* D-051: model text is rendered with plain @-interpolation inside a pre-wrap element.
+               Never MarkupString, never innerHTML, never a Markdown renderer. *@
+            @foreach (var entry in _messages)
             {
-                <span class="chat-chip">shortened — ask again for more</span>
+                <div class="chat-turn @(entry.FromUser ? "chat-turn-user" : "chat-turn-model")">
+                    <div class="chat-role">@(entry.FromUser ? "You" : "Assistant")</div>
+                    <p class="chat-text">@entry.Text</p>
+                    @if (!entry.FromUser && entry.Provider is not null && entry.Provider != LiveProvider)
+                    {
+                        <span class="chat-chip">offline guidance</span>
+                    }
+                    @if (entry.Truncated)
+                    {
+                        <span class="chat-chip">shortened — ask again for more</span>
+                    }
+                </div>
+            }
+            @if (_pending)
+            {
+                <div class="chat-turn chat-turn-model">
+                    <div class="chat-role">Assistant</div>
+                    <p class="chat-text chat-typing">Thinking…</p>
+                </div>
             }
         </div>
-    }
-    @if (_pending)
-    {
-        <div class="chat-turn chat-turn-model">
-            <div class="chat-role">Assistant</div>
-            <p class="chat-text chat-typing">Thinking…</p>
-        </div>
-    }
-</div>
 
-<form class="chat-composer" @onsubmit="SendAsync" @onsubmit:preventDefault>
-    <label class="visually-hidden" for="assistant-input">Your message</label>
-    <input id="assistant-input" class="form-control" type="text" autocomplete="off"
-           placeholder="Describe your situation…" maxlength="@MaxMessageLength" disabled="@_pending" @bind="_draft"
-           @bind:event="oninput" />
-    <button class="btn btn-primary" type="submit" disabled="@(_pending || string.IsNullOrWhiteSpace(_draft))">
-        @(_pending ? "Sending…" : "Send")
-    </button>
-</form>
+        <form class="chat-composer" @onsubmit="SendAsync" @onsubmit:preventDefault>
+            <label class="visually-hidden" for="assistant-input">Your message</label>
+            <input id="assistant-input" class="form-control" type="text" autocomplete="off"
+                   placeholder="Describe your situation…" maxlength="@MaxMessageLength" disabled="@_pending" @bind="_draft"
+                   @bind:event="oninput" />
+            <button class="btn btn-primary chat-send" type="submit" disabled="@(_pending || string.IsNullOrWhiteSpace(_draft))"
+                    aria-label="Send message">
+                <AppIcon Name="send" Size="17" />
+                <span>@(_pending ? "Sending…" : "Send")</span>
+            </button>
+        </form>
+    </div>
 
-<div class="chat-controls">
-    @if (_location is null)
-    {
-        <button class="btn btn-outline-secondary btn-sm" type="button" disabled="@(_pending || _locating)"
-                @onclick="ShareLocationAsync">
-            @(_locating ? "Locating…" : "Use my location")
-        </button>
-    }
-    else
-    {
-        <button class="btn btn-outline-secondary btn-sm" type="button" @onclick="StopSharingLocation">
-            Stop sharing location
-        </button>
-    }
-    <button class="btn btn-outline-secondary btn-sm" type="button" disabled="@(_pending || _sessionId is null)"
-            @onclick="ReloadAsync">
-        Reload conversation
-    </button>
-    <button class="btn btn-outline-secondary btn-sm" type="button" disabled="@_pending" @onclick="NewChatAsync">
-        New chat
-    </button>
-</div>
-
-<p class="text-muted chat-privacy">
-    <small>
-        @if (_location is { } fix)
+    <div class="chat-controls rr-reveal rr-reveal-3">
+        @if (_location is null)
         {
-            <text>Sharing your location (@fix.Lat.ToString("F4"), @fix.Lng.ToString("F4")) with your next
-                message, so answers can name nearby open shelters. Your message text and these coordinates are
-                the only things sent.</text>
-            }
+            <button class="btn btn-outline-secondary btn-sm" type="button" disabled="@(_pending || _locating)"
+                    @onclick="ShareLocationAsync">
+                <AppIcon Name="navigation" Size="15" />
+                @(_locating ? "Locating…" : "Use my location")
+            </button>
+        }
         else
+        {
+            <button class="btn btn-outline-secondary btn-sm" type="button" @onclick="StopSharingLocation">
+                <AppIcon Name="close" Size="15" />
+                Stop sharing location
+            </button>
+        }
+        <button class="btn btn-outline-secondary btn-sm" type="button" disabled="@(_pending || _sessionId is null)"
+                @onclick="ReloadAsync">
+            <AppIcon Name="refresh" Size="15" />
+            Reload conversation
+        </button>
+        <button class="btn btn-outline-secondary btn-sm" type="button" disabled="@_pending" @onclick="NewChatAsync">
+            <AppIcon Name="plus" Size="15" />
+            New chat
+        </button>
+    </div>
+
+    <p class="text-muted chat-privacy">
+        <small>
+            @if (_location is { } fix)
+            {
+                <text>Sharing your location (@fix.Lat.ToString("F4"), @fix.Lng.ToString("F4")) with your next
+                    message, so answers can name nearby open shelters. Your message text and these coordinates are
+                    the only things sent.</text>
+            }
+            else
             {
                 <text>Location is off — answers won't name nearby shelters. Only your message text is sent.</text>
             }
@@ -101,6 +127,7 @@
             }
         </small>
     </p>
+</div>
 
 @code {
     private const string LiveProvider = "OpenRouter";
@@ -123,6 +150,8 @@
     private sealed record ChatEntry(bool FromUser, string Text, string? Provider, bool Truncated);
 
     private sealed record GeoFix(double Lat, double Lng);
+
+    private void UseExample(string prompt) => _draft = prompt;
 
     private async Task SendAsync()
     {

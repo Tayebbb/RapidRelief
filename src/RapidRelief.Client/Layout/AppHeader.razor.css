@@ -1,0 +1,75 @@
+.app-header {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    height: 3.5rem;
+    padding: 0 var(--space-4);
+    border-bottom: 1px solid var(--rr-border);
+    background: var(--rr-bg);
+}
+
+/* Selective glass: the one translucent surface in the app (see /design.md). */
+@supports (backdrop-filter: blur(10px)) {
+    .app-header {
+        background: color-mix(in srgb, var(--rr-bg) 78%, transparent);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+    }
+}
+
+.header-tools {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+}
+
+.menu-btn {
+    display: none;
+}
+
+.mobile-brand {
+    display: none;
+    align-items: center;
+    gap: 0.45rem;
+    color: var(--rr-text);
+    font-weight: 700;
+    font-size: 1rem;
+    text-decoration: none;
+}
+
+    .mobile-brand:hover {
+        text-decoration: none;
+        color: var(--rr-text);
+    }
+
+::deep .mobile-brand-mark {
+    color: var(--rr-brand);
+}
+
+@media (max-width: 899.98px) {
+    .menu-btn {
+        display: inline-flex;
+    }
+
+    .mobile-brand {
+        display: inline-flex;
+    }
+}
+
+@media (max-width: 639.98px) {
+    /* Dev-only tool yields space to primary actions on small screens. */
+    .role-picker-slot {
+        display: none;
+    }
+}
+
+@media (max-width: 399.98px) {
+    .mobile-brand-text {
+        display: none;
+    }
+}

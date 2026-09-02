@@ -3,11 +3,17 @@
 
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta http-equiv="Content-Security-Policy"
           content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self' https://tile.openstreetmap.org data:; style-src 'self' 'unsafe-inline'; connect-src 'self' https://tile.openstreetmap.org; base-uri 'self'" />
+    <meta name="description" content="RapidRelief — AI smart disaster response and emergency management for Dhaka." />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#f6f7f9" />
     <title>RapidRelief</title>
     <base href="/" />
+    <!-- Theme is applied before first paint; external file because the CSP forbids inline scripts. -->
+    <script src="js/theme.js"></script>
+    <link rel="preload" href="fonts/lexend-var-latin.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="css/bootstrap/bootstrap.min.css" />
     <link rel="stylesheet" href="lib/leaflet/leaflet.css" />
     <link rel="stylesheet" href="css/app.css" />
@@ -20,17 +26,27 @@
 
 <body>
     <div id="app">
-        <svg class="loading-progress">
-            <circle r="40%" cx="50%" cy="50%" />
-            <circle r="40%" cx="50%" cy="50%" />
-        </svg>
-        <div class="loading-progress-text"></div>
+        <div class="boot-screen">
+            <div class="boot-brand" aria-hidden="true">
+                <svg class="boot-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                     stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    <path d="M12 8v6M9 11h6" />
+                </svg>
+                <span class="boot-name">RapidRelief</span>
+            </div>
+            <svg class="loading-progress">
+                <circle r="40%" cx="50%" cy="50%" />
+                <circle r="40%" cx="50%" cy="50%" />
+            </svg>
+            <div class="loading-progress-text"></div>
+        </div>
     </div>
 
     <div id="blazor-error-ui">
         An unhandled error has occurred.
         <a href="" class="reload">Reload</a>
-        <a class="dismiss">🗙</a>
+        <a class="dismiss" role="button" aria-label="Dismiss">✕</a>
     </div>
     <!-- Leaflet 1.9.4 vendored locally (UMD global L) — CDN references are forbidden (PWA/offline rule). -->
     <script src="lib/leaflet/leaflet.js"></script>

@@ -1,0 +1,106 @@
+@namespace RapidRelief.Client.Common.Ui
+
+@* Single stroke-icon set (Feather-style geometry, 24px grid) so every glyph in the app
+   shares one weight and style. Emojis are never used as icons — see /design.md. *@
+<svg class="@CssClass" width="@Size" height="@Size" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+    @switch (Name)
+    {
+        case "menu":
+            <path d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5" />
+            break;
+        case "close":
+            <path d="M6 18 18 6M6 6l12 12" />
+            break;
+        case "home":
+            <path d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" />
+            break;
+        case "map-pin":
+            <path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z" />
+            <circle cx="12" cy="10" r="3" />
+            break;
+        case "map":
+            <path d="M9 20l-6-2.5v-14L9 6m0 14 6-2.5M9 20V6m6 11.5 6 2.5v-14L15 3.5m0 14v-14M9 6l6-2.5" />
+            break;
+        case "chat":
+            <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z" />
+            break;
+        case "bell":
+            <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            break;
+        case "user":
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+            break;
+        case "shield":
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            break;
+        case "shield-plus":
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            <path d="M12 8v6M9 11h6" />
+            break;
+        case "sun":
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+            break;
+        case "moon":
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+            break;
+        case "send":
+            <path d="M22 2 11 13" />
+            <path d="M22 2 15 22l-4-9-9-4z" />
+            break;
+        case "navigation":
+            <path d="M3 11 22 2l-9 19-2-8-8-2z" />
+            break;
+        case "refresh":
+            <path d="M23 4v6h-6" />
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+            break;
+        case "plus":
+            <path d="M12 5v14M5 12h14" />
+            break;
+        case "check":
+            <path d="M20 6 9 17l-5-5" />
+            break;
+        case "alert-triangle":
+            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            <path d="M12 9v4M12 17h.01" />
+            break;
+        case "phone":
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" />
+            break;
+        case "logout":
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <path d="M16 17l5-5-5-5M21 12H9" />
+            break;
+        case "arrow-right":
+            <path d="M5 12h14M12 5l7 7-7 7" />
+            break;
+        case "inbox":
+            <path d="M22 12h-6l-2 3h-4l-2-3H2" />
+            <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+            break;
+        case "activity":
+            <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+            break;
+        case "clock":
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 7v5l3.5 2" />
+            break;
+        case "sparkles":
+            <path d="M12 3v3M12 18v3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M3 12h3M18 12h3M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" />
+            <circle cx="12" cy="12" r="3" />
+            break;
+        default:
+            <circle cx="12" cy="12" r="9" />
+            break;
+    }
+</svg>
+
+@code {
+    [Parameter, EditorRequired] public string Name { get; set; } = string.Empty;
+    [Parameter] public int Size { get; set; } = 20;
+    [Parameter] public string? CssClass { get; set; }
+}

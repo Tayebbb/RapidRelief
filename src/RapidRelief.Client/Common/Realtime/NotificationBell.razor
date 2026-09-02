@@ -6,13 +6,14 @@
    from AI output or user-submitted content, so Blazor's automatic HTML encoding is the
    defence. MarkupString / innerHTML are forbidden here. *@
 <div class="notification-bell">
-    <button class="btn btn-sm btn-outline-secondary position-relative" type="button"
-            title="@(State.HubConnected ? "Live" : "Polling")" aria-label="@($"Notifications ({State.UnreadCount} unread)")"
+    <button class="rr-icon-btn bell-btn" type="button"
+            title="@(State.HubConnected ? "Notifications — live" : "Notifications — polling")"
+            aria-label="@($"Notifications ({State.UnreadCount} unread)")" aria-expanded="@_open"
             @onclick="Toggle">
-        <span aria-hidden="true">🔔</span>
+        <AppIcon Name="bell" Size="19" />
         @if (State.BadgeText.Length > 0)
         {
-            <span class="badge bg-danger">@State.BadgeText</span>
+            <span class="bell-badge">@State.BadgeText</span>
         }
     </button>
 
@@ -27,7 +28,7 @@
             </div>
             @if (State.Items.Count == 0)
             {
-                <p class="notification-empty">Nothing yet.</p>
+                <p class="notification-empty">Nothing yet — alerts and AI assessments will appear here.</p>
             }
             else
             {
@@ -48,7 +49,7 @@
                     }
                 </ul>
             }
-            <a class="notification-all" href="notifications">Open inbox</a>
+            <a class="notification-all" href="notifications" @onclick="Toggle">Open inbox</a>
         </div>
     }
 </div>

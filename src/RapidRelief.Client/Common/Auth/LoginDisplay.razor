@@ -5,13 +5,19 @@
 
 <AuthorizeView>
     <Authorized>
-        <span class="me-2">@context.User.Identity?.Name</span>
-        <button class="btn btn-sm btn-outline-secondary" @onclick="SignOutAsync" disabled="@_signingOut">
-            @(_signingOut ? "Signing out…" : "Sign out")
+        <span class="rr-user-chip" title="@context.User.Identity?.Name">
+            <span class="rr-user-avatar" aria-hidden="true">
+                <AppIcon Name="user" Size="14" />
+            </span>
+            <span class="rr-user-name">@context.User.Identity?.Name</span>
+        </span>
+        <button class="rr-icon-btn" type="button" @onclick="SignOutAsync" disabled="@_signingOut"
+                title="Sign out" aria-label="Sign out">
+            <AppIcon Name="logout" Size="18" />
         </button>
     </Authorized>
     <NotAuthorized>
-        <a href="login">Sign in</a>
+        <a class="btn btn-primary btn-sm" href="login">Sign in</a>
     </NotAuthorized>
 </AuthorizeView>
 

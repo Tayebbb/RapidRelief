@@ -1,33 +1,106 @@
+.chat-banner strong {
+    display: block;
+}
+
+.chat-card {
+    display: flex;
+    flex-direction: column;
+    background: var(--rr-surface);
+    border: 1px solid var(--rr-border);
+    border-radius: var(--rr-radius-l);
+    box-shadow: var(--rr-shadow);
+    overflow: hidden;
+    margin-bottom: var(--space-3);
+}
+
 .chat-thread {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
-    max-width: 44rem;
-    margin-bottom: 1rem;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    min-height: 16rem;
+    max-height: 55vh;
+    overflow-y: auto;
 }
 
+.chat-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: var(--space-2);
+    color: var(--rr-text-2);
+    padding: var(--space-6) var(--space-3);
+    margin: auto 0;
+}
+
+    .chat-empty p {
+        margin: 0;
+        font-size: 0.875rem;
+    }
+
+.chat-empty-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.9rem;
+    height: 2.9rem;
+    border-radius: 50%;
+    background: var(--rr-info-soft);
+    color: var(--rr-info-soft-text);
+}
+
+.chat-examples {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+}
+
+.chat-example {
+    background: var(--rr-surface-2);
+    border: 1px solid var(--rr-border-strong);
+    border-radius: var(--rr-radius-pill);
+    color: var(--rr-text-2);
+    font-size: 0.8rem;
+    font-weight: 550;
+    padding: 0.3rem 0.8rem;
+    cursor: pointer;
+    transition: background-color var(--rr-fast) var(--rr-ease), color var(--rr-fast) var(--rr-ease);
+}
+
+    .chat-example:hover {
+        background: var(--rr-surface-3);
+        color: var(--rr-text);
+    }
+
 .chat-turn {
-    border-radius: 0.4rem;
-    padding: 0.5rem 0.75rem;
-    background: #f4f4f6;
+    border-radius: var(--rr-radius);
+    padding: var(--space-2) var(--space-3);
+    max-width: 88%;
 }
 
 .chat-turn-user {
-    background: #e7f0ff;
+    background: var(--rr-info-soft);
+    border: 1px solid var(--rr-info-soft-border);
     align-self: flex-end;
-    max-width: 90%;
 }
 
 .chat-turn-model {
+    background: var(--rr-surface-2);
+    border: 1px solid var(--rr-border);
     align-self: flex-start;
-    max-width: 90%;
 }
 
 .chat-role {
-    font-size: 0.7rem;
+    font-size: 0.66rem;
+    font-weight: 650;
     text-transform: uppercase;
-    letter-spacing: 0.03em;
-    opacity: 0.6;
+    letter-spacing: 0.07em;
+    color: var(--rr-text-3);
+    margin-bottom: 0.15rem;
 }
 
 /* D-051: the ONLY newline mechanism for model text — no MarkupString, no Markdown renderer. */
@@ -35,37 +108,80 @@
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     margin: 0;
+    font-size: 0.92rem;
 }
 
 .chat-typing {
-    opacity: 0.6;
+    color: var(--rr-text-3);
     font-style: italic;
+    animation: chat-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes chat-pulse {
+    0%, 100% {
+        opacity: 0.55;
+    }
+
+    50% {
+        opacity: 1;
+    }
 }
 
 .chat-chip {
     display: inline-block;
-    margin-top: 0.35rem;
-    padding: 0.05rem 0.4rem;
-    border-radius: 0.7rem;
-    background: #ddd;
-    font-size: 0.7rem;
+    margin-top: 0.4rem;
+    margin-right: 0.3rem;
+    padding: 0.08rem 0.55rem;
+    border-radius: var(--rr-radius-pill);
+    background: var(--rr-warning-soft);
+    border: 1px solid var(--rr-warning-soft-border);
+    color: var(--rr-warning-soft-text);
+    font-size: 0.68rem;
+    font-weight: 600;
 }
 
 .chat-composer {
     display: flex;
-    gap: 0.5rem;
-    max-width: 44rem;
-    margin-bottom: 0.5rem;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border-top: 1px solid var(--rr-border);
+    background: var(--rr-surface);
+}
+
+    .chat-composer input {
+        flex: 1;
+    }
+
+.chat-send {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
 }
 
 .chat-controls {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
-    max-width: 44rem;
+    gap: var(--space-2);
 }
 
+    .chat-controls .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
 .chat-privacy {
-    max-width: 44rem;
-    margin-top: 0.5rem;
+    margin-top: var(--space-3);
+    max-width: 60ch;
+}
+
+@media (max-width: 479.98px) {
+    .chat-send span {
+        display: none;
+    }
+
+    .chat-turn {
+        max-width: 100%;
+    }
 }
