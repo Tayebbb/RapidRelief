@@ -1,5 +1,9 @@
 using System.Security.Claims;
 using FluentValidation;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using RapidRelief.Api.Features.Auth.Data;
+using RapidRelief.Api.Features.Auth.Domain;
 using RapidRelief.Api.Infrastructure.Auth;
 using RapidRelief.Api.Infrastructure.Persistence;
 using RapidRelief.Shared.Contracts.Common;
@@ -21,6 +25,10 @@ public static class UserAdminEndpoints
         group.MapPost("/users/{id:guid}/lock", SetLockAsync)
             .RequireAuthorization(AuthPolicies.RequireAdmin);
         group.MapPut("/users/{id:guid}/roles", SetRolesAsync)
+            .RequireAuthorization(AuthPolicies.RequireAdmin);
+        group.MapDelete("/users/{id:guid}", DeleteUserAsync)
+            .RequireAuthorization(AuthPolicies.RequireAdmin);
+        group.MapDelete("/users/all", DeleteAllUsersAsync)
             .RequireAuthorization(AuthPolicies.RequireAdmin);
     }
 
@@ -99,6 +107,49 @@ public static class UserAdminEndpoints
 
     private static IResult SelfActionProblem(string title) =>
         Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: title);
+
+    private static async Task<IResult> DeleteUserAsync(
+        Guid id,
+        UserManager<AppUser> userManager,
+        DatabaseHealth databaseHealth,
+        CancellationToken ct)
+    {
+        if (databaseHealth.PostgresAvailable != true)
+        {
+            return AuthEndpoints.DatabaseUnavailable();
+        }
+
+        var user = await userManager.FindByIdAsync(id.ToString());
+        if (user is null)
+        {
+            return UserNotFound();
+        }
+
+        var result = await userManager.DeleteAsync(user);
+        return result.Succeeded ? Results.NoContent() : Results.BadRequest(result.Errors);
+    }
+
+    private static async Task<IResult> DeleteAllUsersAsync(
+        UserManager<AppUser> userManager,
+        AuthDbContext db,
+        DatabaseHealth databaseHealth,
+        CancellationToken ct)
+    {
+        if (databaseHealth.PostgresAvailable != true)
+        {
+            return AuthEndpoints.DatabaseUnavailable();
+        }
+
+        var users = await db.Users.ToListAsync(ct);
+        var count = 0;
+        foreach (var u in users)
+        {
+            var res = await userManager.DeleteAsync(u);
+            if (res.Succeeded) count++;
+        }
+
+        return Results.Ok(new { deletedCount = count });
+    }
 
     private static IResult UserNotFound() =>
         Results.Problem(statusCode: StatusCodes.Status404NotFound, title: "User not found");

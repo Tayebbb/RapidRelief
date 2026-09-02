@@ -23,6 +23,10 @@
                 <Authorized>
                     <NotificationBell />
                     <LoginDisplay />
+                    <a class="btn-nav-signup" href="@DashboardLink" style="padding: 7px 14px; font-size: 0.85rem;">
+                        <AppIcon Name="layers" Size="14" />
+                        <span>Dashboard</span>
+                    </a>
                 </Authorized>
                 <NotAuthorized>
                     <a class="btn-nav-signin" href="auth/signin">
@@ -69,14 +73,17 @@
             <span>Live Map</span>
         </a>
 
-        <div class="pt-2 border-top d-flex gap-2">
+        <div class="pt-2 border-top d-flex flex-column gap-2">
             <AuthorizeView>
                 <Authorized>
-                    <a class="btn btn-outline-primary btn-sm w-100" href="profile" @onclick="CloseMobileMenu">Profile</a>
+                    <a class="btn btn-primary btn-sm w-100" href="@DashboardLink" @onclick="CloseMobileMenu">My Dashboard</a>
+                    <a class="btn btn-outline-secondary btn-sm w-100" href="profile" @onclick="CloseMobileMenu">Profile</a>
                 </Authorized>
                 <NotAuthorized>
-                    <a class="btn btn-outline-secondary btn-sm flex-fill text-center" href="auth/signin" @onclick="CloseMobileMenu">Sign In</a>
-                    <a class="btn btn-primary btn-sm flex-fill text-center" href="auth/signup" @onclick="CloseMobileMenu">Sign Up</a>
+                    <div class="d-flex gap-2">
+                        <a class="btn btn-outline-secondary btn-sm flex-fill text-center" href="auth/signin" @onclick="CloseMobileMenu">Sign In</a>
+                        <a class="btn btn-primary btn-sm flex-fill text-center" href="auth/signup" @onclick="CloseMobileMenu">Sign Up</a>
+                    </div>
                 </NotAuthorized>
             </AuthorizeView>
         </div>
@@ -84,7 +91,22 @@
 </header>
 
 @code {
+    [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
+    private string DashboardLink = "c";
     private bool _mobileOpen;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+            DashboardLink = RapidRelief.Client.Common.Auth.AuthRouteHelper.GetDashboardRoute(auth.User);
+        }
+        catch
+        {
+            DashboardLink = "c";
+        }
+    }
 
     private void ToggleMobileMenu() => _mobileOpen = !_mobileOpen;
     private void CloseMobileMenu() => _mobileOpen = false;

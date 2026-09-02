@@ -1,0 +1,361 @@
+@page "/c"
+@layout MainLayout
+@namespace RapidRelief.Client.Features.Dashboards.Pages
+@using System.Security.Claims
+@using RapidRelief.Shared.Contracts.Enums
+@using RapidRelief.Client.Common.Ui
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+
+<PageTitle>Citizen Emergency Dashboard — RapidRelief</PageTitle>
+
+<div class="dash-layout">
+    <!-- Header Banner -->
+    <div class="dash-header-banner">
+        <div class="dash-title-group">
+            <div class="dash-role-badge citizen">
+                <AppIcon Name="shield" Size="14" />
+                <span>Citizen Portal</span>
+            </div>
+            <h1 class="dash-title">Welcome, @(_userName ?? "Citizen")</h1>
+            <p class="dash-subtitle">Real-time emergency monitoring, personal safety status & fast assistance.</p>
+        </div>
+
+        <div class="dash-header-actions">
+            <!-- Safety Status Toggle -->
+            <div class="live-status-pill">
+                <div class="live-dot @(_isSafe ? "" : "danger")"></div>
+                <span>Status: <strong>@(_isSafe ? "Marked Safe" : "Needs Assistance")</strong></span>
+            </div>
+            <button type="button" class="btn-dash-outline" @onclick="ToggleSafetyStatus">
+                <AppIcon Name="@(_isSafe ? "alert-circle" : "check")" Size="16" />
+                <span>@(_isSafe ? "Change to 'Need Help'" : "Mark 'I Am Safe'")</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Urgent SOS Trigger Box -->
+    <div class="dash-sos-box">
+        <div class="dash-sos-content">
+            <div class="dash-sos-text">
+                <h3>
+                    <AppIcon Name="alert-circle" Size="22" />
+                    <span>Emergency SOS Rescue Request</span>
+                </h3>
+                <p>If you or someone near you is in immediate life-threatening danger, trapped by floodwater, fire, or debris, trigger an instant priority rescue ticket.</p>
+            </div>
+            <div class="dash-sos-btn-row">
+                <button type="button" class="btn-sos-trigger" @onclick="TriggerSosAlert">
+                    <AppIcon Name="activity" Size="18" />
+                    <span>Trigger SOS Rescue</span>
+                </button>
+                <a href="tel:999" class="btn-sos-call">
+                    <AppIcon Name="phone" Size="16" />
+                    <span>Call 999 Hotline</span>
+                </a>
+            </div>
+        </div>
+
+        @if (_sosSent)
+        {
+            <div class="alert alert-danger mb-0 d-flex align-items-center gap-2 mt-2" role="alert">
+                <AppIcon Name="check" Size="18" />
+                <div>
+                    <strong>SOS Rescue Alert Broadcasted!</strong> Emergency coordination center and nearby response units have been notified of your location. Stay calm and on high ground.
+                </div>
+            </div>
+        }
+    </div>
+
+    <!-- Active Regional Warning Strip -->
+    <div class="dash-emergency-alert-card">
+        <div class="alert-icon">
+            <AppIcon Name="alert-circle" Size="22" />
+        </div>
+        <div>
+            <div class="fw-bold text-dark dark:text-white" style="font-size: 0.95rem;">Active Weather Advisory — Coastal Cyclone & Flash Flood Alert (Category 2)</div>
+            <div class="text-secondary small mt-1">
+                Water surge expected to rise 2–4 feet in low-lying riverside areas within the next 6 hours. Emergency shelters in Sectors 1 through 5 are operating at 24/7 intake capacity.
+            </div>
+        </div>
+    </div>
+
+    <!-- Bento Grid Section -->
+    <div class="dash-bento-grid">
+        <!-- Left: Nearby Safe Shelters (7 cols) -->
+        <div class="dash-col-7 dash-card">
+            <div class="dash-card-header">
+                <div>
+                    <h2 class="dash-card-title">
+                        <AppIcon Name="map-pin" Size="18" />
+                        <span>Nearby Safe Shelters</span>
+                    </h2>
+                    <p class="dash-card-subtitle">Verified disaster shelters within safe evacuation radius.</p>
+                </div>
+                <a href="shelters/finder" class="btn-dash-outline">View All</a>
+            </div>
+
+            <div class="dash-item-list">
+                <div class="dash-item-card">
+                    <div class="dash-item-meta">
+                        <div class="dash-item-header">
+                            <span class="dash-item-title">City Model High School & Cyclone Shelter</span>
+                            <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-1 small">Open • 65% Full</span>
+                        </div>
+                        <p class="dash-item-desc">Equipped with backup generator, emergency food supply, medical desk & child care.</p>
+                        <div class="dash-item-sub">
+                            <span><AppIcon Name="navigation" Size="13" /> 0.8 km away</span>
+                            <span>• Capacity: 320 / 500 beds</span>
+                        </div>
+                        <div class="capacity-track">
+                            <div class="capacity-fill green" style="width: 65%;"></div>
+                        </div>
+                    </div>
+                    <div class="dash-item-actions">
+                        <a href="shelters/finder" class="btn-dash-primary">Directions</a>
+                    </div>
+                </div>
+
+                <div class="dash-item-card">
+                    <div class="dash-item-meta">
+                        <div class="dash-item-header">
+                            <span class="dash-item-title">Red Crescent Community Relief Hub</span>
+                            <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill px-2 py-1 small">Limited • 88% Full</span>
+                        </div>
+                        <p class="dash-item-desc">High-ground reinforced concrete shelter with clean drinking water purification unit.</p>
+                        <div class="dash-item-sub">
+                            <span><AppIcon Name="navigation" Size="13" /> 1.6 km away</span>
+                            <span>• Capacity: 220 / 250 beds</span>
+                        </div>
+                        <div class="capacity-track">
+                            <div class="capacity-fill orange" style="width: 88%;"></div>
+                        </div>
+                    </div>
+                    <div class="dash-item-actions">
+                        <a href="shelters/finder" class="btn-dash-primary">Directions</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: AI Emergency Assistant Simulator (5 cols) -->
+        <div class="dash-col-5 dash-card">
+            <div class="dash-card-header">
+                <div>
+                    <h2 class="dash-card-title">
+                        <AppIcon Name="chat" Size="18" />
+                        <span>RapidRelief AI Assistant</span>
+                    </h2>
+                    <p class="dash-card-subtitle">Instant guidance on evacuation, medical triage & safety.</p>
+                </div>
+                <a href="assistant" class="btn-dash-outline">Full Chat</a>
+            </div>
+
+            <div class="d-flex flex-column gap-3">
+                <div class="p-3 rounded-3" style="background: var(--rr-surface-2); border: 1px solid var(--rr-border);">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <AppIcon Name="activity" Size="16" />
+                        <strong style="font-size: 0.88rem;">Ask about your situation:</strong>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" @onclick="@(() => NavigateAssistant("What is the safest evacuation route right now?"))">Evacuation Route</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" @onclick="@(() => NavigateAssistant("What should I do if floodwater enters my home?"))">Rising Floodwater</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" @onclick="@(() => NavigateAssistant("Emergency first aid for hypothermia and cuts"))">First Aid Steps</button>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <input type="text" class="form-control" placeholder="Ask AI assistant anything..." @bind="_assistantQuery" @bind:event="oninput" @onkeydown="HandleAssistantKeyDown" />
+                    <button class="btn btn-dash-primary" type="button" @onclick="SubmitAssistantQuery">
+                        <AppIcon Name="send" Size="16" />
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Left: My Active Incident Reports (7 cols) -->
+        <div class="dash-col-7 dash-card">
+            <div class="dash-card-header">
+                <div>
+                    <h2 class="dash-card-title">
+                        <AppIcon Name="layers" Size="18" />
+                        <span>My Incident Reports & Requests</span>
+                    </h2>
+                    <p class="dash-card-subtitle">Track help requests submitted by you or your family.</p>
+                </div>
+                <button type="button" class="btn-dash-primary" @onclick="OpenReportModal">
+                    <AppIcon Name="plus" Size="15" />
+                    <span>New Report</span>
+                </button>
+            </div>
+
+            <div class="dash-item-list">
+                @if (_reports.Count == 0)
+                {
+                    <div class="text-center py-4 text-muted">
+                        <AppIcon Name="check" Size="28" />
+                        <p class="mt-2 mb-0">No active emergency reports submitted. You are in good standing.</p>
+                    </div>
+                }
+                else
+                {
+                    @foreach (var report in _reports)
+                    {
+                        <div class="dash-item-card">
+                            <div class="dash-item-meta">
+                                <div class="dash-item-header">
+                                    <span class="dash-item-title">@report.Title</span>
+                                    <span class="badge @report.StatusBadgeClass rounded-pill px-2 py-1 small">@report.Status</span>
+                                </div>
+                                <p class="dash-item-desc">@report.Description</p>
+                                <div class="dash-item-sub">
+                                    <span><AppIcon Name="clock" Size="13" /> Reported @report.TimeAgo</span>
+                                    <span>• Ticket: #@report.Id</span>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+
+        <!-- Right: Family Preparedness Checklist (5 cols) -->
+        <div class="dash-col-5 dash-card">
+            <div class="dash-card-header">
+                <div>
+                    <h2 class="dash-card-title">
+                        <AppIcon Name="shield-plus" Size="18" />
+                        <span>Preparedness Checklist</span>
+                    </h2>
+                    <p class="dash-card-subtitle">Recommended survival steps for severe weather.</p>
+                </div>
+            </div>
+
+            <div class="d-flex flex-column gap-2">
+                <label class="d-flex align-items-center gap-3 p-2 rounded-2 cursor-pointer" style="background: var(--rr-surface-2);">
+                    <input type="checkbox" checked class="form-check-input mt-0" />
+                    <span style="font-size: 0.88rem;">National ID, deed & emergency documents in waterproof pouch</span>
+                </label>
+                <label class="d-flex align-items-center gap-3 p-2 rounded-2 cursor-pointer" style="background: var(--rr-surface-2);">
+                    <input type="checkbox" checked class="form-check-input mt-0" />
+                    <span style="font-size: 0.88rem;">Charged power bank, battery radio & emergency flashlight</span>
+                </label>
+                <label class="d-flex align-items-center gap-3 p-2 rounded-2 cursor-pointer" style="background: var(--rr-surface-2);">
+                    <input type="checkbox" class="form-check-input mt-0" />
+                    <span style="font-size: 0.88rem;">3 days of sealed drinking water & high-calorie dry food</span>
+                </label>
+                <label class="d-flex align-items-center gap-3 p-2 rounded-2 cursor-pointer" style="background: var(--rr-surface-2);">
+                    <input type="checkbox" class="form-check-input mt-0" />
+                    <span style="font-size: 0.88rem;">Essential prescription medications & first aid supplies</span>
+                </label>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* New Incident Report Modal *@
+@if (_showReportModal)
+{
+    <div class="modal fade show d-block" style="background: rgba(0,0,0,0.6);" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="background: var(--rr-surface); border: 1px solid var(--rr-border); border-radius: var(--rr-radius-l);">
+                <div class="modal-header border-bottom border-light-subtle">
+                    <h5 class="modal-title fw-bold">Report an Emergency Incident</h5>
+                    <button type="button" class="btn-close" @onclick="CloseReportModal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Incident Category</label>
+                        <select class="form-select" @bind="_newReportCategory">
+                            <option value="Flood">Water Logging / Flood</option>
+                            <option value="Trapped">Trapped People / Structural Collapse</option>
+                            <option value="Medical">Urgent Medical Assistance</option>
+                            <option value="Supplies">Clean Water & Food Shortage</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Details & Location Description</label>
+                        <textarea class="form-control" rows="3" placeholder="Describe current situation, landmarks, number of affected people..." @bind="_newReportDescription"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-top border-light-subtle">
+                    <button type="button" class="btn-dash-outline" @onclick="CloseReportModal">Cancel</button>
+                    <button type="button" class="btn-dash-primary" @onclick="SubmitReport">Submit Report</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private string? _userName;
+    private bool _isSafe = true;
+    private bool _sosSent;
+    private string _assistantQuery = "";
+    private bool _showReportModal;
+    private string _newReportCategory = "Flood";
+    private string _newReportDescription = "";
+
+    private readonly List<IncidentItem> _reports = new()
+    {
+        new IncidentItem("RR-7801", "Rising water level around residential block 4", "Reported 2 hours ago", "Under Review", "bg-warning-subtle text-warning border border-warning-subtle"),
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = auth.User;
+        _userName = user.FindFirst("unique_name")?.Value ?? user.FindFirst(ClaimTypes.Name)?.Value ?? "Citizen";
+    }
+
+    private void ToggleSafetyStatus()
+    {
+        _isSafe = !_isSafe;
+    }
+
+    private void TriggerSosAlert()
+    {
+        _sosSent = true;
+        _isSafe = false;
+        _reports.Insert(0, new IncidentItem($"SOS-{Random.Shared.Next(1000, 9999)}", "Immediate Rescue SOS Dispatched", "Just now", "Dispatched", "bg-danger-subtle text-danger border border-danger-subtle"));
+    }
+
+    private void OpenReportModal() => _showReportModal = true;
+    private void CloseReportModal() => _showReportModal = false;
+
+    private void SubmitReport()
+    {
+        if (!string.IsNullOrWhiteSpace(_newReportDescription))
+        {
+            _reports.Insert(0, new IncidentItem($"RR-{Random.Shared.Next(1000, 9999)}", $"{_newReportCategory}: {_newReportDescription}", "Just now", "Dispatched", "bg-info-subtle text-primary border border-info-subtle"));
+            _newReportDescription = "";
+            _showReportModal = false;
+        }
+    }
+
+    private void NavigateAssistant(string query)
+    {
+        Navigation.NavigateTo($"assistant?q={Uri.EscapeDataString(query)}");
+    }
+
+    private void SubmitAssistantQuery()
+    {
+        if (!string.IsNullOrWhiteSpace(_assistantQuery))
+        {
+            NavigateAssistant(_assistantQuery);
+        }
+    }
+
+    private void HandleAssistantKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            SubmitAssistantQuery();
+        }
+    }
+
+    private sealed record IncidentItem(string Id, string Title, string TimeAgo, string Status, string StatusBadgeClass)
+    {
+        public string Description => Title;
+    }
+}

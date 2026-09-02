@@ -1,0 +1,244 @@
+@page "/r"
+@layout MainLayout
+@namespace RapidRelief.Client.Features.Dashboards.Pages
+@using System.Security.Claims
+@using RapidRelief.Shared.Contracts.Enums
+@using RapidRelief.Client.Common.Ui
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+
+<PageTitle>Rescuer Operational HUD — RapidRelief</PageTitle>
+
+<div class="dash-layout">
+    <!-- Rescuer Tactical Header Banner -->
+    <div class="dash-header-banner">
+        <div class="dash-title-group">
+            <div class="dash-role-badge rescuer">
+                <AppIcon Name="activity" Size="14" />
+                <span>Search & Rescue Unit Alpha-7</span>
+            </div>
+            <h1 class="dash-title">Rescuer HUD — @(_userName ?? "Responder")</h1>
+            <p class="dash-subtitle">Field mission dispatch, tactical telemetry & real-time squad coordination.</p>
+        </div>
+
+        <div class="dash-header-actions">
+            <!-- Duty Status Toggle -->
+            <div class="live-status-pill">
+                <div class="live-dot @(_dutyStatus == "On Duty" ? "" : "warning")"></div>
+                <span>Duty Status: <strong>@_dutyStatus</strong></span>
+            </div>
+            <select class="form-select form-select-sm w-auto rounded-pill" @bind="_dutyStatus">
+                <option value="On Duty">On Duty (Available)</option>
+                <option value="En Route">En Route to Mission</option>
+                <option value="On Scene">On Scene / Operating</option>
+                <option value="Standby">Standby / Rest Period</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Active Mission HUD (If deployed) -->
+    <div class="tactical-mission-hud">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div>
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <span class="badge bg-danger text-white rounded-pill px-2 py-1 small fw-bold">ACTIVE DEPLOYMENT</span>
+                    <strong class="text-dark dark:text-white" style="font-size: 1.05rem;">Mission #RS-902: Evacuate Stranded Residents (4 Persons)</strong>
+                </div>
+                <div class="text-secondary small d-flex align-items-center gap-3">
+                    <span><AppIcon Name="map-pin" Size="14" /> Sector 3, Block D, East Riverside (23.8103° N, 90.4125° E)</span>
+                    <span><AppIcon Name="clock" Size="14" /> Dispatched 18m ago</span>
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <a href="sample" class="btn-dash-primary">
+                    <AppIcon Name="map" Size="16" />
+                    <span>Open Tactical Map</span>
+                </a>
+                <button type="button" class="btn-dash-outline" @onclick="AdvanceMissionStage">
+                    <AppIcon Name="arrow-right" Size="16" />
+                    <span>Advance Status</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Progress Stepper -->
+        <div class="tactical-stepper">
+            <div class="stepper-node @(_missionStage >= 1 ? (_missionStage == 1 ? "active" : "completed") : "")">
+                1. Dispatched
+            </div>
+            <div class="stepper-node @(_missionStage >= 2 ? (_missionStage == 2 ? "active" : "completed") : "")">
+                2. En Route
+            </div>
+            <div class="stepper-node @(_missionStage >= 3 ? (_missionStage == 3 ? "active" : "completed") : "")">
+                3. On Scene
+            </div>
+            <div class="stepper-node @(_missionStage >= 4 ? "completed active" : "")">
+                4. Extracted / Safe
+            </div>
+        </div>
+    </div>
+
+    <!-- Bento Grid Section -->
+    <div class="dash-bento-grid">
+        <!-- KPI Metrics Row -->
+        <div class="dash-col-3 dash-kpi-card">
+            <div class="dash-kpi-info">
+                <span class="dash-kpi-label">Active Dispatches</span>
+                <span class="dash-kpi-value">14</span>
+                <span class="dash-kpi-delta danger"><AppIcon Name="alert-circle" Size="12" /> 4 Critical</span>
+            </div>
+            <div class="dash-kpi-icon-wrap red">
+                <AppIcon Name="activity" Size="24" />
+            </div>
+        </div>
+
+        <div class="dash-col-3 dash-kpi-card">
+            <div class="dash-kpi-info">
+                <span class="dash-kpi-label">Extracted Victims</span>
+                <span class="dash-kpi-value">38</span>
+                <span class="dash-kpi-delta good"><AppIcon Name="check" Size="12" /> Today</span>
+            </div>
+            <div class="dash-kpi-icon-wrap forest">
+                <AppIcon Name="user" Size="24" />
+            </div>
+        </div>
+
+        <div class="dash-col-3 dash-kpi-card">
+            <div class="dash-kpi-info">
+                <span class="dash-kpi-label">Team Readiness</span>
+                <span class="dash-kpi-value">100%</span>
+                <span class="dash-kpi-delta good"><AppIcon Name="shield" Size="12" /> Fully Equipped</span>
+            </div>
+            <div class="dash-kpi-icon-wrap blue">
+                <AppIcon Name="shield-plus" Size="24" />
+            </div>
+        </div>
+
+        <div class="dash-col-3 dash-kpi-card">
+            <div class="dash-kpi-info">
+                <span class="dash-kpi-label">VHF Comms Lock</span>
+                <span class="dash-kpi-value">CH-14</span>
+                <span class="dash-kpi-delta good"><AppIcon Name="refresh" Size="12" /> 98% Signal</span>
+            </div>
+            <div class="dash-kpi-icon-wrap orange">
+                <AppIcon Name="phone" Size="24" />
+            </div>
+        </div>
+
+        <!-- Left: Live Incident Dispatch Queue (7 cols) -->
+        <div class="dash-col-7 dash-card">
+            <div class="dash-card-header">
+                <div>
+                    <h2 class="dash-card-title">
+                        <AppIcon Name="activity" Size="18" />
+                        <span>Incoming Rescue Dispatch Queue</span>
+                    </h2>
+                    <p class="dash-card-subtitle">Triaged distress calls sorted by urgency and distance.</p>
+                </div>
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-2 py-1">@_dispatches.Count Pending</span>
+            </div>
+
+            <div class="dash-item-list">
+                @foreach (var call in _dispatches)
+                {
+                    <div class="dash-item-card">
+                        <div class="dash-item-meta">
+                            <div class="dash-item-header">
+                                <span class="dash-item-title">@call.Title</span>
+                                <span class="badge @call.UrgencyClass rounded-pill px-2 py-1 small">@call.Urgency</span>
+                            </div>
+                            <p class="dash-item-desc">@call.Details</p>
+                            <div class="dash-item-sub">
+                                <span><AppIcon Name="navigation" Size="13" /> @call.Distance away</span>
+                                <span>• Reported @call.TimeAgo</span>
+                                <span>• People: @call.PeopleCount</span>
+                            </div>
+                        </div>
+                        <div class="dash-item-actions">
+                            <button type="button" class="btn-dash-primary" @onclick="@(() => AcceptDispatch(call))">
+                                <span>Accept Mission</span>
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Right: Field Kit & Tactical Gear Readiness (5 cols) -->
+        <div class="dash-col-5 dash-card">
+            <div class="dash-card-header">
+                <div>
+                    <h2 class="dash-card-title">
+                        <AppIcon Name="shield" Size="18" />
+                        <span>Field Gear & Squad Readiness</span>
+                    </h2>
+                    <p class="dash-card-subtitle">Equipment verification for swift deployment.</p>
+                </div>
+            </div>
+
+            <div class="d-flex flex-column gap-2">
+                <label class="d-flex align-items-center gap-3 p-2 rounded-2 cursor-pointer" style="background: var(--rr-surface-2);">
+                    <input type="checkbox" checked class="form-check-input mt-0" />
+                    <span style="font-size: 0.88rem;">Rigid Inflatable Boat (RIB) with 40HP Outboard (Fueled)</span>
+                </label>
+                <label class="d-flex align-items-center gap-3 p-2 rounded-2 cursor-pointer" style="background: var(--rr-surface-2);">
+                    <input type="checkbox" checked class="form-check-input mt-0" />
+                    <span style="font-size: 0.88rem;">Trauma Medical Kit, Defibrillator & Oxygen Pack</span>
+                </label>
+                <label class="d-flex align-items-center gap-3 p-2 rounded-2 cursor-pointer" style="background: var(--rr-surface-2);">
+                    <input type="checkbox" checked class="form-check-input mt-0" />
+                    <span style="font-size: 0.88rem;">High-Tensile Dynamic Extraction Ropes & Carabiners (x8)</span>
+                </label>
+                <label class="d-flex align-items-center gap-3 p-2 rounded-2 cursor-pointer" style="background: var(--rr-surface-2);">
+                    <input type="checkbox" checked class="form-check-input mt-0" />
+                    <span style="font-size: 0.88rem;">Thermal Recon Drone with Spare Battery Bank</span>
+                </label>
+                <label class="d-flex align-items-center gap-3 p-2 rounded-2 cursor-pointer" style="background: var(--rr-surface-2);">
+                    <input type="checkbox" checked class="form-check-input mt-0" />
+                    <span style="font-size: 0.88rem;">Waterproof VHF Handheld Radios (Channels 14 & 16)</span>
+                </label>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string? _userName;
+    private string _dutyStatus = "On Duty";
+    private int _missionStage = 2; // 1=Dispatched, 2=En Route, 3=On Scene, 4=Extracted
+
+    private readonly List<DispatchCall> _dispatches = new()
+    {
+        new DispatchCall("Roof Stranded Family (3 Adults, 2 Children)", "Water level reached ceiling height; trapped on second floor tin roof.", "Critical", "bg-danger-subtle text-danger border border-danger-subtle", "1.1 km", "6m ago", 5),
+        new DispatchCall("Elderly Patient with Oxygen Cylinder Needed", "Floodwaters cut off power supply; medical emergency in ward 4.", "Medical Priority", "bg-danger-subtle text-danger border border-danger-subtle", "2.3 km", "12m ago", 1),
+        new DispatchCall("Capsized Country Boat with 3 Passengers", "Boat overturned near bridge pillar; all 3 clinging to piling.", "High Priority", "bg-warning-subtle text-warning border border-warning-subtle", "2.9 km", "19m ago", 3),
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = auth.User;
+        _userName = user.FindFirst("unique_name")?.Value ?? user.FindFirst(ClaimTypes.Name)?.Value ?? "Rescuer";
+    }
+
+    private void AdvanceMissionStage()
+    {
+        if (_missionStage < 4)
+        {
+            _missionStage++;
+        }
+        else
+        {
+            _missionStage = 1; // loop or reset
+        }
+    }
+
+    private void AcceptDispatch(DispatchCall call)
+    {
+        _dispatches.Remove(call);
+        _missionStage = 1;
+        _dutyStatus = "En Route";
+    }
+
+    private sealed record DispatchCall(string Title, string Details, string Urgency, string UrgencyClass, string Distance, string TimeAgo, int PeopleCount);
+}

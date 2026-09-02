@@ -181,13 +181,25 @@ h1:focus {
 
 a, .btn-link {
     color: var(--rr-link);
-    text-decoration: none;
+    text-decoration: none !important;
     transition: color var(--rr-fast) var(--rr-ease);
 }
 
-    a:hover, .btn-link:hover {
+    a:hover, .btn-link:hover,
+    a:focus, .btn-link:focus,
+    a:active, .btn-link:active {
         color: var(--rr-primary-hover);
-        text-decoration: underline;
+        text-decoration: none !important;
+    }
+
+button, .btn, [class*='btn-'] {
+    text-decoration: none !important;
+}
+
+    button:hover, .btn:hover, [class*='btn-']:hover,
+    button:focus, .btn:focus, [class*='btn-']:focus,
+    button:active, .btn:active, [class*='btn-']:active {
+        text-decoration: none !important;
     }
 
 p {

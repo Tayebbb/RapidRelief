@@ -124,8 +124,10 @@ public static class AuthSeeder
         }
         await db.SaveChangesAsync(ct);
 
-        // 4. Seed Demo Users in Development/Testing
-        if (!(env.IsDevelopment() || env.IsEnvironment("Testing")))
+        // 4. Seed Demo Users in Testing or if explicitly configured in Development
+        var config = scopedServices.GetRequiredService<IConfiguration>();
+        var seedDemoUsers = config.GetValue("Auth:SeedDemoUsers", false) || env.IsEnvironment("Testing");
+        if (!seedDemoUsers)
         {
             return;
         }

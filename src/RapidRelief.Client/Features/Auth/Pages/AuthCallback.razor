@@ -3,9 +3,11 @@
 @namespace RapidRelief.Client.Features.Auth.Pages
 @using System.Text.Json
 @using RapidRelief.Shared.Contracts.Enums
+@using RapidRelief.Client.Common.Auth
 @inject AuthApi AuthApi
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
 
 <PageTitle>Authenticating — RapidRelief</PageTitle>
 
@@ -211,9 +213,8 @@
 
         if (result.Success)
         {
-            var dest = !string.IsNullOrWhiteSpace(ReturnUrl) && ReturnUrl.StartsWith('/')
-                ? ReturnUrl
-                : "";
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var dest = AuthRouteHelper.GetDashboardRoute(authState.User, ReturnUrl);
             Navigation.NavigateTo(dest);
         }
         else

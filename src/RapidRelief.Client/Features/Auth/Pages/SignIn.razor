@@ -4,6 +4,8 @@
 @namespace RapidRelief.Client.Features.Auth.Pages
 @inject AuthApi AuthApi
 @inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+@using RapidRelief.Client.Common.Auth
 
 <PageTitle>Sign In — RapidRelief</PageTitle>
 
@@ -131,9 +133,8 @@
 
             if (result.Success)
             {
-                var dest = !string.IsNullOrWhiteSpace(ReturnUrl) && ReturnUrl.StartsWith('/')
-                    ? ReturnUrl
-                    : "";
+                var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+                var dest = AuthRouteHelper.GetDashboardRoute(authState.User, ReturnUrl);
                 Navigation.NavigateTo(dest);
             }
             else

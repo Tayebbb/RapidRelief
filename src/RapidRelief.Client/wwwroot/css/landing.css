@@ -78,6 +78,42 @@
   min-height: 100vh;
 }
 
+/* Universally remove underlines from all buttons, links, navbar, and footer */
+.landing-wrapper a,
+.landing-wrapper a *,
+.landing-wrapper a:hover,
+.landing-wrapper a:hover *,
+.landing-wrapper a:focus,
+.landing-wrapper a:focus *,
+.landing-wrapper a:active,
+.landing-wrapper a:active *,
+.landing-wrapper a:visited,
+.landing-wrapper button,
+.landing-wrapper button *,
+.landing-wrapper button:hover,
+.landing-wrapper button:focus,
+.landing-wrapper .btn,
+.landing-wrapper .btn:hover,
+.landing-wrapper .btn:focus,
+.landing-wrapper [class*='btn-'],
+.landing-wrapper [class*='btn-']:hover,
+.landing-wrapper [class*='btn-']:focus,
+.landing-wrapper [class*='btn-']:active,
+.landing-nav a,
+.landing-nav a *,
+.landing-nav a:hover,
+.landing-nav a:hover *,
+.landing-nav a:focus,
+.landing-nav a:active,
+.landing-footer a,
+.landing-footer a *,
+.landing-footer a:hover,
+.landing-footer a:hover *,
+.landing-footer a:focus,
+.landing-footer a:active {
+  text-decoration: none !important;
+}
+
 /* ============================================================================
    Floating & Sticky Navigation (.landing-nav)
    ============================================================================ */
@@ -589,7 +625,10 @@
   margin-bottom: 2rem;
 }
 
-.btn-hero-primary {
+.btn-hero-primary,
+.btn-hero-primary:hover,
+.btn-hero-primary:focus,
+.btn-hero-primary:active {
   display: inline-flex;
   align-items: center;
   gap: 0.65rem;
@@ -599,7 +638,7 @@
   font-size: 1rem;
   font-weight: 700;
   border-radius: var(--rr-radius);
-  text-decoration: none;
+  text-decoration: none !important;
   box-shadow: 0 6px 20px rgba(30, 122, 90, 0.45);
   transition: all 0.24s cubic-bezier(0.2, 0.7, 0.3, 1);
 }
@@ -607,6 +646,7 @@
 .btn-hero-primary:hover {
   background: #176448 !important;
   color: #ffffff !important;
+  text-decoration: none !important;
   transform: translateY(-2px);
   box-shadow: 0 10px 28px rgba(30, 122, 90, 0.55);
 }
@@ -619,7 +659,10 @@
   transform: translateX(4px);
 }
 
-.btn-hero-secondary {
+.btn-hero-secondary,
+.btn-hero-secondary:hover,
+.btn-hero-secondary:focus,
+.btn-hero-secondary:active {
   display: inline-flex;
   align-items: center;
   gap: 0.55rem;
@@ -630,7 +673,7 @@
   font-size: 0.98rem;
   font-weight: 600;
   border-radius: var(--rr-radius);
-  text-decoration: none;
+  text-decoration: none !important;
   backdrop-filter: blur(10px);
   transition: all 0.2s ease;
 }
@@ -639,6 +682,7 @@
   background: rgba(255, 255, 255, 0.22);
   border-color: rgba(255, 255, 255, 0.6);
   color: #ffffff !important;
+  text-decoration: none !important;
   transform: translateY(-2px);
 }
 

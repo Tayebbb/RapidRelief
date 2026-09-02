@@ -1,0 +1,307 @@
+@page "/g"
+@layout MainLayout
+@namespace RapidRelief.Client.Features.Dashboards.Pages
+@using System.Security.Claims
+@using RapidRelief.Shared.Contracts.Enums
+@using RapidRelief.Client.Common.Ui
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+
+<PageTitle>Government Disaster Command — RapidRelief</PageTitle>
+
+<div class="dash-layout">
+    <!-- EOC Command Header Banner -->
+    <div class="dash-header-banner">
+        <div class="dash-title-group">
+            <div class="dash-role-badge government">
+                <AppIcon Name="shield" Size="14" />
+                <span>National Emergency Operations Center (EOC)</span>
+            </div>
+            <h1 class="dash-title">Government Disaster Command — @(_userName ?? "Director")</h1>
+            <p class="dash-subtitle">Macro disaster situational awareness, inter-agency command & resource logistics.</p>
+        </div>
+
+        <div class="dash-header-actions">
+            <div class="live-status-pill">
+                <div class="live-dot danger"></div>
+                <span>National Response: <strong>Level 3 (High Alert)</strong></span>
+            </div>
+            <button type="button" class="btn btn-danger btn-sm rounded-pill px-3 py-2 fw-bold d-inline-flex align-items-center gap-2" @onclick="TriggerBroadcastModal">
+                <AppIcon Name="alert-circle" Size="16" />
+                <span>Broadcast Emergency Alert</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Alert Banner when emergency broadcast is live -->
+    @if (_broadcastActive)
+    {
+        <div class="alert alert-danger d-flex align-items-center justify-content-between p-3 rounded-3 shadow-sm">
+            <div class="d-flex align-items-center gap-2">
+                <AppIcon Name="alert-circle" Size="20" />
+                <div>
+                    <strong>NATIONAL CELL BROADCAST ACTIVE:</strong> Cyclone Warning Tier-3 transmitted to 1.2M devices in Coastal Divisions.
+                </div>
+            </div>
+            <button type="button" class="btn btn-outline-danger btn-sm rounded-pill" @onclick="@(() => _broadcastActive = false)">Dismiss</button>
+        </div>
+    }
+
+    <!-- Executive KPIs Bento Grid -->
+    <div class="dash-bento-grid">
+        <div class="dash-col-3 dash-kpi-card">
+            <div class="dash-kpi-info">
+                <span class="dash-kpi-label">Active Incidents</span>
+                <span class="dash-kpi-value">142</span>
+                <span class="dash-kpi-delta danger"><AppIcon Name="alert-circle" Size="12" /> 28 Critical Priority</span>
+            </div>
+            <div class="dash-kpi-icon-wrap red">
+                <AppIcon Name="activity" Size="24" />
+            </div>
+        </div>
+
+        <div class="dash-col-3 dash-kpi-card">
+            <div class="dash-kpi-info">
+                <span class="dash-kpi-label">Deployed Rescue Units</span>
+                <span class="dash-kpi-value">48 / 60</span>
+                <span class="dash-kpi-delta good"><AppIcon Name="check" Size="12" /> 80% Field Utilization</span>
+            </div>
+            <div class="dash-kpi-icon-wrap forest">
+                <AppIcon Name="navigation" Size="24" />
+            </div>
+        </div>
+
+        <div class="dash-col-3 dash-kpi-card">
+            <div class="dash-kpi-info">
+                <span class="dash-kpi-label">Evacuees Sheltered</span>
+                <span class="dash-kpi-value">4,850</span>
+                <span class="dash-kpi-delta good"><AppIcon Name="user" Size="12" /> Across 18 Centers</span>
+            </div>
+            <div class="dash-kpi-icon-wrap blue">
+                <AppIcon Name="home" Size="24" />
+            </div>
+        </div>
+
+        <div class="dash-col-3 dash-kpi-card">
+            <div class="dash-kpi-info">
+                <span class="dash-kpi-label">Clean Water Pallets</span>
+                <span class="dash-kpi-value">45,000L</span>
+                <span class="dash-kpi-delta warn"><AppIcon Name="refresh" Size="12" /> 3 Centers Need Resupply</span>
+            </div>
+            <div class="dash-kpi-icon-wrap orange">
+                <AppIcon Name="layers" Size="24" />
+            </div>
+        </div>
+
+        <!-- Regional Incident Control Table (8 cols) -->
+        <div class="dash-col-8 dash-card">
+            <div class="dash-card-header">
+                <div>
+                    <h2 class="dash-card-title">
+                        <AppIcon Name="layers" Size="18" />
+                        <span>Regional Incident Operations Table</span>
+                    </h2>
+                    <p class="dash-card-subtitle">Live multi-district distress reports and inter-agency dispatch status.</p>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <input type="text" class="form-control form-control-sm rounded-pill" placeholder="Filter incidents..." @bind="_filterText" style="width: 180px;" />
+                    <a href="sample" class="btn-dash-outline">Live Map View</a>
+                </div>
+            </div>
+
+            <div class="dash-table-wrapper">
+                <table class="dash-table">
+                    <thead>
+                        <tr>
+                            <th>Incident ID</th>
+                            <th>District / Sector</th>
+                            <th>Type</th>
+                            <th>Severity</th>
+                            <th>Status</th>
+                            <th>Assigned Unit</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var inc in FilteredIncidents)
+                        {
+                            <tr>
+                                <td><strong>#@inc.Id</strong></td>
+                                <td>@inc.District</td>
+                                <td>@inc.Type</td>
+                                <td>
+                                    <span class="badge @inc.SeverityBadge rounded-pill px-2 py-1 small">@inc.Severity</span>
+                                </td>
+                                <td>
+                                    <span class="badge @inc.StatusBadge rounded-pill px-2 py-1 small">@inc.Status</span>
+                                </td>
+                                <td><span class="text-secondary small">@inc.AssignedUnit</span></td>
+                                <td>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill py-0 px-2" @onclick="@(() => ToggleResolve(inc))">
+                                        @(inc.Status == "Resolved" ? "Re-open" : "Resolve")
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Shelter Capacity Strategic Monitor (4 cols) -->
+        <div class="dash-col-4 dash-card">
+            <div class="dash-card-header">
+                <div>
+                    <h2 class="dash-card-title">
+                        <AppIcon Name="map-pin" Size="18" />
+                        <span>Shelter Capacities</span>
+                    </h2>
+                    <p class="dash-card-subtitle">Real-time occupancy tracking.</p>
+                </div>
+                <a href="admin/shelters" class="btn-dash-outline">Manage</a>
+            </div>
+
+            <div class="dash-item-list">
+                <div class="dash-item-card flex-column align-items-start">
+                    <div class="d-flex justify-content-between w-100">
+                        <strong style="font-size: 0.92rem;">Govt. Cyclone Center 01</strong>
+                        <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">74%</span>
+                    </div>
+                    <div class="text-secondary small mt-1">Occupancy: 740 / 1,000 Evacuees</div>
+                    <div class="capacity-track">
+                        <div class="capacity-fill green" style="width: 74%;"></div>
+                    </div>
+                </div>
+
+                <div class="dash-item-card flex-column align-items-start">
+                    <div class="d-flex justify-content-between w-100">
+                        <strong style="font-size: 0.92rem;">Coastal Relief Camp 04</strong>
+                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill">96% (Critical)</span>
+                    </div>
+                    <div class="text-secondary small mt-1">Occupancy: 480 / 500 Evacuees</div>
+                    <div class="capacity-track">
+                        <div class="capacity-fill red" style="width: 96%;"></div>
+                    </div>
+                </div>
+
+                <div class="dash-item-card flex-column align-items-start">
+                    <div class="d-flex justify-content-between w-100">
+                        <strong style="font-size: 0.92rem;">Central Community Stadium</strong>
+                        <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill">85%</span>
+                    </div>
+                    <div class="text-secondary small mt-1">Occupancy: 2,120 / 2,500 Evacuees</div>
+                    <div class="capacity-track">
+                        <div class="capacity-fill orange" style="width: 85%;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* Emergency Broadcast Modal *@
+@if (_showBroadcastModal)
+{
+    <div class="modal fade show d-block" style="background: rgba(0,0,0,0.6);" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="background: var(--rr-surface); border: 1px solid var(--rr-border); border-radius: var(--rr-radius-l);">
+                <div class="modal-header border-bottom border-light-subtle bg-danger-subtle">
+                    <h5 class="modal-title fw-bold text-danger d-flex align-items-center gap-2">
+                        <AppIcon Name="alert-circle" Size="20" />
+                        <span>National Emergency Alert Broadcast</span>
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="@(() => _showBroadcastModal = false)" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-muted mb-3">
+                        This action broadcasts an emergency push notice and warning banner across the web application and connected mobile sessions in selected target divisions.
+                    </p>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Alert Level</label>
+                        <select class="form-select">
+                            <option>Warning Tier 3 — Evacuation Advisory</option>
+                            <option>Warning Tier 2 — Severe Storm Watch</option>
+                            <option>Flash Flood Threat — Seek High Ground</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Alert Message Text</label>
+                        <textarea class="form-control" rows="3" placeholder="Enter concise emergency directives...">URGENT: Water levels surging along riverside districts. Evacuate immediately to designated high-ground shelters.</textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-top border-light-subtle">
+                    <button type="button" class="btn-dash-outline" @onclick="@(() => _showBroadcastModal = false)">Cancel</button>
+                    <button type="button" class="btn btn-danger rounded-pill px-4 fw-bold" @onclick="SendBroadcast">Broadcast Immediately</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private string? _userName;
+    private string _filterText = "";
+    private bool _showBroadcastModal;
+    private bool _broadcastActive;
+
+    private readonly List<GovIncident> _incidents = new()
+    {
+        new GovIncident("INC-104", "Chittagong South", "Flash Flood", "Critical", "bg-danger text-white", "In Progress", "bg-warning-subtle text-warning", "Navy Rescue Team 2"),
+        new GovIncident("INC-105", "Barisal Coastal", "Embankment Breach", "Critical", "bg-danger text-white", "Dispatched", "bg-danger-subtle text-danger", "Fire Service Unit 04"),
+        new GovIncident("INC-106", "Sylhet Riverfront", "Submerged Road", "Moderate", "bg-warning text-dark", "Pending", "bg-secondary-subtle text-secondary", "Awaiting Available Squad"),
+        new GovIncident("INC-107", "Cox's Bazar Camp", "Medical Aid Shortage", "High", "bg-danger text-white", "In Progress", "bg-warning-subtle text-warning", "Red Crescent Medical"),
+        new GovIncident("INC-108", "Dhaka Lowland", "Water Logging", "Low", "bg-info text-dark", "Resolved", "bg-success-subtle text-success", "Municipal Drain Unit"),
+    };
+
+    private IEnumerable<GovIncident> FilteredIncidents =>
+        string.IsNullOrWhiteSpace(_filterText)
+            ? _incidents
+            : _incidents.Where(i => i.District.Contains(_filterText, StringComparison.OrdinalIgnoreCase) ||
+                                   i.Type.Contains(_filterText, StringComparison.OrdinalIgnoreCase) ||
+                                   i.Id.Contains(_filterText, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = auth.User;
+        _userName = user.FindFirst("unique_name")?.Value ?? user.FindFirst(ClaimTypes.Name)?.Value ?? "Director";
+    }
+
+    private void TriggerBroadcastModal() => _showBroadcastModal = true;
+
+    private void SendBroadcast()
+    {
+        _showBroadcastModal = false;
+        _broadcastActive = true;
+    }
+
+    private void ToggleResolve(GovIncident inc)
+    {
+        inc.Status = inc.Status == "Resolved" ? "In Progress" : "Resolved";
+        inc.StatusBadge = inc.Status == "Resolved" ? "bg-success-subtle text-success" : "bg-warning-subtle text-warning";
+    }
+
+    private sealed class GovIncident
+    {
+        public string Id { get; set; }
+        public string District { get; set; }
+        public string Type { get; set; }
+        public string Severity { get; set; }
+        public string SeverityBadge { get; set; }
+        public string Status { get; set; }
+        public string StatusBadge { get; set; }
+        public string AssignedUnit { get; set; }
+
+        public GovIncident(string id, string district, string type, string severity, string severityBadge, string status, string statusBadge, string assignedUnit)
+        {
+            Id = id;
+            District = district;
+            Type = type;
+            Severity = severity;
+            SeverityBadge = severityBadge;
+            Status = status;
+            StatusBadge = statusBadge;
+            AssignedUnit = assignedUnit;
+        }
+    }
+}

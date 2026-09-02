@@ -3,8 +3,10 @@
 @layout AuthLayout
 @namespace RapidRelief.Client.Features.Auth.Pages
 @using RapidRelief.Shared.Contracts.Enums
+@using RapidRelief.Client.Common.Auth
 @inject AuthApi AuthApi
 @inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
 
 <PageTitle>Sign Up — RapidRelief</PageTitle>
 
@@ -231,7 +233,9 @@
 
             if (result.Success)
             {
-                Navigation.NavigateTo("");
+                var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+                var dest = AuthRouteHelper.GetDashboardRoute(authState.User, _model.Role);
+                Navigation.NavigateTo(dest);
             }
             else
             {
