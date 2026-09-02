@@ -1,0 +1,101 @@
+@namespace RapidRelief.Client.Features.Landing.Components
+
+<header class="landing-nav-container" aria-label="Main landing navigation">
+    <nav class="landing-nav">
+        <a class="nav-brand-group" href="">
+            <span class="nav-brand-badge" aria-hidden="true">
+                <AppIcon Name="shield-plus" Size="20" />
+            </span>
+            <span class="nav-brand-text">RapidRelief</span>
+        </a>
+
+        <ul class="nav-links-desktop">
+            <li><a class="nav-link-item" href="#hero">Home</a></li>
+            <li><a class="nav-link-item" href="#quick-actions">Quick Actions</a></li>
+            <li><a class="nav-link-item" href="#how-it-works">How It Works</a></li>
+            <li><a class="nav-link-item" href="#features">Features</a></li>
+            <li><a class="nav-link-item" href="shelters/finder">Shelters</a></li>
+            <li><a class="nav-link-item" href="sample">Live Map</a></li>
+            <li><a class="nav-link-item" href="assistant">Assistant</a></li>
+        </ul>
+
+        <div class="nav-actions">
+            <div class="role-picker-slot">
+                <DevRolePicker />
+            </div>
+            <ThemeToggle />
+
+            <AuthorizeView>
+                <Authorized>
+                    <NotificationBell />
+                    <LoginDisplay />
+                </Authorized>
+                <NotAuthorized>
+                    <a class="btn-nav-signin" href="login">
+                        Sign In
+                    </a>
+                    <a class="btn-nav-signup" href="register">
+                        <span>Sign Up</span>
+                        <AppIcon Name="arrow-right" Size="15" />
+                    </a>
+                </NotAuthorized>
+            </AuthorizeView>
+
+            <button class="mobile-menu-btn" type="button" @onclick="ToggleMobileMenu"
+                    aria-label="@(_mobileOpen ? "Close menu" : "Open menu")" aria-expanded="@_mobileOpen">
+                <AppIcon Name="@(_mobileOpen ? "close" : "menu")" Size="22" />
+            </button>
+        </div>
+    </nav>
+
+    @* Mobile dropdown drawer *@
+    <div class="mobile-nav-drawer @(_mobileOpen ? "is-open" : null)" role="dialog" aria-modal="true" aria-label="Mobile Navigation">
+        <a class="mobile-nav-link" href="#hero" @onclick="CloseMobileMenu">
+            <AppIcon Name="home" Size="18" />
+            <span>Home</span>
+        </a>
+        <a class="mobile-nav-link" href="#quick-actions" @onclick="CloseMobileMenu">
+            <AppIcon Name="activity" Size="18" />
+            <span>Quick Actions</span>
+        </a>
+        <a class="mobile-nav-link" href="#how-it-works" @onclick="CloseMobileMenu">
+            <AppIcon Name="clock" Size="18" />
+            <span>How It Works</span>
+        </a>
+        <a class="mobile-nav-link" href="#features" @onclick="CloseMobileMenu">
+            <AppIcon Name="layers" Size="18" />
+            <span>Features</span>
+        </a>
+        <a class="mobile-nav-link" href="shelters/finder" @onclick="CloseMobileMenu">
+            <AppIcon Name="map-pin" Size="18" />
+            <span>Shelter Finder</span>
+        </a>
+        <a class="mobile-nav-link" href="sample" @onclick="CloseMobileMenu">
+            <AppIcon Name="map" Size="18" />
+            <span>Live Map</span>
+        </a>
+        <a class="mobile-nav-link" href="assistant" @onclick="CloseMobileMenu">
+            <AppIcon Name="chat" Size="18" />
+            <span>Emergency Assistant</span>
+        </a>
+
+        <div class="pt-2 border-top d-flex gap-2">
+            <AuthorizeView>
+                <Authorized>
+                    <a class="btn btn-outline-primary btn-sm w-100" href="profile" @onclick="CloseMobileMenu">Profile</a>
+                </Authorized>
+                <NotAuthorized>
+                    <a class="btn btn-outline-secondary btn-sm flex-fill text-center" href="login" @onclick="CloseMobileMenu">Sign In</a>
+                    <a class="btn btn-primary btn-sm flex-fill text-center" href="register" @onclick="CloseMobileMenu">Sign Up</a>
+                </NotAuthorized>
+            </AuthorizeView>
+        </div>
+    </div>
+</header>
+
+@code {
+    private bool _mobileOpen;
+
+    private void ToggleMobileMenu() => _mobileOpen = !_mobileOpen;
+    private void CloseMobileMenu() => _mobileOpen = false;
+}

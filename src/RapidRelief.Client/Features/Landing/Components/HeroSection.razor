@@ -1,0 +1,125 @@
+@namespace RapidRelief.Client.Features.Landing.Components
+@inject HttpClient Http
+
+<section id="hero" class="landing-hero" aria-labelledby="hero-main-title">
+    <div class="landing-container">
+        <div class="hero-grid">
+            <div class="hero-content-col rr-reveal-item">
+                <div class="hero-badge-row">
+                    <span class="hero-pill-brand">
+                        <AppIcon Name="shield-plus" Size="14" />
+                        <span>Emergency Response, Connected</span>
+                    </span>
+
+                    @if (_health is not null)
+                    {
+                        <span class="rr-chip @(_health.DbConnected ? "rr-chip-success" : "rr-chip-warning")"
+                              title="@(_health.DbConnected ? "Database connected" : "Running in local resilient mode")">
+                            <span class="rr-dot @(_health.DbConnected ? "rr-dot-success" : "")" aria-hidden="true"></span>
+                            <span>@(_health.DbConnected ? "All Systems Operational" : "Demo Mode — Local Resilient")</span>
+                        </span>
+                    }
+                </div>
+
+                <h1 id="hero-main-title" class="hero-headline">
+                    Help reaches people <span class="hero-headline-accent">when it matters most.</span>
+                </h1>
+
+                <p class="hero-lede">
+                    Report emergencies, find nearby shelters, receive AI safety guidance, and connect critical information with rescue teams — built to work reliably even when networks fail.
+                </p>
+
+                <div class="hotline-strip" role="note">
+                    <AppIcon Name="phone" Size="18" />
+                    <span>Life-threatening emergency? Call <strong>999</strong> immediately. RapidRelief coordinates rescue operations alongside emergency services.</span>
+                </div>
+
+                <div class="hero-actions-group">
+                    <a class="btn-hero-primary" href="shelters/finder">
+                        <span>Report an Emergency</span>
+                        <AppIcon Name="arrow-right" Size="17" />
+                    </a>
+                    <a class="btn-hero-secondary" href="#how-it-works">
+                        <AppIcon Name="clock" Size="17" />
+                        <span>See How It Works</span>
+                    </a>
+                </div>
+
+                <div class="trust-indicators-row">
+                    <div class="trust-item">
+                        <span class="trust-dot"></span>
+                        <span>Emergency Reporting</span>
+                    </div>
+                    <div class="trust-item">
+                        <span class="trust-dot"></span>
+                        <span>Nearby Shelter Finder</span>
+                    </div>
+                    <div class="trust-item">
+                        <span class="trust-dot"></span>
+                        <span>AI Safety Guidance</span>
+                    </div>
+                    <div class="trust-item">
+                        <span class="trust-dot"></span>
+                        <span>Live Response Updates</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="hero-media-wrapper rr-reveal-item delay-2">
+                <div class="hero-media-box">
+                    @* 
+                        ========================================================================
+                        HERO MEDIA: Replace this source with the final RapidRelief cinematic image/video.
+                        Supports either:
+                        <img class="hero-media-element" src="images/hero-rescue.webp" alt="Rescue operations in progress" />
+                        or
+                        <video class="hero-media-element" autoplay muted loop playsinline poster="images/hero-poster.webp">
+                            <source src="videos/rescue-hero.mp4" type="video/mp4" />
+                        </video>
+                        ======================================================================== 
+                    *@
+                    <div class="hero-media-placeholder">
+                        <AppIcon Name="shield-plus" Size="54" />
+                        <h2 class="h4 mt-3 mb-2 text-white">Dhaka Coordinated Relief Grid</h2>
+                        <p class="small text-white-50 mb-0">Live geospatial telemetry & emergency response coordination</p>
+                    </div>
+
+                    <div class="hero-media-overlay" aria-hidden="true"></div>
+
+                    <div class="hero-telemetry-badge">
+                        <span class="rr-dot rr-dot-success" aria-hidden="true"></span>
+                        <span>Sector 4 Dispatch Active</span>
+                    </div>
+                </div>
+
+                <div class="hero-telemetry-card">
+                    <div class="telemetry-icon-box">
+                        <AppIcon Name="map-pin" Size="20" />
+                    </div>
+                    <div>
+                        <div class="fw-bold small text-truncate">Gulshan Emergency Hub</div>
+                        <div class="text-muted" style="font-size: 0.78rem;">42 open spots · Nearest shelter pick</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+@code {
+    private HealthSnapshot? _health;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _health = await Http.GetFromJsonAsync<HealthSnapshot>("health");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+        {
+            _health = null;
+        }
+    }
+
+    private sealed record HealthSnapshot(string Status, bool DbConnected);
+}

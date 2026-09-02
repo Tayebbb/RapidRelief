@@ -1,0 +1,71 @@
+@namespace RapidRelief.Client.Features.Landing.Components
+
+<footer class="landing-footer" aria-label="Site footer">
+    <div class="landing-container">
+        <div class="footer-top-grid">
+            <div class="footer-brand-col">
+                <div class="footer-brand-heading">
+                    <span class="nav-brand-badge" aria-hidden="true">
+                        <AppIcon Name="shield-plus" Size="20" />
+                    </span>
+                    <span>RapidRelief</span>
+                </div>
+                <p class="footer-brand-desc">
+                    AI-Smart Disaster Response & Emergency Management System connecting citizens, rescue operations, and relief hubs.
+                </p>
+                <div class="d-flex align-items-center gap-2 mt-3 text-white-50 small">
+                    <AppIcon Name="phone" Size="15" />
+                    <span>Emergency Hotline: <strong>999</strong> (Bangladesh)</span>
+                </div>
+            </div>
+
+            <div>
+                <h4 class="footer-col-title">Platform</h4>
+                <ul class="footer-links-list">
+                    <li><a href="shelters/finder">Report Emergency</a></li>
+                    <li><a href="shelters/finder">Find Nearby Shelter</a></li>
+                    <li><a href="assistant">Emergency Assistant</a></li>
+                    <li><a href="sample">Live Incident Map</a></li>
+                </ul>
+            </div>
+
+            <div>
+                <h4 class="footer-col-title">System</h4>
+                <ul class="footer-links-list">
+                    <li><a href="#how-it-works">How It Works</a></li>
+                    <li><a href="#features">Capabilities</a></li>
+                    <li><a href="admin/shelters">Manage Shelters (Admin)</a></li>
+                    <li><a href="ui-showcase">UI Design System</a></li>
+                </ul>
+            </div>
+
+            <div>
+                <h4 class="footer-col-title">Access</h4>
+                <ul class="footer-links-list">
+                    <li><a href="login">Sign In</a></li>
+                    <li><a href="register">Register Account</a></li>
+                    <li><a href="profile">Profile & Preferences</a></li>
+                    <li><a href="notifications">Live Alerts</a></li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="footer-divider" aria-hidden="true"></div>
+
+        @* Giant Responsive Brand Banner *@
+        <div class="footer-giant-brand-container" aria-hidden="true">
+            <div class="footer-giant-brand-text">
+                RAPIDRELIEF
+            </div>
+        </div>
+
+        <div class="footer-bottom-bar">
+            <div>
+                &copy; @DateTime.UtcNow.Year RapidRelief. Built for public safety and community resilience.
+            </div>
+            <div>
+                <span>Emergency coordination platform · Not a substitute for 999 direct emergency services.</span>
+            </div>
+        </div>
+    </div>
+</footer>

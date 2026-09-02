@@ -1,0 +1,91 @@
+@namespace RapidRelief.Client.Features.Landing.Components
+
+<section id="assistant-showcase" class="landing-section section-sage-mist" aria-labelledby="assistant-title">
+    <div class="landing-container">
+        <div class="assistant-showcase-grid">
+            <div class="assistant-copy-col rr-reveal-item">
+                <span class="section-tag">
+                    <AppIcon Name="chat" Size="13" />
+                    <span>AI Safety Guidance</span>
+                </span>
+                <h2 id="assistant-title" class="section-title">Guidance when you're unsure what to do.</h2>
+                <p class="section-subtitle mb-4">
+                    In chaotic moments, clarity saves lives. RapidRelief offers calm, direct safety instructions tailored to your situation — accessible 24/7, even during partial network outages.
+                </p>
+
+                <div class="d-flex flex-column gap-3 mb-4">
+                    <div class="d-flex align-items-start gap-3">
+                        <div class="text-success mt-1">
+                            <AppIcon Name="check-circle" Size="20" />
+                        </div>
+                        <div>
+                            <strong>Actionable Emergency Protocols</strong>
+                            <p class="small text-muted mb-0">Step-by-step guidance for flash floods, building fires, structural collapses, and medical crises.</p>
+                        </div>
+                    </div>
+
+                    <div class="d-flex align-items-start gap-3">
+                        <div class="text-success mt-1">
+                            <AppIcon Name="check-circle" Size="20" />
+                        </div>
+                        <div>
+                            <strong>Always-On Canned Fallback</strong>
+                            <p class="small text-muted mb-0">If cloud AI providers are unreachable or rate-limited, the system seamlessly serves pre-verified offline safety protocols.</p>
+                        </div>
+                    </div>
+
+                    <div class="d-flex align-items-start gap-3">
+                        <div class="text-success mt-1">
+                            <AppIcon Name="check-circle" Size="20" />
+                        </div>
+                        <div>
+                            <strong>Context-Aware Shelter Suggestions</strong>
+                            <p class="small text-muted mb-0">Recommends verified nearby evacuation centers alongside survival steps.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <a class="btn btn-primary" href="assistant">
+                    <AppIcon Name="chat" Size="17" />
+                    <span>Open Emergency Assistant</span>
+                </a>
+            </div>
+
+            <div class="assistant-chat-col rr-reveal-item delay-2">
+                <div class="assistant-dialog-mock">
+                    <div class="assistant-mock-head">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="nav-brand-badge" style="width: 28px; height: 28px;">
+                                <AppIcon Name="shield-plus" Size="16" />
+                            </span>
+                            <span class="fw-bold small">RapidRelief Assistant</span>
+                        </div>
+                        <span class="badge bg-success-subtle text-success border border-success-subtle">
+                            <span class="rr-dot rr-dot-success" aria-hidden="true"></span> Active
+                        </span>
+                    </div>
+
+                    <div class="chat-bubble-user">
+                        Water is rising into my ground floor apartment in Dhanmondi. What should I do right now?
+                    </div>
+
+                    <div class="chat-bubble-ai">
+                        <p class="mb-2"><strong>Immediate Safety Steps:</strong></p>
+                        <ol class="ps-3 mb-2 small" style="line-height: 1.5;">
+                            <li>Disconnect main electrical circuit breakers if safe to reach.</li>
+                            <li>Move immediately to an upper floor with your emergency bag and phone.</li>
+                            <li>Do not attempt to walk or drive through flowing water.</li>
+                            <li>If water is rising quickly or anyone is trapped, <strong>call 999 immediately</strong>.</li>
+                            <li>Nearest open shelter: <strong>Dhanmondi Community Center</strong> (650m away · 38 open spots).</li>
+                        </ol>
+                    </div>
+
+                    <div class="assistant-disclaimer-box">
+                        <AppIcon Name="info" Size="15" />
+                        <span>AI guidance assists awareness. Call 999 for immediate life-threatening danger.</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>

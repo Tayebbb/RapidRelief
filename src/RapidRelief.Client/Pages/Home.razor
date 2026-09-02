@@ -1,119 +1,50 @@
-﻿@page "/"
-@inject HttpClient Http
+@page "/"
+@layout LandingLayout
+@namespace RapidRelief.Client.Pages
+@inject IJSRuntime JS
 
-<PageTitle>RapidRelief — AI disaster response</PageTitle>
+<PageTitle>RapidRelief — AI Disaster Response & Emergency Management</PageTitle>
 
-<div class="home rr-page">
-    <section class="hero rr-reveal">
-        <div class="hero-eyebrow">
-            <span class="rr-chip rr-chip-danger">
-                <AppIcon Name="activity" Size="13" />
-                AI Smart Disaster Response
-            </span>
-            @if (_health is not null)
-            {
-                <span class="rr-chip @(_health.DbConnected ? "rr-chip-success" : "rr-chip-warning")"
-                      title="@(_health.DbConnected ? "Database connected" : "Running against stub data")">
-                    <span class="rr-dot @(_health.DbConnected ? "rr-dot-success" : "")" aria-hidden="true"></span>
-                    @(_health.DbConnected ? "All systems operational" : "Demo mode — live data limited")
-                </span>
-            }
-        </div>
-        <h1 class="hero-title">Coordinated emergency response, <span class="hero-accent">when minutes matter</span></h1>
-        <p class="hero-lede">
-            RapidRelief connects citizens, rescue teams, shelters and relief supplies on one live map —
-            with AI triage that keeps working even when networks don't.
-        </p>
-        <div class="hero-actions">
-            <a class="btn btn-primary" href="shelters/finder">
-                <AppIcon Name="map-pin" Size="17" />
-                Find a shelter
-            </a>
-            <a class="btn btn-secondary" href="assistant">
-                <AppIcon Name="chat" Size="17" />
-                Ask the assistant
-            </a>
-            <a class="hero-link" href="sample">
-                View the live map
-                <AppIcon Name="arrow-right" Size="15" />
-            </a>
-        </div>
-    </section>
+@* 1. Hero Section with Media Placement *@
+<HeroSection />
 
-    <section class="emergency-strip rr-reveal rr-reveal-1" role="note">
-        <AppIcon Name="phone" Size="20" CssClass="emergency-icon" />
-        <p>
-            <strong>In a life-threatening emergency, call 999 now.</strong>
-            RapidRelief coordinates response — it does not replace emergency services.
-        </p>
-    </section>
+@* 2. Quick Actions for Urgent Needs *@
+<QuickActions />
 
-    <section class="rr-section rr-reveal rr-reveal-2" aria-labelledby="home-actions">
-        <h2 id="home-actions">What you can do today</h2>
-        <div class="action-grid">
-            <a class="action-card" href="shelters/finder">
-                <span class="action-icon"><AppIcon Name="map-pin" Size="20" /></span>
-                <h3>Find shelter</h3>
-                <p>See the nearest open shelters with live capacity, plus an AI pick for your location.</p>
-                <span class="action-go" aria-hidden="true"><AppIcon Name="arrow-right" Size="16" /></span>
-            </a>
-            <a class="action-card" href="assistant">
-                <span class="action-icon"><AppIcon Name="chat" Size="20" /></span>
-                <h3>Emergency assistant</h3>
-                <p>Ask what to do right now — flood, fire or quake — and get calm, practical steps.</p>
-                <span class="action-go" aria-hidden="true"><AppIcon Name="arrow-right" Size="16" /></span>
-            </a>
-            <a class="action-card" href="sample">
-                <span class="action-icon"><AppIcon Name="map" Size="20" /></span>
-                <h3>Live incident map</h3>
-                <p>Reported incidents across Dhaka on one map, updated as the situation develops.</p>
-                <span class="action-go" aria-hidden="true"><AppIcon Name="arrow-right" Size="16" /></span>
-            </a>
-            <a class="action-card" href="notifications">
-                <span class="action-icon"><AppIcon Name="bell" Size="20" /></span>
-                <h3>Notifications</h3>
-                <p>Alerts and AI assessments reach you live — with polling as a permanent fallback.</p>
-                <span class="action-go" aria-hidden="true"><AppIcon Name="arrow-right" Size="16" /></span>
-            </a>
-        </div>
-    </section>
+@* 3. Response Storytelling Timeline *@
+<HowItWorks />
 
-    <section class="rr-section rr-reveal rr-reveal-3" aria-labelledby="home-how">
-        <h2 id="home-how">How RapidRelief works</h2>
-        <ol class="how-grid">
-            <li class="how-step">
-                <span class="how-num" aria-hidden="true">1</span>
-                <h3>Report</h3>
-                <p>A citizen reports a disaster or sends an SOS with location and photos — even offline.</p>
-            </li>
-            <li class="how-step">
-                <span class="how-num" aria-hidden="true">2</span>
-                <h3>AI triage</h3>
-                <p>AI classifies the disaster, scores severity and flags duplicates — with a rule-based fallback so triage never stops.</p>
-            </li>
-            <li class="how-step">
-                <span class="how-num" aria-hidden="true">3</span>
-                <h3>Coordinated response</h3>
-                <p>Rescue teams get missions, shelters fill fairly, and relief moves where it's needed — all visible live.</p>
-            </li>
-        </ol>
-    </section>
-</div>
+@* 4. Platform Capabilities Bento Grid *@
+<FeatureShowcase />
+
+@* 5. Geographic & Map Showcase *@
+<MapShowcase />
+
+@* 6. Emergency AI Assistant Simulator *@
+<AssistantShowcase />
+
+@* 7. Community & Responders Focus *@
+<HumanResponseSection />
+
+@* 8. System Impact Flow *@
+<ImpactFlow />
+
+@* 9. Final High-Contrast Call to Action *@
+<FinalCta />
 
 @code {
-    private HealthSnapshot? _health;
-
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        try
+        if (firstRender)
         {
-            _health = await Http.GetFromJsonAsync<HealthSnapshot>("health");
-        }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
-        {
-            _health = null; // status chip simply doesn't render
+            try
+            {
+                await JS.InvokeVoidAsync("rapidReliefLanding.init");
+            }
+            catch (JSException)
+            {
+                // Gracefully continue if JS interop is disabled or running in test/prerender context
+            }
         }
     }
-
-    private sealed record HealthSnapshot(string Status, bool DbConnected);
 }

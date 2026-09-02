@@ -1,0 +1,90 @@
+@namespace RapidRelief.Client.Features.Landing.Components
+
+<section id="map-showcase" class="landing-section section-white" aria-labelledby="map-showcase-title">
+    <div class="landing-container">
+        <div class="map-showcase-grid">
+            <div class="map-copy-col rr-reveal-item">
+                <span class="section-tag">
+                    <AppIcon Name="map" Size="13" />
+                    <span>Geographic Intelligence</span>
+                </span>
+                <h2 id="map-showcase-title" class="section-title">Know what's happening around you.</h2>
+                <p class="section-subtitle mb-4">
+                    Real-time spatial visualization maps active incidents and emergency shelters across Dhaka — empowering both citizens and command coordinators with complete situational awareness.
+                </p>
+
+                <div class="d-flex flex-column gap-3 mb-4">
+                    <div class="d-flex align-items-start gap-3">
+                        <div class="text-success mt-1">
+                            <AppIcon Name="check-circle" Size="20" />
+                        </div>
+                        <div>
+                            <strong>Live Incident Clustering</strong>
+                            <p class="small text-muted mb-0">Active flood and structural hazard points are grouped and updated dynamically.</p>
+                        </div>
+                    </div>
+
+                    <div class="d-flex align-items-start gap-3">
+                        <div class="text-success mt-1">
+                            <AppIcon Name="check-circle" Size="20" />
+                        </div>
+                        <div>
+                            <strong>Nearest Shelter Routing</strong>
+                            <p class="small text-muted mb-0">Calculates precise Haversine distance to available community shelters with live vacancy telemetry.</p>
+                        </div>
+                    </div>
+
+                    <div class="d-flex align-items-start gap-3">
+                        <div class="text-success mt-1">
+                            <AppIcon Name="check-circle" Size="20" />
+                        </div>
+                        <div>
+                            <strong>Privacy-First Geolocation</strong>
+                            <p class="small text-muted mb-0">Coordinates are rounded to 4 decimals (~11m) on your device before sharing to preserve citizen privacy.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex flex-wrap gap-2">
+                    <a class="btn btn-primary" href="sample">
+                        <AppIcon Name="map" Size="17" />
+                        <span>Open Live Incident Map</span>
+                    </a>
+                    <a class="btn btn-outline-secondary" href="shelters/finder">
+                        <AppIcon Name="map-pin" Size="17" />
+                        <span>Find Shelters</span>
+                    </a>
+                </div>
+            </div>
+
+            <div class="map-preview-col rr-reveal-item delay-2">
+                <div class="map-preview-mock">
+                    <div class="map-mock-canvas">
+                        <div class="map-radar-pulse" aria-hidden="true"></div>
+
+                        @* Mock markers positioned on the stylized Dhaka grid *@
+                        <div class="map-marker-item" style="top: 25%; left: 35%;">
+                            <AppIcon Name="activity" Size="12" />
+                            <span>Flood SOS · Sector 3</span>
+                        </div>
+
+                        <div class="map-shelter-marker" style="top: 60%; left: 55%;">
+                            <AppIcon Name="home" Size="12" />
+                            <span>Shelter · 58 Open</span>
+                        </div>
+
+                        <div class="map-marker-item" style="bottom: 22%; left: 28%; background-color: var(--rr-sunrise-orange);">
+                            <AppIcon Name="alert-circle" Size="12" />
+                            <span>Water Rising</span>
+                        </div>
+                    </div>
+
+                    <div class="p-3 bg-light border-top d-flex justify-content-between align-items-center">
+                        <span class="small fw-bold">Dhaka Emergency Response Grid</span>
+                        <span class="badge bg-success">Leaflet Engine Active</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
