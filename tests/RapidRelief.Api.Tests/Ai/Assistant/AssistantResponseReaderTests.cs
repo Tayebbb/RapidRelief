@@ -4,17 +4,21 @@ using RapidRelief.Api.Features.Ai.Assistant;
 namespace RapidRelief.Api.Tests.Ai.Assistant;
 
 /// <summary>
-/// F16 TEST PLAN item 1 (reader half) — D-050 prose finish policy. The split between
-/// <c>Blocked</c> (a normal user-visible outcome) and <c>Invalid</c> (a Gemini-path failure)
-/// is what keeps three hostile messages from opening the shared breaker for everyone.
+/// D-050 prose finish policy under the D-064 OpenRouter signals. The split between
+/// <c>Blocked</c> (a normal user-visible outcome) and <c>Invalid</c> (a provider-path failure)
+/// is what keeps three hostile messages from opening the shared breaker for everyone:
+/// "stop" → Ok, "length" → Ok + truncated, "content_filter" → Blocked, "error" → Invalid
+/// (client backstop — counts), missing/other → Blocked, no choices → Invalid.
 /// </summary>
 public sealed class AssistantResponseReaderTests
 {
-    private static string Body(string text, string? finishReason = "STOP", int? tokens = 57)
+    private static string Body(string text, string? finishReason = "stop", int? tokens = 57,
+        string? model = "z-ai/glm-5.2:free")
     {
-        var finish = finishReason is null ? "" : $",\"finishReason\":{JsonSerializer.Serialize(finishReason)}";
-        var usage = tokens is null ? "" : $",\"usageMetadata\":{{\"totalTokenCount\":{tokens}}}";
-        return $"{{\"candidates\":[{{\"content\":{{\"parts\":[{{\"text\":{JsonSerializer.Serialize(text)}}}]}}{finish}}}]{usage}}}";
+        var finish = finishReason is null ? "" : $",\"finish_reason\":{JsonSerializer.Serialize(finishReason)}";
+        var usage = tokens is null ? "" : $",\"usage\":{{\"total_tokens\":{tokens}}}";
+        var modelField = model is null ? "" : $"\"model\":{JsonSerializer.Serialize(model)},";
+        return $"{{{modelField}\"choices\":[{{\"message\":{{\"role\":\"assistant\",\"content\":{JsonSerializer.Serialize(text)}}}{finish}}}]{usage}}}";
     }
 
     [Fact]
@@ -25,41 +29,47 @@ public sealed class AssistantResponseReaderTests
         Assert.Equal(AssistantReadStatus.Ok, result.Status);
         Assert.Equal("Move to higher ground now.", result.Text);
         Assert.False(result.Truncated);
-        Assert.Equal("STOP", result.FinishReason);
+        Assert.Equal("stop", result.FinishReason);
         Assert.Equal(57, result.TotalTokenCount);
+        Assert.Equal("z-ai/glm-5.2:free", result.ModelName); // D-061: the ACTUAL routed model
     }
 
     [Fact]
-    public void A_max_tokens_response_is_accepted_but_marked_truncated()
+    public void A_length_response_is_accepted_but_marked_truncated()
     {
-        // Truncated prose is still usable — the F8 "STOP only" rule would randomly can long answers.
-        var result = AssistantResponseReader.Read(Body("Move to higher ground and", finishReason: "MAX_TOKENS"));
+        // Truncated prose is still usable — the F8 "stop only" rule would randomly can long answers.
+        var result = AssistantResponseReader.Read(Body("Move to higher ground and", finishReason: "length"));
 
         Assert.Equal(AssistantReadStatus.Ok, result.Status);
         Assert.True(result.Truncated);
-        Assert.Equal("MAX_TOKENS", result.FinishReason);
+        Assert.Equal("length", result.FinishReason);
     }
 
     [Fact]
-    public void All_text_parts_are_concatenated_in_order()
+    public void Missing_usage_and_model_still_read_with_null_telemetry()
     {
-        const string body = """
-            {"candidates":[{"content":{"parts":[{"text":"first "},{"inlineData":{"data":"x"}},{"text":"second"}]},"finishReason":"STOP"}]}
-            """;
-
-        var result = AssistantResponseReader.Read(body);
+        var result = AssistantResponseReader.Read(Body("ok", tokens: null, model: null));
 
         Assert.Equal(AssistantReadStatus.Ok, result.Status);
-        Assert.Equal("first second", result.Text);
         Assert.Null(result.TotalTokenCount);
+        Assert.Null(result.ModelName);
+    }
+
+    [Fact]
+    public void A_content_filter_finish_reason_is_blocked()
+    {
+        // D-064: the moderation verdict rides on finish_reason now — never a breaker count.
+        var result = AssistantResponseReader.Read(Body("partial", "content_filter"));
+
+        Assert.Equal(AssistantReadStatus.Blocked, result.Status);
+        Assert.False(string.IsNullOrWhiteSpace(result.Reason));
     }
 
     [Theory]
-    [InlineData("SAFETY")]
-    [InlineData("RECITATION")]
-    [InlineData("OTHER")]
-    [InlineData("PROHIBITED_CONTENT")]
-    public void A_non_stop_non_max_tokens_finish_reason_is_blocked(string finishReason)
+    [InlineData("STOP")]   // wrong case — unknown reason keeps today's Blocked posture
+    [InlineData("recitation")]
+    [InlineData("weird_reason")]
+    public void An_unknown_finish_reason_is_blocked(string finishReason)
     {
         var result = AssistantResponseReader.Read(Body("partial", finishReason));
 
@@ -75,40 +85,33 @@ public sealed class AssistantResponseReaderTests
     }
 
     [Fact]
-    public void A_prompt_feedback_block_reason_wins_over_everything_else()
+    public void An_error_finish_reason_is_invalid_so_it_counts_against_the_breaker()
     {
-        const string body = """
-            {"promptFeedback":{"blockReason":"SAFETY"},"candidates":[{"content":{"parts":[{"text":"ok"}]},"finishReason":"STOP"}]}
-            """;
+        // D-063 backstop: a provider mid-generation error is an availability failure, not a block.
+        var result = AssistantResponseReader.Read(Body("partial", "error"));
 
-        var result = AssistantResponseReader.Read(body);
-
-        Assert.Equal(AssistantReadStatus.Blocked, result.Status);
+        Assert.Equal(AssistantReadStatus.Invalid, result.Status);
+        Assert.False(string.IsNullOrWhiteSpace(result.Reason));
     }
 
     [Theory]
-    [InlineData("""{"promptFeedback":{"blockReason":"OTHER"}}""")]
-    [InlineData("""{"promptFeedback":{"safetyRatings":[]},"candidates":[]}""")]
-    public void A_candidate_less_response_that_carries_prompt_feedback_is_blocked(string body)
-    {
-        // promptFeedback present ⇒ the provider judged the prompt: a normal, user-visible
-        // outcome that must not open the breaker for everyone else.
-        var result = AssistantResponseReader.Read(body);
-
-        Assert.Equal(AssistantReadStatus.Blocked, result.Status);
-    }
-
-    [Theory]
-    [InlineData("""{"candidates":[]}""")]
+    [InlineData("""{"choices":[]}""")]
     [InlineData("{}")]
-    [InlineData("""{"usageMetadata":{"totalTokenCount":0}}""")]
-    [InlineData("""{"promptFeedback":"SAFETY"}""")]
-    public void A_candidate_less_response_with_no_prompt_feedback_is_invalid_so_it_counts_against_the_breaker(
-        string body)
+    [InlineData("""{"usage":{"total_tokens":0}}""")]
+    public void A_choiceless_response_is_invalid_so_it_counts_against_the_breaker(string body)
     {
-        // A bare 200 with no candidates and no verdict is a proxy/quota failure. Calling it
-        // "blocked" would never count against the breaker and would keep re-arming probes.
+        // A bare 200 with no choices (the client already threw on the error-envelope case) is a
+        // proxy/quota failure. Calling it "blocked" would never count and keep re-arming probes.
         var result = AssistantResponseReader.Read(body);
+
+        Assert.Equal(AssistantReadStatus.Invalid, result.Status);
+        Assert.False(string.IsNullOrWhiteSpace(result.Reason));
+    }
+
+    [Fact]
+    public void A_non_object_first_choice_is_invalid_instead_of_throwing()
+    {
+        var result = AssistantResponseReader.Read("""{"choices":[123]}""");
 
         Assert.Equal(AssistantReadStatus.Invalid, result.Status);
         Assert.False(string.IsNullOrWhiteSpace(result.Reason));
@@ -118,10 +121,14 @@ public sealed class AssistantResponseReaderTests
     [InlineData("this is not json")]
     [InlineData("")]
     [InlineData(null)]
-    [InlineData("""{"candidates":[{"finishReason":"STOP"}]}""")]
-    [InlineData("""{"candidates":[{"content":{"parts":[{"inlineData":{"data":"x"}}]},"finishReason":"STOP"}]}""")]
+    [InlineData("[1,2,3]")]
+    [InlineData("""{"choices":[{"finish_reason":"stop"}]}""")]
+    [InlineData("""{"choices":[{"message":{},"finish_reason":"stop"}]}""")]
+    [InlineData("""{"choices":[{"message":{"content":null},"finish_reason":"stop"}]}""")]
+    [InlineData("""{"choices":[{"message":{"content":[{"type":"text","text":"x"}]},"finish_reason":"stop"}]}""")]
     public void A_structurally_broken_response_is_invalid(string? body)
     {
+        // String-only stance: non-string/missing content counts (docs guarantee a string).
         var result = AssistantResponseReader.Read(body);
 
         Assert.Equal(AssistantReadStatus.Invalid, result.Status);
@@ -131,7 +138,7 @@ public sealed class AssistantResponseReaderTests
     [Fact]
     public void A_hostile_finish_reason_is_sanitised_before_it_can_reach_a_log_line()
     {
-        var result = AssistantResponseReader.Read(Body("x", finishReason: "SAFETY\n[CRITICAL] fake log line"));
+        var result = AssistantResponseReader.Read(Body("x", finishReason: "content_filter\n[CRITICAL] fake log line"));
 
         Assert.Equal(AssistantReadStatus.Blocked, result.Status);
         Assert.NotNull(result.Reason);

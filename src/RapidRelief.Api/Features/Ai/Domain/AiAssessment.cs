@@ -24,12 +24,12 @@ public sealed class AiAssessment
 
     public Guid? PossibleDuplicateOfId { get; set; }
 
-    /// <summary>"Gemini" | "RuleBased".</summary>
+    /// <summary>"OpenRouter" | "RuleBased".</summary>
     public string Provider { get; set; } = string.Empty;
 
     public string? ModelName { get; set; }
 
-    /// <summary>Total analysis latency in ms, including any failed Gemini attempt before fallback.</summary>
+    /// <summary>Total analysis latency in ms, including any failed provider attempt before fallback.</summary>
     public int LatencyMs { get; set; }
 
     public int? TokensUsed { get; set; }

@@ -1,9 +1,9 @@
 namespace RapidRelief.Api.Features.Ai.Assistant;
 
 /// <summary>
-/// Feature-local seam (NOT a contract, D-047): a pure Gemini-or-canned unit. The endpoint
+/// Feature-local seam (NOT a contract, D-047): a pure OpenRouter-or-canned unit. The endpoint
 /// owns history loading and context composition so this stays unit-testable with a fake
-/// <c>IGeminiClient</c> alone.
+/// <c>IOpenRouterClient</c> alone.
 /// </summary>
 internal interface IAssistantService
 {

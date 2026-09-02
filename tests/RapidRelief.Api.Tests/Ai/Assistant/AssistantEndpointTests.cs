@@ -110,7 +110,7 @@ public sealed class AssistantEndpointTests : IClassFixture<TestingWebAppFactory>
         Assert.True(data.GetProperty("persisted").GetBoolean());
         Assert.False(data.GetProperty("degraded").GetBoolean());
         var answer = data.GetProperty("answer");
-        // No GEMINI_API_KEY in Testing ⇒ the canned path, and it must still be a real answer.
+        // No OpenRouter key in Testing ⇒ the canned path, and it must still be a real answer.
         Assert.Equal("Canned", answer.GetProperty("provider").GetString());
         Assert.Contains("999", answer.GetProperty("text").GetString()!, StringComparison.Ordinal);
         Assert.False(answer.GetProperty("truncated").GetBoolean());

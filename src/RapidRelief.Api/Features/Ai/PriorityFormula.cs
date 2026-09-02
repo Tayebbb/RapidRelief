@@ -4,7 +4,7 @@ namespace RapidRelief.Api.Features.Ai;
 
 /// <summary>
 /// The single priority formula (blueprint F8): extracted verbatim from the rule-based
-/// service so the Gemini path scores identically. Pure function of its inputs.
+/// service so the live-model path scores identically. Pure function of its inputs.
 /// </summary>
 public static class PriorityFormula
 {

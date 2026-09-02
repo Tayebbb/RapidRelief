@@ -31,7 +31,7 @@
         <div class="chat-turn @(entry.FromUser ? "chat-turn-user" : "chat-turn-model")">
             <div class="chat-role">@(entry.FromUser ? "You" : "Assistant")</div>
             <p class="chat-text">@entry.Text</p>
-            @if (!entry.FromUser && entry.Provider is not null && entry.Provider != GeminiProvider)
+            @if (!entry.FromUser && entry.Provider is not null && entry.Provider != LiveProvider)
             {
                 <span class="chat-chip">offline guidance</span>
             }
@@ -103,7 +103,7 @@
 </p>
 
 @code {
-    private const string GeminiProvider = "Gemini";
+    private const string LiveProvider = "OpenRouter";
     private const int MaxMessageLength = 1000;
     private const int LocationTimeoutMs = 10000;
 

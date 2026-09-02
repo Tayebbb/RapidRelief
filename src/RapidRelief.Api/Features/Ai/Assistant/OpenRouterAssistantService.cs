@@ -1,27 +1,28 @@
 using System.Diagnostics;
-using RapidRelief.Api.Features.Ai.Gemini;
+using RapidRelief.Api.Features.Ai.OpenRouter;
 
 namespace RapidRelief.Api.Features.Ai.Assistant;
 
 /// <summary>
-/// D-050 provider chain: empty key or open breaker → canned; blocked/empty answers → canned
-/// WITHOUT counting against the shared breaker; transport/parse failures → canned and counted.
-/// Never throws for answer failures. Logs metadata only — never the question or the answer.
+/// D-050 provider chain: empty key or open breaker → canned; blocked answers (HTTP 403 or
+/// finish_reason content_filter) and empty-after-sanitize answers → canned WITHOUT counting
+/// against the shared breaker; transport/parse failures → canned and counted. Never throws
+/// for answer failures. Logs metadata only — never the question or the answer.
 /// </summary>
-internal sealed class GeminiAssistantService : IAssistantService
+internal sealed class OpenRouterAssistantService : IAssistantService
 {
-    private readonly IGeminiClient _client;
-    private readonly GeminiCircuitBreaker _breaker;
+    private readonly IOpenRouterClient _client;
+    private readonly AiCircuitBreaker _breaker;
     private readonly AssistantOptions _options;
     private readonly IConfiguration _config;
-    private readonly ILogger<GeminiAssistantService> _logger;
+    private readonly ILogger<OpenRouterAssistantService> _logger;
 
-    public GeminiAssistantService(
-        IGeminiClient client,
-        GeminiCircuitBreaker breaker,
+    public OpenRouterAssistantService(
+        IOpenRouterClient client,
+        AiCircuitBreaker breaker,
         AssistantOptions options,
         IConfiguration config,
-        ILogger<GeminiAssistantService> logger)
+        ILogger<OpenRouterAssistantService> logger)
     {
         _client = client;
         _breaker = breaker;
@@ -34,7 +35,7 @@ internal sealed class GeminiAssistantService : IAssistantService
     {
         var stopwatch = Stopwatch.StartNew();
 
-        var apiKey = _config["Ai:Gemini:ApiKey"];
+        var apiKey = _config["Ai:OpenRouter:ApiKey"];
         if (string.IsNullOrWhiteSpace(apiKey))
         {
             // A missing key never crashes and never counts against the breaker (D-028 rule).
@@ -48,19 +49,19 @@ internal sealed class GeminiAssistantService : IAssistantService
 
         try
         {
-            var requestBody = AssistantPromptBuilder.Build(ask, _options);
-            var responseBody = await _client.GenerateContentAsync(requestBody, isVision: false, ct);
+            var requestBody = AssistantPromptBuilder.Build(ask, _options, TextModels());
+            var responseBody = await _client.SendAsync(requestBody, isVision: false, ct);
             var read = AssistantResponseReader.Read(responseBody);
 
             if (read.Status == AssistantReadStatus.Invalid)
             {
-                throw new GeminiUnavailableException($"Response rejected: {read.Reason}");
+                throw new AiProviderUnavailableException($"Response rejected: {read.Reason}");
             }
 
             if (read.Status == AssistantReadStatus.Blocked)
             {
-                // D-050: a block is a normal outcome, not an availability failure. Counting it
-                // would let three hostile messages disable Gemini for every user for 2 minutes.
+                // D-050/D-064: a block is a normal outcome, not an availability failure. Counting
+                // it would let three hostile messages disable AI for every user for 2 minutes.
                 _breaker.AbandonProbe();
                 return Canned(ask, stopwatch, read.Reason ?? "Blocked", read.FinishReason);
             }
@@ -75,12 +76,19 @@ internal sealed class GeminiAssistantService : IAssistantService
             stopwatch.Stop();
             _breaker.RecordSuccess();
             // Metadata only — never the question or the answer text (F8 carry-out).
+            // Model = response.model, the actually routed model (D-061).
             _logger.LogInformation(
-                "Assistant answered via Gemini: model {Model}, {LatencyMs} ms, {Tokens} tokens, finish {FinishReason}, question length {QuestionLength}",
-                Model, stopwatch.ElapsedMilliseconds, read.TotalTokenCount, read.FinishReason, ask.Question.Length);
+                "Assistant answered via OpenRouter: model {Model}, {LatencyMs} ms, {Tokens} tokens, finish {FinishReason}, question length {QuestionLength}",
+                read.ModelName, stopwatch.ElapsedMilliseconds, read.TotalTokenCount, read.FinishReason, ask.Question.Length);
 
-            return new AssistantAnswer(sanitized.Text, "Gemini", read.Truncated,
+            return new AssistantAnswer(sanitized.Text, "OpenRouter", read.Truncated,
                 LatencyMs(stopwatch), read.TotalTokenCount, read.FinishReason);
+        }
+        catch (AiProviderBlockedException)
+        {
+            // D-064: HTTP 403 = input moderation — canned outcome, no breaker count, probe freed.
+            _breaker.AbandonProbe();
+            return Canned(ask, stopwatch, "ProviderBlocked");
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -92,13 +100,19 @@ internal sealed class GeminiAssistantService : IAssistantService
         {
             _breaker.RecordFailure();
             _logger.LogWarning(
-                "Assistant Gemini path failed ({ExceptionType}) after {LatencyMs} ms on model {Model} — answering canned guidance: {Reason}",
-                ex.GetType().Name, stopwatch.ElapsedMilliseconds, Model, ex.Message);
+                "Assistant OpenRouter path failed ({ExceptionType}) after {LatencyMs} ms on model {Model} — answering canned guidance: {Reason}",
+                ex.GetType().Name, stopwatch.ElapsedMilliseconds, TextModels()[0], ex.Message);
             return Canned(ask, stopwatch, "Exception");
         }
     }
 
-    private string Model => _config["Ai:Gemini:Model"] ?? "gemini-3.7-flash";
+    /// <summary>F16 always uses the D-061 text pair; empty fallback ⇒ single-element array.</summary>
+    private IReadOnlyList<string> TextModels()
+    {
+        var primary = _config["Ai:OpenRouter:TextModel"] ?? "z-ai/glm-5.2:free";
+        var fallback = _config["Ai:OpenRouter:TextFallbackModel"];
+        return string.IsNullOrWhiteSpace(fallback) ? [primary] : [primary, fallback];
+    }
 
     private AssistantAnswer Canned(AssistantAsk ask, Stopwatch stopwatch, string reason, string? finishReason = null)
     {

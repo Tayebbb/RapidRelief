@@ -8,9 +8,10 @@ using System.Text.RegularExpressions;
 namespace RapidRelief.Api.Features.Ai.Assistant;
 
 /// <summary>
-/// Builds the multi-turn generateContent body for the assistant (D-049: no safetySettings,
-/// no responseJsonSchema — prose only). Injected context rides on the LAST user turn: it is
-/// the freshest data and costs no per-turn token duplication.
+/// Builds the multi-turn chat-completions body for the assistant (D-049: no safety knobs,
+/// no response_format — prose only). The D-061 text-pair models array rides in the body;
+/// reasoning is disabled on every request. Injected context rides on the LAST user turn: it
+/// is the freshest data and costs no per-turn token duplication.
 /// </summary>
 internal static partial class AssistantPromptBuilder
 {
@@ -32,30 +33,29 @@ internal static partial class AssistantPromptBuilder
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
-    public static string Build(AssistantAsk ask, AssistantOptions options)
+    public static string Build(AssistantAsk ask, AssistantOptions options, IReadOnlyList<string> models)
     {
-        var contents = new JsonArray();
+        var messages = new JsonArray
+        {
+            new JsonObject { ["role"] = "system", ["content"] = SystemInstruction },
+        };
         foreach (var turn in Window(ask.History, options.HistoryTurns))
         {
-            // A stored user turn is still hostile data; a model turn is our own sanitized text.
-            contents.Add(Turn(turn.FromUser ? "user" : "model",
+            // A stored user turn is still hostile data; an assistant turn is our own sanitized text.
+            messages.Add(Turn(turn.FromUser ? "user" : "assistant",
                 turn.FromUser ? Fence(turn.Text) : turn.Text));
         }
-        contents.Add(Turn("user", $"{Context(ask.Context)}\n{Fence(ask.Question)}"));
+        messages.Add(Turn("user", $"{Context(ask.Context)}\n{Fence(ask.Question)}"));
 
+        // Key order is insertion order — pinned by the goldens. No response_format, no provider
+        // (prose mode); reasoning disabled on every request (D-061).
         var body = new JsonObject
         {
-            ["systemInstruction"] = new JsonObject
-            {
-                ["parts"] = new JsonArray { new JsonObject { ["text"] = SystemInstruction } },
-            },
-            ["contents"] = contents,
-            ["generationConfig"] = new JsonObject
-            {
-                ["temperature"] = 0,
-                ["maxOutputTokens"] = options.MaxOutputTokens,
-                ["thinkingConfig"] = new JsonObject { ["thinkingLevel"] = "MINIMAL" },
-            },
+            ["models"] = new JsonArray(models.Select(m => (JsonNode)m).ToArray()),
+            ["messages"] = messages,
+            ["temperature"] = 0,
+            ["max_tokens"] = options.MaxOutputTokens,
+            ["reasoning"] = new JsonObject { ["enabled"] = false },
         };
         return body.ToJsonString(SerializerOptions);
     }
@@ -63,7 +63,7 @@ internal static partial class AssistantPromptBuilder
     private static JsonObject Turn(string role, string text) => new()
     {
         ["role"] = role,
-        ["parts"] = new JsonArray { new JsonObject { ["text"] = text } },
+        ["content"] = text,
     };
 
     /// <summary>

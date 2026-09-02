@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using RapidRelief.Api.Features.Ai.Gemini;
+using RapidRelief.Api.Features.Ai.OpenRouter;
 using RapidRelief.Shared.Contracts.Enums;
 using RapidRelief.Shared.Contracts.ReadModels;
 using RapidRelief.Shared.Contracts.Services;
@@ -15,29 +15,31 @@ internal sealed record AiAnalysisOutcome(
     string? FinishReason);
 
 /// <summary>
-/// D-028 composite provider chain: empty Ai:Gemini:ApiKey → straight to rule-based;
-/// breaker open → rule-based; otherwise try Gemini and fall back on ANY failure while
-/// counting it against the breaker. Never throws for analysis failures; logs metadata
-/// only (exception type, latency, model — never description/photo/response text).
+/// D-028 composite provider chain: empty Ai:OpenRouter:ApiKey → straight to rule-based;
+/// breaker open → rule-based; otherwise try OpenRouter and fall back on ANY failure while
+/// counting it against the breaker — except a D-064 block (HTTP 403 or finish_reason
+/// content_filter), which falls back WITHOUT counting and releases the half-open probe.
+/// Never throws for analysis failures; logs metadata only (exception type, latency, model —
+/// never description/photo/response text).
 /// </summary>
-internal sealed class GeminiAiAnalysisService : IAiAnalysisService
+internal sealed class OpenRouterAiAnalysisService : IAiAnalysisService
 {
     private readonly RuleBasedAiAnalysisService _fallback;
-    private readonly IGeminiClient _client;
+    private readonly IOpenRouterClient _client;
     private readonly IFileStorage _fileStorage;
-    private readonly GeminiCircuitBreaker _breaker;
+    private readonly AiCircuitBreaker _breaker;
     private readonly TimeProvider _timeProvider;
     private readonly IConfiguration _config;
-    private readonly ILogger<GeminiAiAnalysisService> _logger;
+    private readonly ILogger<OpenRouterAiAnalysisService> _logger;
 
-    public GeminiAiAnalysisService(
+    public OpenRouterAiAnalysisService(
         RuleBasedAiAnalysisService fallback,
-        IGeminiClient client,
+        IOpenRouterClient client,
         IFileStorage fileStorage,
-        GeminiCircuitBreaker breaker,
+        AiCircuitBreaker breaker,
         TimeProvider timeProvider,
         IConfiguration config,
-        ILogger<GeminiAiAnalysisService> logger)
+        ILogger<OpenRouterAiAnalysisService> logger)
     {
         _fallback = fallback;
         _client = client;
@@ -56,7 +58,7 @@ internal sealed class GeminiAiAnalysisService : IAiAnalysisService
     {
         var stopwatch = Stopwatch.StartNew();
 
-        var apiKey = _config["Ai:Gemini:ApiKey"];
+        var apiKey = _config["Ai:OpenRouter:ApiKey"];
         if (string.IsNullOrWhiteSpace(apiKey))
         {
             // D-028: missing key never crashes and never counts against the breaker.
@@ -65,38 +67,62 @@ internal sealed class GeminiAiAnalysisService : IAiAnalysisService
 
         if (!_breaker.TryEnter())
         {
-            _logger.LogInformation("Gemini breaker open — rule-based fallback for incident {IncidentId}",
+            _logger.LogInformation("OpenRouter breaker open — rule-based fallback for incident {IncidentId}",
                 request.IncidentId);
             return await FallbackAsync(request, stopwatch, ct);
         }
 
-        var model = _config["Ai:Gemini:Model"] ?? "gemini-3.7-flash";
+        IReadOnlyList<string> models = ModelsFor(isVision: false);
         try
         {
-            // Blueprint chain: load first photo (D-024) → build request → client (D-026 timeout).
+            // Blueprint chain: load first photo (D-024) → pick the D-061/D-062 model pair →
+            // build request → client (D-026 timeout).
             var photo = await LoadFirstPhotoAsync(request, ct);
-            var requestBody = GeminiPromptBuilder.Build(request, photo);
-            var responseBody = await _client.GenerateContentAsync(requestBody, photo is not null, ct);
+            models = ModelsFor(isVision: photo is not null);
+            var requestBody = OpenRouterPromptBuilder.Build(request, photo, models);
+            var responseBody = await _client.SendAsync(requestBody, photo is not null, ct);
 
-            if (!GeminiResponseParser.TryParse(responseBody, out var parsed, out var rejectReason))
+            var result = OpenRouterResponseParser.Parse(responseBody);
+            if (result.Status == AiParseStatus.Invalid)
             {
-                throw new GeminiUnavailableException($"Response rejected: {rejectReason}");
+                throw new AiProviderUnavailableException($"Response rejected: {result.RejectReason}");
             }
 
+            if (result.Status == AiParseStatus.Blocked)
+            {
+                // D-064: a content_filter finish is a normal outcome, not an availability failure.
+                _breaker.AbandonProbe();
+                _logger.LogInformation(
+                    "OpenRouter blocked the request for incident {IncidentId} ({Reason}) — rule-based fallback",
+                    request.IncidentId, result.RejectReason);
+                return await FallbackAsync(request, stopwatch, ct);
+            }
+
+            var parsed = result.Parsed!;
             stopwatch.Stop();
             _breaker.RecordSuccess();
 
-            var severity = (Severity)parsed!.Severity;
+            var severity = (Severity)parsed.Severity;
             var priority = PriorityFormula.Compute(severity, request.IsSos, request.ReportedAtUtc,
                 _timeProvider.GetUtcNow());
             // Metadata only — never description/photo/response text (blueprint PII rule).
+            // ModelName = response.model, the actually routed model (D-061).
             _logger.LogInformation(
-                "Gemini assessed incident {IncidentId}: model {Model}, {LatencyMs} ms, {Tokens} tokens, confidence {Confidence:F2}",
-                request.IncidentId, model, stopwatch.ElapsedMilliseconds, parsed.TotalTokenCount, parsed.Confidence);
+                "OpenRouter assessed incident {IncidentId}: model {Model}, {LatencyMs} ms, {Tokens} tokens, confidence {Confidence:F2}",
+                request.IncidentId, parsed.ModelName, stopwatch.ElapsedMilliseconds, parsed.TotalTokenCount, parsed.Confidence);
 
             var dto = new AiAssessmentDto(request.IncidentId, parsed.PredictedType, severity,
-                priority, parsed.Summary, PossibleDuplicateOfId: null, Provider: "Gemini");
-            return new AiAnalysisOutcome(dto, model, LatencyMs(stopwatch), parsed.TotalTokenCount, parsed.FinishReason);
+                priority, parsed.Summary, PossibleDuplicateOfId: null, Provider: "OpenRouter");
+            return new AiAnalysisOutcome(dto, parsed.ModelName, LatencyMs(stopwatch), parsed.TotalTokenCount, parsed.FinishReason);
+        }
+        catch (AiProviderBlockedException ex)
+        {
+            // D-064: HTTP 403 = input moderation — canned outcome, no breaker count, probe freed.
+            _breaker.AbandonProbe();
+            _logger.LogInformation(
+                "OpenRouter flagged the input for incident {IncidentId} ({Reason}) — rule-based fallback",
+                request.IncidentId, ex.Message);
+            return await FallbackAsync(request, stopwatch, ct);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -107,17 +133,29 @@ internal sealed class GeminiAiAnalysisService : IAiAnalysisService
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
-            // Any Gemini-path failure counts (D-025); caller cancellation propagates instead.
+            // Any provider-path failure counts (D-025); caller cancellation propagates instead.
             _breaker.RecordFailure();
             _logger.LogWarning(
-                "Gemini path failed for incident {IncidentId} ({ExceptionType}) after {LatencyMs} ms on model {Model} — falling back to rule-based: {Reason}",
-                request.IncidentId, ex.GetType().Name, stopwatch.ElapsedMilliseconds, model, ex.Message);
+                "OpenRouter path failed for incident {IncidentId} ({ExceptionType}) after {LatencyMs} ms on model {Model} — falling back to rule-based: {Reason}",
+                request.IncidentId, ex.GetType().Name, stopwatch.ElapsedMilliseconds, models[0], ex.Message);
             return await FallbackAsync(request, stopwatch, ct);
         }
     }
 
+    /// <summary>D-061/D-062 model pairs from config; empty fallback ⇒ single-element array.</summary>
+    private IReadOnlyList<string> ModelsFor(bool isVision)
+    {
+        var primary = isVision
+            ? _config["Ai:OpenRouter:VisionModel"] ?? "google/gemma-4-31b-it:free"
+            : _config["Ai:OpenRouter:TextModel"] ?? "z-ai/glm-5.2:free";
+        var fallback = isVision
+            ? _config["Ai:OpenRouter:VisionFallbackModel"]
+            : _config["Ai:OpenRouter:TextFallbackModel"];
+        return string.IsNullOrWhiteSpace(fallback) ? [primary] : [primary, fallback];
+    }
+
     /// <summary>D-024: any photo problem degrades to text-only — never fails the pipeline.</summary>
-    private async Task<GeminiPhoto?> LoadFirstPhotoAsync(AiAnalysisRequest request, CancellationToken ct)
+    private async Task<AiPhoto?> LoadFirstPhotoAsync(AiAnalysisRequest request, CancellationToken ct)
     {
         if (request.PhotoPaths is not { Count: > 0 } paths)
         {
@@ -154,7 +192,7 @@ internal sealed class GeminiAiAnalysisService : IAiAnalysisService
 
             using var buffer = new MemoryStream();
             await stream.CopyToAsync(buffer, ct);
-            return new GeminiPhoto(mimeType, Convert.ToBase64String(buffer.ToArray()));
+            return new AiPhoto(mimeType, Convert.ToBase64String(buffer.ToArray()));
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {

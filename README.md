@@ -4,7 +4,7 @@
 
 Citizens report disasters (GPS, photos, offline-capable SOS) → AI classifies, scores priority, and detects duplicates → rescue teams run missions from a live priority queue → a government command center monitors, verifies, and dispatches → relief resources are requested, allocated, and tracked to delivery.
 
-**Stack:** ASP.NET Core 8 (modular monolith) · Blazor WebAssembly PWA · PostgreSQL + EF Core · SignalR · Leaflet/OpenStreetMap · Gemini (with rule-based fallback).
+**Stack:** ASP.NET Core 8 (modular monolith) · Blazor WebAssembly PWA · PostgreSQL + EF Core · SignalR · Leaflet/OpenStreetMap · OpenRouter free models (with rule-based fallback).
 
 ## Start here
 
@@ -25,9 +25,9 @@ Citizens report disasters (GPS, photos, offline-capable SOS) → AI classifies, 
 | **Contracts v1**             | `RapidRelief.Shared/Contracts` — enums, read models, events and the 7 service interfaces every feature integrates through (frozen, additive-only) |
 | **Stubs + seed data** (F0)   | Deterministic Dhaka dataset (28 incidents, 8 shelters, 6 hospitals, 10 volunteers, 5 NGOs, 6 teams) behind every contract interface, so a feature can be built before its producer exists |
 | **Auth** (F1)                | Real accounts: `/register`, `/login`, `/profile` pages; JWT + rotating refresh cookie; role policies; admin user management. `X-Dev-Role` fake auth still works when signed out |
-| **AI engine** (F8)           | `IncidentCreated` → background worker → severity/priority/duplicate assessment → `IncidentAssessed`. Gemini when a key is configured, rule-based always |
+| **AI engine** (F8)           | `IncidentCreated` → background worker → severity/priority/duplicate assessment → `IncidentAssessed`. OpenRouter free models when a key is configured, rule-based always |
 | **Realtime** (F9)            | `/hubs/notifications` SignalR push + notification inbox at `/notifications` + bell + toasts, with permanent 5 s polling fallback |
-| **AI assistant** (F16)       | `/assistant` chat page with server-owned history, canned safety answers when Gemini is off, opt-in location sharing |
+| **AI assistant** (F16)       | `/assistant` chat page with server-owned history, canned safety answers when OpenRouter is off, opt-in location sharing |
 
 The foundation, contracts, stubs and AI fallback all run with **no database and no API key** — see
 [degraded mode](#3-no-database-at-all--degraded-mode-d-005) for exactly what is and isn't reachable.
@@ -69,13 +69,13 @@ What still works with no DB: the SPA and every stub-backed read (`/api/foundatio
 
 ### AI data flow & consent (F8, F16)
 
-By default (`Ai:Gemini:ApiKey` empty), incident analysis is **fully local** — the permanent rule-based fallback makes **zero external calls**. When a key is configured (`dotnet user-secrets set Ai:Gemini:ApiKey <key>` in `src/RapidRelief.Api`, or the `Ai__Gemini__ApiKey` env var), the incident **description text and the first photo** are sent to Google Gemini for assessment. Nothing else leaves the machine: no names, emails, phones, GPS coordinates, incident IDs, or timestamps are in the request, and extra photos are never uploaded. Logs record metadata only (provider, model, latency, tokens, status codes) — never the description, photo, or model response, and never the key. Kill the key mid-demo and analysis continues rule-based with no errors.
+By default (`Ai:OpenRouter:ApiKey` empty), incident analysis is **fully local** — the permanent rule-based fallback makes **zero external calls**. When a key is configured (`dotnet user-secrets set Ai:OpenRouter:ApiKey <key>` in `src/RapidRelief.Api`, or the `Ai__OpenRouter__ApiKey` env var), the incident **description text and the first photo** are sent through OpenRouter to the configured free models (D-061 pins: `z-ai/glm-5.2:free` → `nvidia/nemotron-3-super-120b-a12b:free` for text, `google/gemma-4-31b-it:free` → `minimax/minimax-m3:free` for photos) for assessment. Nothing else leaves the machine: no names, emails, phones, GPS coordinates, incident IDs, or timestamps are in the request, and extra photos are never uploaded. Logs record metadata only (provider, routed model, latency, tokens, status codes) — never the description, photo, or model response, and never the key. Kill the key mid-demo and analysis continues rule-based with no errors.
 
-The **emergency assistant** at `/assistant` (signed-in users, `/api/ai/assistant`) follows the same rule. With no key it answers from a deterministic canned safety taxonomy — **zero external calls**. With a key configured, what goes to Gemini is your **chat text** plus, only if you press "Use my location", the **names, distances and free capacity of up to 3 nearby open shelters** picked server-side. Your coordinates themselves are never sent to Gemini, are rounded to ~11 m in the browser before they leave it, and are only attached to a message while sharing is on (it defaults to off, and the page states exactly what is being shared).
+The **emergency assistant** at `/assistant` (signed-in users, `/api/ai/assistant`) follows the same rule. With no key it answers from a deterministic canned safety taxonomy — **zero external calls**. With a key configured, what goes through OpenRouter is your **chat text** plus, only if you press "Use my location", the **names, distances and free capacity of up to 3 nearby open shelters** picked server-side. Your coordinates themselves are never sent to the models, are rounded to ~11 m in the browser before they leave it, and are only attached to a message while sharing is on (it defaults to off, and the page states exactly what is being shared).
 
 Conversation history is **server-owned** (`ai_assistant_messages`): the client sends only a session id and one message, never past turns, so nobody can forge an assistant turn to rewrite the safety guardrails. History is scoped to its owner, capped at 50 messages per session, deleted by "New chat", and swept after **7 days**. Answers are sanitized server-side (control characters and any URL-shaped token stripped, clamped to 1500 characters) and rendered with plain Blazor interpolation inside a `white-space: pre-wrap` element — never `MarkupString`, never a Markdown renderer. Kill the key or the database mid-chat and the assistant keeps answering: canned guidance, HTTP 200, no error UI.
 
-> **Demo consent note:** while a key is configured, submitted reports and assistant messages may be processed by Google Gemini.
+> **Demo consent note:** AI features route via OpenRouter to third-party free model providers, which may log and train on submitted content (incident descriptions, photos, assistant chats) per their own policies. Do not include personal or sensitive data. Routing to training providers can be disabled in the OpenRouter account privacy settings, which may reduce free-model availability.
 
 ### Realtime notifications (F9)
 
@@ -134,13 +134,14 @@ never in the JSON.
 | `Auth:PasswordHasherIterations`            | `210000`            | PBKDF2 iterations (D-018)                                             |
 | `FileStorage:Root`                         | `App_Data/uploads`  | Upload root, relative to the content root unless absolute             |
 | `FileStorage:MaxSizeBytes`                 | `10485760`          | Per-file size cap (not in the JSON; code default)                     |
-| `Ai:Gemini:ApiKey`                         | _empty_             | Empty ⇒ rule-based/canned only, zero external calls                   |
-| `Ai:Gemini:Model`                          | `gemini-3.7-flash`  | Model pin (D-023)                                                     |
-| `Ai:Gemini:TimeoutSecondsText` / `…Vision` | `10` / `20`         | Per-request timeouts, zero retries (D-026)                            |
-| `Ai:Gemini:BreakerFailures` / `BreakerOpenMinutes` | `3` / `2`   | Shared circuit breaker (D-025)                                        |
+| `Ai:OpenRouter:ApiKey`                     | _empty_             | Empty ⇒ rule-based/canned only, zero external calls (`OPENROUTER_API_KEY` gates the live smokes) |
+| `Ai:OpenRouter:TextModel` / `TextFallbackModel` | `z-ai/glm-5.2:free` / `nvidia/nemotron-3-super-120b-a12b:free` | D-061 text pair — sent as the `models` array, OpenRouter falls back in order |
+| `Ai:OpenRouter:VisionModel` / `VisionFallbackModel` | `google/gemma-4-31b-it:free` / `minimax/minimax-m3:free` | D-061/D-062 vision pair for photo requests |
+| `Ai:OpenRouter:TimeoutSecondsText` / `…Vision` | `10` / `20`     | Per-request timeouts, zero retries (D-026/D-060)                       |
+| `Ai:OpenRouter:BreakerFailures` / `BreakerOpenMinutes` | `3` / `2` | Shared circuit breaker (D-025)                                        |
 | `Ai:Pipeline:ChannelCapacity`              | `100`               | Bounded analysis queue; full ⇒ drop + log (D-021)                     |
 | `Ai:Assistant:MaxOutputTokens`             | `512`               | Assistant answer budget                                               |
-| `Ai:Assistant:HistoryTurns`                | `10`                | Turns sent to Gemini (D-048)                                          |
+| `Ai:Assistant:HistoryTurns`                | `10`                | Turns sent to the model (D-048)                                       |
 | `Ai:Assistant:MaxSessionMessages`          | `50`                | Hard cap per session; over ⇒ 400                                      |
 | `Ai:Assistant:MaxMessageLength`            | `1000`              | Inbound message cap                                                   |
 | `Ai:Assistant:MaxAnswerLength`             | `1500`              | Sanitizer clamp (D-051)                                               |

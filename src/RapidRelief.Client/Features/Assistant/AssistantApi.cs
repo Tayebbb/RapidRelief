@@ -44,7 +44,7 @@ public sealed class AssistantApi : IAssistantApi
     public const string FallbackText =
         "I can't reach the assistant right now. If anyone's life is at risk, call 999 now and move to safety.";
 
-    /// <summary>Distinct from the server's "Gemini"/"Canned" so the page can flag offline guidance.</summary>
+    /// <summary>Distinct from the server's "OpenRouter"/"Canned" so the page can flag offline guidance.</summary>
     public const string FallbackProvider = "Fallback";
 
     private const string ExpiredNotice = "Your session has expired. Sign in again to keep chatting.";
@@ -52,7 +52,7 @@ public sealed class AssistantApi : IAssistantApi
     private const string DegradedNotice = "The assistant is busy right now. Try again in a moment.";
     private const string RejectedNotice = "That message couldn't be sent. Try a shorter one, or start a new chat.";
 
-    // Longer than the server's 10 s Gemini budget so a slow-but-successful answer still lands.
+    // Longer than the server's 10 s OpenRouter budget so a slow-but-successful answer still lands.
     private static readonly TimeSpan RequestBudget = TimeSpan.FromSeconds(15);
 
     private readonly HttpClient _http;

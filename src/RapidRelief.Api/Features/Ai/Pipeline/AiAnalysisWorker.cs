@@ -146,7 +146,7 @@ public sealed class AiAnalysisWorker : BackgroundService
     private static async Task<AiAnalysisOutcome> AnalyzeAsync(
         IAiAnalysisService analysis, AiAnalysisRequest request, CancellationToken ct)
     {
-        if (analysis is GeminiAiAnalysisService composite)
+        if (analysis is OpenRouterAiAnalysisService composite)
         {
             return await composite.AnalyzeWithMetadataAsync(request, ct);
         }

@@ -103,7 +103,7 @@ try
                         QueueLimit = 0,
                     }));
 
-            // D-054: one POST is one paid Gemini call, so the assistant gets a much tighter
+            // D-054: one POST is one live OpenRouter call, so the assistant gets a much tighter
             // per-user budget than the "ai" read policy it shares a group with.
             options.AddPolicy("assistant", httpContext =>
                 RateLimitPartition.GetFixedWindowLimiter(

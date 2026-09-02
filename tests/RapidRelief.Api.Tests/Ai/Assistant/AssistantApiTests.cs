@@ -64,7 +64,7 @@ public sealed class AssistantApiTests
         };
 
     private static AssistantMessageResponse ServerAnswer(Guid sessionId, string text = "Move to higher ground.")
-        => new(sessionId, new AssistantAnswerDto(text, "Gemini", Truncated: false, DateTimeOffset.UtcNow),
+        => new(sessionId, new AssistantAnswerDto(text, "OpenRouter", Truncated: false, DateTimeOffset.UtcNow),
             Degraded: false, Persisted: true);
 
     [Fact]
@@ -79,7 +79,7 @@ public sealed class AssistantApiTests
         Assert.Null(result.Notice);
         Assert.Equal(sessionId, result.SessionId);
         Assert.Equal("Move to higher ground.", result.Answer.Text);
-        Assert.Equal("Gemini", result.Answer.Provider);
+        Assert.Equal("OpenRouter", result.Answer.Provider);
         Assert.True(result.Persisted);
         Assert.False(result.Degraded);
     }
@@ -211,13 +211,13 @@ public sealed class AssistantApiTests
     ];
 
     [Fact]
-    public async Task The_fallback_answer_is_marked_as_non_gemini_so_the_page_can_flag_it()
+    public async Task The_fallback_answer_is_marked_as_non_live_so_the_page_can_flag_it()
     {
         var (api, _) = ApiThrowing(new HttpRequestException("offline"));
 
         var result = await api.SendAsync(null, "there is a fire", null, null);
 
-        Assert.NotEqual("Gemini", result.Answer.Provider);
+        Assert.NotEqual("OpenRouter", result.Answer.Provider);
         Assert.False(result.Persisted);
     }
 

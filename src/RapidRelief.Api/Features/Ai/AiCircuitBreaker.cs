@@ -1,11 +1,11 @@
-namespace RapidRelief.Api.Features.Ai.Gemini;
+namespace RapidRelief.Api.Features.Ai;
 
 /// <summary>
 /// D-025 consecutive-failure breaker: 3 fails → open for 2 min → half-open single probe
 /// (success closes, failure reopens). TimeProvider-injected, lock-guarded singleton.
-/// Only Gemini-path failures may be recorded (blueprint risk 7).
+/// Only provider-path failures may be recorded (blueprint risk 7).
 /// </summary>
-public sealed class GeminiCircuitBreaker
+public sealed class AiCircuitBreaker
 {
     private readonly TimeProvider _timeProvider;
     private readonly int _failureThreshold;
@@ -16,14 +16,14 @@ public sealed class GeminiCircuitBreaker
     private DateTimeOffset? _openUntil;
     private bool _halfOpenProbeIssued;
 
-    public GeminiCircuitBreaker(TimeProvider timeProvider, int failureThreshold, TimeSpan openDuration)
+    public AiCircuitBreaker(TimeProvider timeProvider, int failureThreshold, TimeSpan openDuration)
     {
         _timeProvider = timeProvider;
         _failureThreshold = failureThreshold;
         _openDuration = openDuration;
     }
 
-    /// <summary>True when a Gemini attempt may proceed (closed, or the single half-open probe).</summary>
+    /// <summary>True when a provider attempt may proceed (closed, or the single half-open probe).</summary>
     public bool TryEnter()
     {
         lock (_gate)

@@ -8,7 +8,7 @@ using RapidRelief.Shared.Contracts.Enums;
 namespace RapidRelief.Api.Tests.Ai.Assistant;
 
 /// <summary>
-/// D-054 — one POST is one paid Gemini call, so the assistant runs on its own tight per-user
+/// D-054 — one POST is one live OpenRouter call, so the assistant runs on its own tight per-user
 /// budget. Development registers the limiter (it is skipped in Testing); the empty connection
 /// string boots degraded, which is exactly the "must still answer 200" path.
 /// </summary>

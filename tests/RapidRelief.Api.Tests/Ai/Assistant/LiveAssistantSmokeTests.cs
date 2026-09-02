@@ -1,15 +1,16 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
+using RapidRelief.Api.Features.Ai;
 using RapidRelief.Api.Features.Ai.Assistant;
-using RapidRelief.Api.Features.Ai.Gemini;
+using RapidRelief.Api.Features.Ai.OpenRouter;
 
 namespace RapidRelief.Api.Tests.Ai.Assistant;
 
 /// <summary>
-/// F16 TEST PLAN item 15 — the ONE unverified wire detail in the blueprint is the assistant
-/// turn role literal ("model") and the alternation rule. A wrong shape is an HTTP 400, so
-/// this opt-in smoke sends a real 2-turn history and asserts a Gemini answer came back:
-/// it must FAIL loudly rather than degrade silently. Skipped without GEMINI_API_KEY.
+/// The ONE unverified wire detail in the migration is the assistant multi-turn shape against
+/// the routed free models. A wrong shape is an HTTP 4xx, so this opt-in smoke sends a real
+/// 2-turn history and asserts an OpenRouter answer came back: it must FAIL loudly rather
+/// than degrade silently. Skipped without OPENROUTER_API_KEY.
 /// </summary>
 public sealed class LiveAssistantSmokeTests
 {
@@ -17,24 +18,25 @@ public sealed class LiveAssistantSmokeTests
     {
         public HttpClient CreateClient(string name) => new()
         {
-            BaseAddress = new Uri("https://generativelanguage.googleapis.com/"),
+            BaseAddress = new Uri("https://openrouter.ai/"),
             Timeout = Timeout.InfiniteTimeSpan,
         };
     }
 
-    [LiveGeminiFact]
-    public async Task Live_multi_turn_assistant_question_is_answered_by_gemini()
+    [LiveOpenRouterFact]
+    public async Task Live_multi_turn_assistant_question_is_answered_by_openrouter()
     {
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["Ai:Gemini:ApiKey"] = Environment.GetEnvironmentVariable("GEMINI_API_KEY"),
-            ["Ai:Gemini:Model"] = Environment.GetEnvironmentVariable("GEMINI_MODEL") ?? "gemini-3.7-flash",
-            ["Ai:Gemini:TimeoutSecondsText"] = "10",
+            ["Ai:OpenRouter:ApiKey"] = Environment.GetEnvironmentVariable("OPENROUTER_API_KEY"),
+            ["Ai:OpenRouter:TextModel"] = Environment.GetEnvironmentVariable("OPENROUTER_TEXT_MODEL") ?? "z-ai/glm-5.2:free",
+            ["Ai:OpenRouter:TextFallbackModel"] = "nvidia/nemotron-3-super-120b-a12b:free",
+            ["Ai:OpenRouter:TimeoutSecondsText"] = "10",
         }).Build();
-        var service = new GeminiAssistantService(
-            new GeminiClient(new LiveHttpClientFactory(), config),
-            new GeminiCircuitBreaker(TimeProvider.System, 3, TimeSpan.FromMinutes(2)),
-            new AssistantOptions(), config, NullLogger<GeminiAssistantService>.Instance);
+        var service = new OpenRouterAssistantService(
+            new OpenRouterClient(new LiveHttpClientFactory(), config),
+            new AiCircuitBreaker(TimeProvider.System, 3, TimeSpan.FromMinutes(2)),
+            new AssistantOptions(), config, NullLogger<OpenRouterAssistantService>.Instance);
 
         var history = new[]
         {
@@ -48,8 +50,8 @@ public sealed class LiveAssistantSmokeTests
 
         var answer = await service.AskAsync(new AssistantAsk("Which shelter should I go to?", history, context));
 
-        // A wrong role literal or a broken alternation rule returns HTTP 400 ⇒ "Canned" here.
-        Assert.Equal("Gemini", answer.Provider);
+        // A wrong role literal or body shape returns HTTP 4xx ⇒ "Canned" here.
+        Assert.Equal("OpenRouter", answer.Provider);
         Assert.False(string.IsNullOrWhiteSpace(answer.Text));
         Assert.True(answer.Text.Length <= new AssistantOptions().MaxAnswerLength);
         Assert.NotNull(answer.FinishReason);

@@ -1,4 +1,4 @@
-using RapidRelief.Api.Features.Ai.Gemini;
+using RapidRelief.Api.Features.Ai;
 
 namespace RapidRelief.Api.Tests.Ai;
 
@@ -6,7 +6,7 @@ namespace RapidRelief.Api.Tests.Ai;
 /// F8 blueprint TEST PLAN item 4 / D-025: 3 consecutive fails → open 2 min → half-open
 /// single probe; probe success closes, probe failure reopens. Clock is fully pinned.
 /// </summary>
-public sealed class GeminiCircuitBreakerTests
+public sealed class AiCircuitBreakerTests
 {
     private sealed class TestClock : TimeProvider
     {
@@ -17,7 +17,7 @@ public sealed class GeminiCircuitBreakerTests
 
     private static readonly TimeSpan OpenDuration = TimeSpan.FromMinutes(2);
 
-    private static GeminiCircuitBreaker Create(TestClock clock) => new(clock, 3, OpenDuration);
+    private static AiCircuitBreaker Create(TestClock clock) => new(clock, 3, OpenDuration);
 
     [Fact]
     public void New_breaker_allows_requests()
