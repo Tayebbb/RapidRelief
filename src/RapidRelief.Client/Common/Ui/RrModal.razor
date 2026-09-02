@@ -1,0 +1,91 @@
+@namespace RapidRelief.Client.Common.Ui
+
+@if (IsOpen)
+{
+    <div class="rr-modal-backdrop" @onclick="HandleBackdropClick" aria-hidden="true"></div>
+    <div class="rr-modal-container" role="dialog" aria-modal="true" aria-labelledby="@TitleId" tabindex="-1" @onkeydown="HandleKeyDown">
+        <div class="@ComputedDialogClass" @onclick:stopPropagation="true">
+            <div class="rr-modal-head">
+                @if (Header is not null)
+                {
+                    @Header
+                }
+                else
+                {
+                    <h3 id="@TitleId" class="rr-modal-title">@Title</h3>
+                }
+                <button type="button" class="rr-modal-close" aria-label="Close dialog" @onclick="HandleClose">
+                    <AppIcon Name="close" Size="18" />
+                </button>
+            </div>
+
+            @if (ChildContent is not null)
+            {
+                <div class="rr-modal-body">
+                    @ChildContent
+                </div>
+            }
+
+            @if (Footer is not null)
+            {
+                <div class="rr-modal-foot">
+                    @Footer
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public ModalSize Size { get; set; } = ModalSize.Md;
+    [Parameter] public bool CloseOnBackdrop { get; set; } = true;
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public RenderFragment? Header { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public RenderFragment? Footer { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private string TitleId = $"modal-title-{Guid.NewGuid():N}";
+
+    private async Task HandleClose()
+    {
+        if (OnClose.HasDelegate)
+        {
+            await OnClose.InvokeAsync();
+        }
+    }
+
+    private async Task HandleBackdropClick()
+    {
+        if (CloseOnBackdrop)
+        {
+            await HandleClose();
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            await HandleClose();
+        }
+    }
+
+    private string ComputedDialogClass
+    {
+        get
+        {
+            var sizeClass = Size switch
+            {
+                ModalSize.Sm => "rr-modal-sm",
+                ModalSize.Lg => "rr-modal-lg",
+                ModalSize.Full => "rr-modal-full",
+                _ => ""
+            };
+
+            return $"rr-modal-dialog {sizeClass} {Class}".Trim();
+        }
+    }
+}

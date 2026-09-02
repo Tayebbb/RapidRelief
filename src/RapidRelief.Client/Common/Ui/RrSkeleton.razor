@@ -1,0 +1,65 @@
+@namespace RapidRelief.Client.Common.Ui
+
+<div class="rr-skeleton-group" aria-busy="true" aria-label="Loading content" @attributes="AdditionalAttributes">
+    @for (int i = 0; i < Lines; i++)
+    {
+        <div class="@ComputedClass" style="@ComputedStyle(i)"></div>
+    }
+</div>
+
+@code {
+    [Parameter] public SkeletonShape Shape { get; set; } = SkeletonShape.Text;
+    [Parameter] public string? Width { get; set; }
+    [Parameter] public string? Height { get; set; }
+    [Parameter] public int Lines { get; set; } = 1;
+    [Parameter] public string? Class { get; set; }
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string ComputedStyle(int lineIndex)
+    {
+        var styles = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(Width))
+        {
+            // If multiple lines of text and no custom width on last line, give a natural staggered width
+            if (Lines > 1 && lineIndex == Lines - 1 && Width == "100%")
+            {
+                styles.Add("width: 70%");
+            }
+            else
+            {
+                styles.Add($"width: {Width}");
+            }
+        }
+        else if (Shape == SkeletonShape.Circle)
+        {
+            styles.Add("width: 40px");
+        }
+
+        if (!string.IsNullOrWhiteSpace(Height))
+        {
+            styles.Add($"height: {Height}");
+        }
+        else if (Shape == SkeletonShape.Circle)
+        {
+            styles.Add("height: 40px");
+        }
+
+        return string.Join("; ", styles);
+    }
+
+    private string ComputedClass
+    {
+        get
+        {
+            var shapeClass = Shape switch
+            {
+                SkeletonShape.Circle => "rr-skeleton-circle",
+                SkeletonShape.Rectangle => "rr-skeleton-rect",
+                _ => "rr-skeleton-text"
+            };
+
+            return $"rr-skeleton {shapeClass} {Class}".Trim();
+        }
+    }
+}

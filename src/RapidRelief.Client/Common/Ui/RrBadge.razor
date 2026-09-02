@@ -1,0 +1,50 @@
+@namespace RapidRelief.Client.Common.Ui
+
+<span class="@ComputedClass" @attributes="AdditionalAttributes">
+    @if (HasDot)
+    {
+        <span class="@DotClass" aria-hidden="true"></span>
+    }
+    @ChildContent
+</span>
+
+@code {
+    [Parameter] public BadgeVariant Variant { get; set; } = BadgeVariant.Neutral;
+    [Parameter] public BadgeSize Size { get; set; } = BadgeSize.Md;
+    [Parameter] public bool HasDot { get; set; }
+    [Parameter] public bool Pill { get; set; } = true;
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string DotClass => Variant switch
+    {
+        BadgeVariant.Success => "rr-dot rr-dot-success",
+        BadgeVariant.Warning => "rr-dot rr-dot-warning",
+        BadgeVariant.Danger => "rr-dot rr-dot-danger",
+        BadgeVariant.Info => "rr-dot rr-dot-info",
+        BadgeVariant.Brand => "rr-dot rr-dot-brand",
+        _ => "rr-dot"
+    };
+
+    private string ComputedClass
+    {
+        get
+        {
+            var variantClass = Variant switch
+            {
+                BadgeVariant.Success => "rr-chip-success",
+                BadgeVariant.Warning => "rr-chip-warning",
+                BadgeVariant.Danger => "rr-chip-danger",
+                BadgeVariant.Info => "rr-chip-info",
+                BadgeVariant.Brand => "rr-chip-brand",
+                _ => ""
+            };
+
+            var sizeClass = Size == BadgeSize.Sm ? "rr-chip-sm" : "";
+            var shapeClass = Pill ? "rr-chip-pill" : "";
+
+            return $"rr-chip {variantClass} {sizeClass} {shapeClass} {Class}".Trim();
+        }
+    }
+}

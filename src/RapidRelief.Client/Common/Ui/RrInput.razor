@@ -1,0 +1,99 @@
+@namespace RapidRelief.Client.Common.Ui
+
+<div class="@ComputedGroupClass">
+    @if (!string.IsNullOrWhiteSpace(Label))
+    {
+        <label for="@InputId" class="rr-input-label">
+            @Label
+            @if (IsRequired)
+            {
+                <span class="rr-input-required" aria-hidden="true">*</span>
+            }
+        </label>
+    }
+
+    <div class="rr-input-wrapper">
+        @if (!string.IsNullOrWhiteSpace(IconStart))
+        {
+            <span class="rr-input-icon-start" aria-hidden="true">
+                <AppIcon Name="@IconStart" Size="18" />
+            </span>
+        }
+
+        <input id="@InputId"
+               type="@Type"
+               class="@ComputedInputClass"
+               value="@Value"
+               placeholder="@Placeholder"
+               disabled="@IsDisabled"
+               required="@IsRequired"
+               aria-invalid="@(HasError ? "true" : "false")"
+               aria-describedby="@DescribedById"
+               @oninput="HandleInput"
+               @attributes="AdditionalAttributes" />
+
+        @if (!string.IsNullOrWhiteSpace(IconEnd))
+        {
+            <span class="rr-input-icon-end" aria-hidden="true">
+                <AppIcon Name="@IconEnd" Size="18" />
+            </span>
+        }
+    </div>
+
+    @if (HasError)
+    {
+        <div id="@DescribedById" class="rr-field-error" role="alert">
+            <AppIcon Name="alert-circle" Size="14" />
+            <span>@ErrorMessage</span>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(HelperText))
+    {
+        <div id="@DescribedById" class="rr-field-help">
+            @HelperText
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string? Label { get; set; }
+    [Parameter] public string Type { get; set; } = "text";
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public string? Placeholder { get; set; }
+    [Parameter] public string? IconStart { get; set; }
+    [Parameter] public string? IconEnd { get; set; }
+    [Parameter] public string? HelperText { get; set; }
+    [Parameter] public string? ErrorMessage { get; set; }
+    [Parameter] public bool IsDisabled { get; set; }
+    [Parameter] public bool IsRequired { get; set; }
+    [Parameter] public string? Class { get; set; }
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string InputId = $"input-{Guid.NewGuid():N}";
+    private string DescribedById => $"{InputId}-desc";
+    private bool HasError => !string.IsNullOrWhiteSpace(ErrorMessage);
+
+    private async Task HandleInput(ChangeEventArgs e)
+    {
+        Value = e.Value?.ToString();
+        if (ValueChanged.HasDelegate)
+        {
+            await ValueChanged.InvokeAsync(Value);
+        }
+    }
+
+    private string ComputedGroupClass => $"rr-input-group {Class}".Trim();
+
+    private string ComputedInputClass
+    {
+        get
+        {
+            var iconStartClass = !string.IsNullOrWhiteSpace(IconStart) ? "rr-input-has-icon-start" : "";
+            var iconEndClass = !string.IsNullOrWhiteSpace(IconEnd) ? "rr-input-has-icon-end" : "";
+            var errorClass = HasError ? "rr-input-error" : "";
+
+            return $"rr-input-control {iconStartClass} {iconEndClass} {errorClass}".Trim();
+        }
+    }
+}

@@ -1,0 +1,49 @@
+@namespace RapidRelief.Client.Common.Ui
+
+<div class="@ComputedClass" aria-busy="true" aria-live="polite" @attributes="AdditionalAttributes">
+    <div class="rr-loading-spinner" aria-hidden="true">
+        <AppIcon Name="loader" Size="@IconSize" CssClass="rr-spin" />
+    </div>
+    @if (!string.IsNullOrWhiteSpace(Message))
+    {
+        <p class="rr-loading-message">@Message</p>
+    }
+    @if (ChildContent is not null)
+    {
+        <div class="rr-loading-custom">
+            @ChildContent
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string? Message { get; set; } = "Loading...";
+    [Parameter] public ButtonSize Size { get; set; } = ButtonSize.Md;
+    [Parameter] public bool Centered { get; set; } = true;
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private int IconSize => Size switch
+    {
+        ButtonSize.Sm => 20,
+        ButtonSize.Lg => 36,
+        _ => 28
+    };
+
+    private string ComputedClass
+    {
+        get
+        {
+            var centerClass = Centered ? "rr-loading-centered" : "";
+            var sizeClass = Size switch
+            {
+                ButtonSize.Sm => "rr-loading-sm",
+                ButtonSize.Lg => "rr-loading-lg",
+                _ => ""
+            };
+
+            return $"rr-loading-state {centerClass} {sizeClass} {Class}".Trim();
+        }
+    }
+}

@@ -1,0 +1,55 @@
+@namespace RapidRelief.Client.Common.Ui
+
+<div class="@ComputedClass" role="alert" aria-live="assertive" @attributes="AdditionalAttributes">
+    <div class="rr-error-icon-wrap" aria-hidden="true">
+        <AppIcon Name="@(IsDegradedMode ? "wifi-off" : "alert-circle")" Size="36" />
+    </div>
+
+    <strong class="rr-error-title">@EffectiveTitle</strong>
+
+    <p class="rr-error-desc">@EffectiveMessage</p>
+
+    @if (ChildContent is not null)
+    {
+        <div class="rr-error-custom">
+            @ChildContent
+        </div>
+    }
+
+    <div class="rr-error-actions">
+        @if (OnRetry.HasDelegate)
+        {
+            <RrButton Variant="ButtonVariant.Outline" IconStart="refresh" OnClick="OnRetry">
+                @(string.IsNullOrWhiteSpace(RetryText) ? "Try Again" : RetryText)
+            </RrButton>
+        }
+        @if (ActionContent is not null)
+        {
+            @ActionContent
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public string? Message { get; set; }
+    [Parameter] public bool IsDegradedMode { get; set; }
+    [Parameter] public string? RetryText { get; set; }
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public EventCallback OnRetry { get; set; }
+    [Parameter] public RenderFragment? ActionContent { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string EffectiveTitle => !string.IsNullOrWhiteSpace(Title)
+        ? Title
+        : IsDegradedMode ? "Demo Mode — Live Data Limited" : "Unable to Load Information";
+
+    private string EffectiveMessage => !string.IsNullOrWhiteSpace(Message)
+        ? Message
+        : IsDegradedMode
+            ? "The database is currently unreachable. You can continue browsing with cached and local data."
+            : "An unexpected error occurred while communicating with the server. Please check your connection and try again.";
+
+    private string ComputedClass => $"rr-error-state {(IsDegradedMode ? "rr-error-degraded" : "")} {Class}".Trim();
+}

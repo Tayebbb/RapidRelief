@@ -1,0 +1,53 @@
+@namespace RapidRelief.Client.Common.Ui
+
+<div class="@ComputedClass" @attributes="AdditionalAttributes">
+    <span class="@BeaconDotClass" aria-hidden="true"></span>
+    @if (!string.IsNullOrWhiteSpace(Text))
+    {
+        <span class="rr-status-text">@Text</span>
+    }
+</div>
+
+@code {
+    [Parameter] public SystemStatus Status { get; set; } = SystemStatus.Online;
+    [Parameter] public string? Text { get; set; }
+    [Parameter] public bool Pulsing { get; set; } = true;
+    [Parameter] public string? Class { get; set; }
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string BeaconDotClass
+    {
+        get
+        {
+            var colorClass = Status switch
+            {
+                SystemStatus.Online => "rr-dot-success",
+                SystemStatus.Active => "rr-dot-info",
+                SystemStatus.Degraded => "rr-dot-warning",
+                SystemStatus.Critical => "rr-dot-danger",
+                _ => "rr-dot-neutral"
+            };
+
+            var pulseClass = Pulsing ? "rr-dot-pulse" : "";
+
+            return $"rr-status-dot {colorClass} {pulseClass}".Trim();
+        }
+    }
+
+    private string ComputedClass
+    {
+        get
+        {
+            var statusClass = Status switch
+            {
+                SystemStatus.Online => "rr-status-online",
+                SystemStatus.Active => "rr-status-active",
+                SystemStatus.Degraded => "rr-status-degraded",
+                SystemStatus.Critical => "rr-status-critical",
+                _ => "rr-status-offline"
+            };
+
+            return $"rr-status-beacon {statusClass} {Class}".Trim();
+        }
+    }
+}
