@@ -1,0 +1,193 @@
+@page "/alerts/compose"
+@attribute [Authorize(Roles = Roles.Government)]
+@using RapidRelief.Client.Features.Alerts
+@using RapidRelief.Shared.Contracts.Enums
+@inject IAlertsApi AlertsApi
+
+<PageTitle>Emergency Broadcast Alerts — RapidRelief</PageTitle>
+
+<div class="rr-page">
+    <header class="rr-page-head rr-reveal">
+        <h1>Emergency broadcast alerts</h1>
+        <p class="rr-page-lede">Publish a clear warning to the public and manage active broadcasts.</p>
+    </header>
+
+    @if (_notice is not null)
+    {
+        <div class="alert @(_noticeIsError ? "alert-danger" : "alert-success")" role="alert">@_notice</div>
+    }
+
+    <section class="rr-card rr-section rr-reveal rr-reveal-1">
+        <h2>Compose alert</h2>
+        <form class="rr-form" @onsubmit="PublishAsync" @onsubmit:preventDefault>
+            <div class="mb-3">
+                <label class="form-label" for="alert-title">Title</label>
+                <input id="alert-title" class="form-control" maxlength="160" required @bind="_title" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="alert-body">Message</label>
+                <textarea id="alert-body" class="form-control" rows="4" maxlength="500" required @bind="_body"></textarea>
+            </div>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label" for="alert-severity">Severity</label>
+                    <select id="alert-severity" class="form-select" @bind="_severity">
+                        @foreach (var severity in Enum.GetValues<Severity>())
+                        {
+                            <option value="@severity">@severity</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="alert-type">Disaster type</label>
+                    <select id="alert-type" class="form-select" @bind="_disasterType">
+                        <option value="">General</option>
+                        @foreach (var type in Enum.GetValues<DisasterType>())
+                        {
+                            <option value="@type">@type</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="alert-expiry">Expires</label>
+                    <input id="alert-expiry" type="datetime-local" class="form-control" required @bind="_expiryLocal" />
+                </div>
+            </div>
+            <div class="row g-3 mt-1">
+                <div class="col-md-8">
+                    <label class="form-label" for="alert-area">Target area</label>
+                    <input id="alert-area" class="form-control" maxlength="150" required @bind="_targetArea" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="alert-radius">Radius (km, optional)</label>
+                    <input id="alert-radius" type="number" min="0.1" max="500" step="0.1" class="form-control" @bind="_radiusKm" />
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary mt-4" disabled="@_saving">@(_saving ? "Publishing..." : "Publish alert")</button>
+        </form>
+    </section>
+
+    <section class="rr-card rr-section rr-reveal rr-reveal-2">
+        <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
+            <div>
+                <h2 class="mb-1">Broadcast history</h2>
+                <p class="rr-page-lede mb-0">Review published alerts and revoke one that is no longer valid.</p>
+            </div>
+            <button class="btn btn-outline-secondary btn-sm" type="button" @onclick="LoadHistoryAsync">Refresh</button>
+        </div>
+        @if (_history is null)
+        {
+            <div aria-busy="true"><span class="rr-skeleton" style="width:100%;height:1rem;"></span></div>
+        }
+        else if (_history.Count == 0)
+        {
+            <div class="rr-empty"><AppIcon Name="bell" Size="28" /><strong>No broadcasts yet</strong><p>Publish an alert when the public needs an immediate warning.</p></div>
+        }
+        else
+        {
+            <div class="rr-table-wrap"><table class="table align-middle">
+                <thead><tr><th>Alert</th><th>Area</th><th>Severity</th><th>Expiry</th><th>Status</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var alert in _history)
+                    {
+                        <tr>
+                            <td><strong>@alert.Title</strong><div class="text-secondary small">@alert.Body</div></td>
+                            <td>@alert.TargetArea</td>
+                            <td>@alert.Severity</td>
+                            <td>@alert.ExpiresAtUtc.ToLocalTime().ToString("g")</td>
+                            <td>@(alert.RevokedAtUtc is not null ? "Revoked" : alert.ExpiresAtUtc <= DateTimeOffset.UtcNow ? "Expired" : "Active")</td>
+                            <td>@if (alert.RevokedAtUtc is null && alert.ExpiresAtUtc > DateTimeOffset.UtcNow) { <button class="btn btn-outline-danger btn-sm" type="button" @onclick="() => RevokeAsync(alert.Id)">Revoke</button> }</td>
+                        </tr>
+                    }
+                </tbody>
+            </table></div>
+        }
+    </section>
+</div>
+
+@code {
+    private string _title = "Cyclone Warning Tier 3";
+    private string _body = "Evacuate immediately to designated high-ground shelters.";
+    private Severity _severity = Severity.Severe;
+    private string _disasterType = nameof(DisasterType.Cyclone);
+    private string _targetArea = "Coastal divisions";
+    private double? _radiusKm;
+    private DateTime _expiryLocal = DateTime.Now.AddHours(6);
+    private List<AlertDto>? _history;
+    private string? _notice;
+    private bool _noticeIsError;
+    private bool _saving;
+
+    protected override Task OnInitializedAsync() => LoadHistoryAsync();
+
+    private async Task LoadHistoryAsync()
+    {
+        try
+        {
+            _history = (await AlertsApi.GetAsync())?.Data.Items.ToList() ?? [];
+            _notice = null;
+        }
+        catch (HttpRequestException)
+        {
+            _history = [];
+            SetError("Could not load alert history. Check the connection and try again.");
+        }
+    }
+
+    private async Task PublishAsync()
+    {
+        _saving = true;
+        _notice = null;
+        try
+        {
+            var disasterType = Enum.TryParse<DisasterType>(_disasterType, out var parsedType) ? parsedType : (DisasterType?)null;
+            using var response = await AlertsApi.CreateAsync(new CreateAlertRequest(_title, _body, _severity,
+                disasterType, _targetArea, _radiusKm, new DateTimeOffset(_expiryLocal).ToUniversalTime()));
+            if (!response.IsSuccessStatusCode)
+            {
+                SetError("The alert was not published. Check the fields and try again.");
+                return;
+            }
+
+            _notice = "Alert published. Citizens will receive it through the active banner and notification inbox.";
+            _noticeIsError = false;
+            await LoadHistoryAsync();
+        }
+        catch (HttpRequestException)
+        {
+            SetError("Could not publish the alert. Check the connection and try again.");
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task RevokeAsync(Guid id)
+    {
+        try
+        {
+            using var response = await AlertsApi.RevokeAsync(id);
+            if (response.IsSuccessStatusCode)
+            {
+                _notice = "Alert revoked.";
+                _noticeIsError = false;
+                await LoadHistoryAsync();
+            }
+            else
+            {
+                SetError("The alert could not be revoked.");
+            }
+        }
+        catch (HttpRequestException)
+        {
+            SetError("Could not revoke the alert. Check the connection and try again.");
+        }
+    }
+
+    private void SetError(string message)
+    {
+        _notice = message;
+        _noticeIsError = true;
+    }
+}

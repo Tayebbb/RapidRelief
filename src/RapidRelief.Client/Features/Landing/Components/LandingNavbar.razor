@@ -25,10 +25,6 @@
             <AuthorizeView>
                 <Authorized>
                     <NotificationBell />
-                    <a class="btn-nav-signup" href="@DashboardLink" style="padding: 7px 14px; font-size: 0.85rem;">
-                        <AppIcon Name="layers" Size="14" />
-                        <span>Dashboard</span>
-                    </a>
 
                     <!-- Profile Icon & Dropdown -->
                     <div class="nav-profile-wrapper">
@@ -55,7 +51,7 @@
 
                                 <a class="nav-profile-item" href="@DashboardLink" @onclick="CloseProfileMenu">
                                     <AppIcon Name="layers" Size="15" />
-                                    <span>My Dashboard</span>
+                                    <span>Dashboard</span>
                                 </a>
                                 <a class="nav-profile-item" href="profile" @onclick="CloseProfileMenu">
                                     <AppIcon Name="user" Size="15" />
@@ -133,7 +129,6 @@
                             <span class="badge bg-success-subtle text-success small" style="width: fit-content; font-size: 0.7rem;">@UserRole</span>
                         </div>
                     </div>
-                    <a class="btn btn-primary btn-sm w-100" href="@DashboardLink" @onclick="CloseMobileMenu">My Dashboard</a>
                     <a class="btn btn-outline-secondary btn-sm w-100" href="profile" @onclick="CloseMobileMenu">Profile</a>
                     <button class="btn btn-outline-danger btn-sm w-100" type="button" @onclick="SignOutAsync">Sign Out</button>
                 </Authorized>
@@ -150,8 +145,8 @@
 
 @code {
     [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
-    private string DashboardLink = "c";
     private string UserRole = "Citizen";
+    private string DashboardLink = "c";
     private bool _mobileOpen;
     private bool _profileMenuOpen;
 
@@ -160,13 +155,13 @@
         try
         {
             var auth = await AuthStateProvider.GetAuthenticationStateAsync();
-            DashboardLink = RapidRelief.Client.Common.Auth.AuthRouteHelper.GetDashboardRoute(auth.User);
             UserRole = auth.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "Citizen";
+            DashboardLink = AuthRouteHelper.GetDashboardRoute(auth.User);
         }
         catch
         {
-            DashboardLink = "c";
             UserRole = "Citizen";
+            DashboardLink = "c";
         }
     }
 
