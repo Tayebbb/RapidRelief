@@ -1,10 +1,9 @@
 @page "/shelters/finder"
-@implements IAsyncDisposable
 @using RapidRelief.Shared.Contracts.Common
 @using RapidRelief.Shared.Contracts.ReadModels
 @using RapidRelief.Client.Features.Shelters.Components
 @inject SheltersClient Client
-@inject IJSRuntime JsRuntime
+@inject GeolocationService Geo
 
 <PageTitle>Find Shelter</PageTitle>
 
@@ -13,6 +12,13 @@
 @if (_error is not null)
 {
     <div class="alert alert-danger" role="alert">@_error</div>
+}
+@if (_geoNote is not null)
+{
+    <div class="alert alert-warning" role="alert">
+        @_geoNote Showing shelters near central Dhaka instead.
+        <button class="btn btn-sm btn-outline-secondary ms-2" type="button" @onclick="RetryLocateAsync" disabled="@_locating">Try again</button>
+    </div>
 }
 
 <div class="row">
@@ -81,39 +87,62 @@
         <div style="height: 600px;">
             @if (_shelters is not null)
             {
-                <ShelterMapLayer Shelters="_shelters" Center="_userLocation" />
+                <ShelterMapLayer Shelters="_shelters" Center="_userLocation" UserLocation="_gpsFix" UserAccuracyMeters="_gpsAccuracy" />
             }
         </div>
     </div>
 </div>
 
 @code {
+    private static readonly GeoPoint DhakaFallback = new(23.8103, 90.4125);
+
     private bool _locating = true;
     private GeoPoint? _userLocation;
+    private GeoPoint? _gpsFix;
+    private double _gpsAccuracy;
+    private string? _geoNote;
     private List<ShelterSummaryDto>? _shelters;
     private ShelterSummaryDto? _recommendedShelter;
     private string? _error;
-    private IJSObjectReference? _module;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
-            try
-            {
-                _module = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/shelters-geo.js");
-                var coords = await _module.InvokeAsync<double[]>("getUserLocation");
-                _userLocation = new GeoPoint(coords[0], coords[1]);
-            } 
-            catch 
-            {
-                // Fallback Dhaka
-                _userLocation = new GeoPoint(23.8103, 90.4125);
-            }
-            
-            _locating = false;
-            StateHasChanged();
+            await LocateAsync();
+            await LoadDataAsync();
+        }
+    }
 
+    private async Task LocateAsync()
+    {
+        _locating = true;
+        StateHasChanged();
+
+        var fix = await Geo.GetCurrentAsync();
+        if (fix.Ok)
+        {
+            _gpsFix = fix.Point;
+            _gpsAccuracy = fix.AccuracyMeters;
+            _userLocation = fix.Point;
+            _geoNote = null;
+        }
+        else
+        {
+            _gpsFix = null;
+            _userLocation = DhakaFallback;
+            _geoNote = fix.Message;
+        }
+
+        _locating = false;
+        StateHasChanged();
+    }
+
+    private async Task RetryLocateAsync()
+    {
+        await LocateAsync();
+        if (_gpsFix is not null)
+        {
             await LoadDataAsync();
         }
     }
@@ -142,15 +171,7 @@
         {
             _error = "Could not reach the server to fetch shelters.";
         }
-        
-        StateHasChanged();
-    }
 
-    public async ValueTask DisposeAsync()
-    {
-        if (_module is not null)
-        {
-            await _module.DisposeAsync();
-        }
+        StateHasChanged();
     }
 }

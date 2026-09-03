@@ -3,7 +3,7 @@
 // loaded from lib/leaflet/leaflet.js in index.html (no CDN — PWA/offline rule).
 // Extension points (polygons, heat layer) are added HERE later, never inline in features.
 
-const instances = new Map(); // elementId -> { map, markers: Map<id, L.Marker>, dotnetRef }
+const instances = new Map(); // elementId -> { map, markers: Map<id, L.Marker>, dotnetRef, user }
 
 export function init(elementId, dotnetRef, centerLat, centerLng, zoom) {
     if (instances.has(elementId)) {
@@ -22,7 +22,46 @@ export function init(elementId, dotnetRef, centerLat, centerLng, zoom) {
         dotnetRef.invokeMethodAsync("OnMapClicked", e.latlng.lat, e.latlng.lng);
     });
 
-    instances.set(elementId, { map, markers: new Map(), dotnetRef });
+    instances.set(elementId, { map, markers: new Map(), dotnetRef, user: null });
+}
+
+// "You are here": a dot plus an accuracy halo, kept separate from the marker diff so a feature
+// can never remove it by omitting an id. Styled from CSS tokens via the .rapid-map-user classes.
+export function setUserLocation(elementId, lat, lng, accuracyMeters) {
+    const instance = instances.get(elementId);
+    if (!instance) {
+        return;
+    }
+
+    if (!instance.user) {
+        const halo = L.circle([lat, lng], {
+            radius: Math.max(accuracyMeters || 0, 15),
+            className: "rapid-map-user-halo",
+            interactive: false,
+        }).addTo(instance.map);
+
+        const dot = L.circleMarker([lat, lng], {
+            radius: 7,
+            className: "rapid-map-user-dot",
+        }).addTo(instance.map);
+        dot.bindPopup("Your current location");
+
+        instance.user = { halo, dot };
+        return;
+    }
+
+    instance.user.halo.setLatLng([lat, lng]);
+    instance.user.halo.setRadius(Math.max(accuracyMeters || 0, 15));
+    instance.user.dot.setLatLng([lat, lng]);
+}
+
+export function clearUserLocation(elementId) {
+    const instance = instances.get(elementId);
+    if (instance?.user) {
+        instance.user.halo.remove();
+        instance.user.dot.remove();
+        instance.user = null;
+    }
 }
 
 export function setView(elementId, lat, lng, zoom) {

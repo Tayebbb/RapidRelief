@@ -19,11 +19,17 @@ public sealed partial class RapidMap : ComponentBase, IAsyncDisposable
     [Parameter] public IReadOnlyList<MapMarker> Markers { get; set; } = [];
     [Parameter] public EventCallback<GeoPoint> OnMapClick { get; set; }
 
+    /// <summary>"You are here" layer — rendered separately from Markers so features can't remove it.</summary>
+    [Parameter] public GeoPoint? UserLocation { get; set; }
+    [Parameter] public double UserLocationAccuracyMeters { get; set; }
+
     internal string ElementId { get; } = $"rapid-map-{Guid.NewGuid():N}";
 
     private IJSObjectReference? _module;
     private DotNetObjectReference<RapidMap>? _selfRef;
     private Dictionary<string, MapMarker> _renderedMarkers = new();
+    private GeoPoint? _renderedUserLocation;
+    private double _renderedUserAccuracy;
     private bool _disposed;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -55,6 +61,7 @@ public sealed partial class RapidMap : ComponentBase, IAsyncDisposable
 
             _module = module;
             await SyncMarkersAsync();
+            await SyncUserLocationAsync();
         }
         catch (JSException ex)
         {
@@ -76,6 +83,7 @@ public sealed partial class RapidMap : ComponentBase, IAsyncDisposable
         if (_module is not null)
         {
             await SyncMarkersAsync();
+            await SyncUserLocationAsync();
         }
     }
 
@@ -105,6 +113,32 @@ public sealed partial class RapidMap : ComponentBase, IAsyncDisposable
         }
 
         _renderedMarkers = current;
+    }
+
+    private async Task SyncUserLocationAsync()
+    {
+        if (_module is null || _disposed)
+        {
+            return;
+        }
+
+        if (UserLocation is null)
+        {
+            if (_renderedUserLocation is not null)
+            {
+                await _module.InvokeVoidAsync("clearUserLocation", ElementId);
+                _renderedUserLocation = null;
+            }
+            return;
+        }
+
+        if (_renderedUserLocation != UserLocation || _renderedUserAccuracy != UserLocationAccuracyMeters)
+        {
+            await _module.InvokeVoidAsync("setUserLocation", ElementId,
+                UserLocation.Latitude, UserLocation.Longitude, UserLocationAccuracyMeters);
+            _renderedUserLocation = UserLocation;
+            _renderedUserAccuracy = UserLocationAccuracyMeters;
+        }
     }
 
     public async Task SetViewAsync(GeoPoint center, int zoom)

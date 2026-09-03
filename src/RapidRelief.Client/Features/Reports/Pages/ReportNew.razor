@@ -5,6 +5,7 @@
 @using RapidRelief.Client.Common.Ui
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject GeolocationService Geo
 
 <PageTitle>Report an Emergency Incident & SOS — RapidRelief</PageTitle>
 
@@ -128,6 +129,10 @@
                             <span>@(_detectingLoc ? "Detecting GPS..." : "Use My Location")</span>
                         </button>
                     </div>
+                    @if (_geoError is not null)
+                    {
+                        <div class="rr-field-error mt-1">@_geoError</div>
+                    }
                 </div>
 
                 <!-- People Count -->
@@ -169,6 +174,7 @@
     private string _contactPhone = "+880 1711-234567";
     private string _description = "";
     private bool _detectingLoc;
+    private string? _geoError;
     private bool _sosBroadcasted;
     private bool _submitted;
     private int _randomId = 7842;
@@ -181,13 +187,38 @@
     private void TriggerInstantSos()
     {
         _sosBroadcasted = true;
+        _ = CaptureSosLocationAsync();
+    }
+
+    // SOS must confirm instantly; the GPS fix updates the ticket text when it lands.
+    private async Task CaptureSosLocationAsync()
+    {
+        var fix = await Geo.GetCurrentAsync(highAccuracy: true, timeoutMs: 8000);
+        if (fix.Ok)
+        {
+            var p = fix.Point!;
+            _locationText = $"GPS Fixed: {Math.Abs(p.Latitude):F4}° {(p.Latitude >= 0 ? "N" : "S")}, {Math.Abs(p.Longitude):F4}° {(p.Longitude >= 0 ? "E" : "W")} (Accuracy: ±{Math.Max(1, (int)Math.Round(fix.AccuracyMeters))}m)";
+            StateHasChanged();
+        }
     }
 
     private async Task AutoDetectLocation()
     {
         _detectingLoc = true;
-        await Task.Delay(600); // simulate GPS fix
-        _locationText = "GPS Fixed: 23.8124° N, 90.4140° E (Accuracy: ±4m)";
+        _geoError = null;
+
+        var fix = await Geo.GetCurrentAsync(highAccuracy: true);
+        if (fix.Ok)
+        {
+            var p = fix.Point!;
+            var accuracy = Math.Max(1, (int)Math.Round(fix.AccuracyMeters));
+            _locationText = $"GPS Fixed: {Math.Abs(p.Latitude):F4}° {(p.Latitude >= 0 ? "N" : "S")}, {Math.Abs(p.Longitude):F4}° {(p.Longitude >= 0 ? "E" : "W")} (Accuracy: ±{accuracy}m)";
+        }
+        else
+        {
+            _geoError = fix.Message;
+        }
+
         _detectingLoc = false;
     }
 

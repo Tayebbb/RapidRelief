@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.Extensions.Logging;
 using RapidRelief.Client;
 using RapidRelief.Client.Common.Auth;
+using RapidRelief.Client.Common.Geo;
 using RapidRelief.Client.Common.Realtime;
 using RapidRelief.Client.Features.Assistant;
 using RapidRelief.Client.Features.Alerts;
@@ -53,6 +54,9 @@ builder.Services.AddSingleton(sp => new NotificationHubClient(
 
 // F3 Client
 builder.Services.AddScoped(sp => new SheltersClient(sp.GetRequiredService<HttpClient>()));
+
+// Foundation geolocation (browser prompt only fires on user action — see js/geolocation.js).
+builder.Services.AddScoped<GeolocationService>();
 
 var host = builder.Build();
 

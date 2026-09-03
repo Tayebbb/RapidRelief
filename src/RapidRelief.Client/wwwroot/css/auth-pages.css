@@ -16,7 +16,7 @@
     color: var(--rr-text, #2F3431);
     position: relative;
     overflow-x: hidden;
-    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    font-family: var(--rr-font, 'Lexend', system-ui, -apple-system, sans-serif);
     transition: background-color 0.3s ease, color 0.3s ease;
 }
 

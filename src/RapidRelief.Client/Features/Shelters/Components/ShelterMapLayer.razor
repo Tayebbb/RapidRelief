@@ -2,14 +2,8 @@
 @using RapidRelief.Shared.Contracts.Common
 @using RapidRelief.Shared.Contracts.ReadModels
 
-@if (Shelters.Count > 0)
-{
-    <RapidMap InitialCenter="MapCenter" InitialZoom="13" Markers="_markers" />
-}
-else
-{
-    <RapidMap InitialCenter="MapCenter" InitialZoom="13" Markers="_markers" />
-}
+<RapidMap InitialCenter="MapCenter" InitialZoom="13" Markers="_markers"
+          UserLocation="UserLocation" UserLocationAccuracyMeters="UserAccuracyMeters" />
 
 @code {
     [Parameter, EditorRequired]
@@ -17,6 +11,12 @@ else
 
     [Parameter]
     public GeoPoint? Center { get; set; }
+
+    [Parameter]
+    public GeoPoint? UserLocation { get; set; }
+
+    [Parameter]
+    public double UserAccuracyMeters { get; set; }
 
     private GeoPoint MapCenter => Center ?? new GeoPoint(23.8103, 90.4125);
 
