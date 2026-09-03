@@ -29,5 +29,15 @@ public sealed class SheltersClient(HttpClient http)
         => await http.PatchAsJsonAsync($"api/shelters/{id}/occupancy", request, ct);
 
     public async Task<ApiEnvelope<ShelterSummaryDto>?> RecommendShelterAsync(double lat, double lng, CancellationToken ct = default)
-        => await http.GetFromJsonAsync<ApiEnvelope<ShelterSummaryDto>>($"api/shelters/recommend?lat={lat}&lng={lng}", ct);
+    {
+        // 404 is semantic here: "no recommendation available", not a transport failure.
+        var response = await http.GetAsync($"api/shelters/recommend?lat={lat}&lng={lng}", ct);
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<ApiEnvelope<ShelterSummaryDto>>(cancellationToken: ct);
+    }
 }
