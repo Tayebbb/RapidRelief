@@ -641,3 +641,137 @@
   color: var(--rr-sos-red);
   margin-top: 2px;
 }
+
+.dash-title,
+.dash-subtitle,
+.dash-item-title,
+.dash-item-desc,
+.dash-item-sub span {
+  overflow-wrap: anywhere;
+}
+
+.dash-table-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.dash-filter-input {
+  width: min(100%, 180px);
+}
+
+@media (max-width: 992px) {
+  .dash-layout {
+    padding: var(--space-5) var(--space-3) var(--space-10);
+  }
+
+  .dash-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .dash-table-tools {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .dash-item-card {
+    flex-wrap: wrap;
+  }
+
+  .dash-item-actions {
+    width: 100%;
+  }
+
+  .dash-item-sub {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+}
+
+@media (max-width: 768px) {
+  .dash-header-banner {
+    padding: var(--space-4);
+  }
+
+  .dash-title {
+    font-size: 1.4rem;
+  }
+
+  .dash-header-actions {
+    width: 100%;
+  }
+
+  .dash-header-actions .form-select,
+  .dash-header-actions .btn,
+  .dash-header-actions .btn-dash-outline,
+  .dash-header-actions .btn-dash-primary {
+    width: 100%;
+  }
+
+  .dash-filter-input {
+    width: 100%;
+  }
+
+  .dash-kpi-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-3);
+  }
+
+  .dash-kpi-value {
+    font-size: 1.5rem;
+  }
+
+  .dash-emergency-alert-card {
+    flex-direction: column;
+  }
+
+  .dash-emergency-alert-card .alert-icon {
+    margin-top: 0;
+  }
+
+  .tactical-stepper {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dash-sos-btn-row {
+    width: 100%;
+  }
+
+  .dash-sos-btn-row > * {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 576px) {
+  .dash-layout {
+    padding: var(--space-4) var(--space-2) var(--space-8);
+  }
+
+  .dash-card,
+  .dash-sos-box,
+  .tactical-mission-hud {
+    padding: var(--space-4);
+  }
+
+  .dash-title {
+    font-size: 1.2rem;
+  }
+
+  .dash-table th,
+  .dash-table td {
+    padding: 10px 12px;
+  }
+
+  .tactical-stepper {
+    grid-template-columns: 1fr;
+  }
+
+  .stepper-node {
+    text-align: left;
+  }
+}

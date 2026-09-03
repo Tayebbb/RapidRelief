@@ -1,0 +1,26 @@
+.shelter-map-panel {
+    height: clamp(20rem, 62vh, 37.5rem);
+}
+
+@media (max-width: 991.98px) {
+    .shelter-map-panel {
+        margin-top: 1rem;
+        height: clamp(18rem, 52vh, 31rem);
+    }
+}
+
+@media (max-width: 575.98px) {
+    .shelter-map-panel {
+        height: 18rem;
+    }
+
+    .shelters-list-item {
+        align-items: flex-start !important;
+        flex-direction: column;
+        gap: 0.6rem;
+    }
+
+    .shelters-list-item .btn {
+        width: 100%;
+    }
+}
