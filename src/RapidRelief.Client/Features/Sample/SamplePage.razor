@@ -35,11 +35,12 @@
             <div class="alert alert-warning" role="alert">@_mapNotice</div>
         }
 
-        <RapidMap @ref="_map" InitialCenter="@(new GeoPoint(23.8103, 90.4125))" InitialZoom="11" Markers="_markers" OnMapClick="OnMapClicked"
-                  UserLocation="_userLocation" UserLocationAccuracyMeters="_userAccuracy" />
+        <RapidMap @ref="_map" InitialCenter="@(new GeoPoint(23.8103, 90.4125))" InitialZoom="11" Markers="_markers"
+                  OnMapClick="OnMapClicked" UserLocation="_userLocation" UserLocationAccuracyMeters="_userAccuracy" />
 
         <div class="d-flex align-items-center gap-2 flex-wrap mt-2">
-            <button class="btn btn-outline-primary btn-sm" type="button" @onclick="ShowMyLocationAsync" disabled="@_locating">
+            <button class="btn btn-outline-primary btn-sm" type="button" @onclick="ShowMyLocationAsync"
+                    disabled="@_locating">
                 @(_locating ? "Locating…" : "Show my location")
             </button>
             @if (_geoNote is not null)
@@ -63,8 +64,8 @@
         <form @onsubmit="PostPingAsync" @onsubmit:preventDefault>
             <label class="form-label" for="ping-message">Message</label>
             <div class="d-flex gap-2 flex-wrap">
-                <input id="ping-message" class="form-control flex-grow-1" style="max-width: 26rem;"
-                       @bind="_message" @bind:event="oninput" placeholder="e.g. hello RapidRelief" />
+                <input id="ping-message" class="form-control flex-grow-1" style="max-width: 26rem;" @bind="_message"
+                       @bind:event="oninput" placeholder="e.g. hello RapidRelief" />
                 <button class="btn btn-primary" type="submit" disabled="@_posting">
                     @(_posting ? "Posting…" : "Post ping")
                 </button>

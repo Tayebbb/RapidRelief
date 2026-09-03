@@ -194,9 +194,20 @@ try
     // B6 step 10.
     app.UseSerilogRequestLogging();
 
-    // B6 step 11 — hosted Blazor WASM client.
+    // B6 step 11 — hosted Blazor WASM client. In Development, force revalidation so edited
+    // static assets (JS modules, CSS) are never served stale from the browser's heuristic cache.
     app.UseBlazorFrameworkFiles();
-    app.UseStaticFiles();
+    if (app.Environment.IsDevelopment())
+    {
+        app.UseStaticFiles(new StaticFileOptions
+        {
+            OnPrepareResponse = ctx => ctx.Context.Response.Headers.CacheControl = "no-cache",
+        });
+    }
+    else
+    {
+        app.UseStaticFiles();
+    }
 
     // B6 step 12.
     app.UseAuthentication();

@@ -17,7 +17,8 @@
 {
     <div class="alert alert-warning" role="alert">
         @_geoNote Showing shelters near central Dhaka instead.
-        <button class="btn btn-sm btn-outline-secondary ms-2" type="button" @onclick="RetryLocateAsync" disabled="@_locating">Try again</button>
+        <button class="btn btn-sm btn-outline-secondary ms-2" type="button" @onclick="RetryLocateAsync"
+                disabled="@_locating">Try again</button>
     </div>
 }
 
@@ -48,7 +49,7 @@
                         <p class="card-text mb-1">
                             Occupancy: @_recommendedShelter.Occupancy / @_recommendedShelter.Capacity
                         </p>
-                        <a href="https://www.google.com/maps/search/?api=1&query=@_recommendedShelter.Location.Latitude,@_recommendedShelter.Location.Longitude" 
+                        <a href="https://www.google.com/maps/search/?api=1&query=@_recommendedShelter.Location.Latitude,@_recommendedShelter.Location.Longitude"
                            target="_blank" class="btn btn-sm btn-success">
                             Get Directions
                         </a>
@@ -74,7 +75,7 @@
                                 • @shelter.Occupancy / @shelter.Capacity
                             </small>
                         </div>
-                        <a href="https://www.google.com/maps/search/?api=1&query=@shelter.Location.Latitude,@shelter.Location.Longitude" 
+                        <a href="https://www.google.com/maps/search/?api=1&query=@shelter.Location.Latitude,@shelter.Location.Longitude"
                            target="_blank" class="btn btn-sm btn-outline-primary">
                             Directions
                         </a>
@@ -87,7 +88,8 @@
         <div style="height: 600px;">
             @if (_shelters is not null)
             {
-                <ShelterMapLayer Shelters="_shelters" Center="_userLocation" UserLocation="_gpsFix" UserAccuracyMeters="_gpsAccuracy" />
+                <ShelterMapLayer Shelters="_shelters" Center="_userLocation" UserLocation="_gpsFix"
+                                 UserAccuracyMeters="_gpsAccuracy" />
             }
         </div>
     </div>
