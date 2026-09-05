@@ -10,6 +10,8 @@ using RapidRelief.Api.Infrastructure.Persistence;
 using RapidRelief.Shared.Contracts.Common;
 using RapidRelief.Shared.Contracts.Eventing;
 using RapidRelief.Shared.Contracts.Events;
+using RapidRelief.Shared.Contracts.ReadModels;
+using RapidRelief.Shared.Contracts.Services;
 
 namespace RapidRelief.Api.Features.Alerts.Endpoints;
 
@@ -131,7 +133,7 @@ public static class AlertsEndpoints
         return alert is null ? Results.NotFound() : Json(new ApiEnvelope<AlertDto>(ToDto(alert)));
     }
 
-    private static async Task<IResult> RevokeAsync(Guid id, AlertsDbContext db, DatabaseHealth health, TimeProvider clock, CancellationToken ct)
+    private static async Task<IResult> RevokeAsync(Guid id, AlertsDbContext db, IAuditTrail audit, DatabaseHealth health, TimeProvider clock, CancellationToken ct)
     {
         if (health.PostgresAvailable != true)
         {
@@ -148,6 +150,9 @@ public static class AlertsEndpoints
         {
             alert.RevokedAtUtc = clock.GetUtcNow();
             await db.SaveChangesAsync(ct);
+            await audit.RecordAsync(new AuditRecord(null, string.Empty, string.Empty,
+                "Alert.Revoke", "Alert", alert.Id.ToString(),
+                $"Stood down broadcast \"{alert.Title}\"", "Revoked"), ct);
         }
 
         return Results.NoContent();
