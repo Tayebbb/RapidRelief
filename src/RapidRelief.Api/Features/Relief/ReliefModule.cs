@@ -20,7 +20,7 @@ public sealed class ReliefModule : IFeatureModule
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
-        // Minimal relief endpoint routes
+        Endpoints.ReliefEndpoints.Map(endpoints);
     }
 
     public async Task MigrateAsync(IServiceProvider scopedServices, CancellationToken ct)

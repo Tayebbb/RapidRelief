@@ -16,6 +16,9 @@ public sealed class ReliefRequest
     public string DeliveryAddress { get; set; } = string.Empty;
     public ReliefStatus Status { get; set; } = ReliefStatus.Pending;
     public string Notes { get; set; } = string.Empty;
+
+    /// <summary>Client-supplied de-duplication key (retries, offline replay). Unique per requester.</summary>
+    public string? IdempotencyKey { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
 
