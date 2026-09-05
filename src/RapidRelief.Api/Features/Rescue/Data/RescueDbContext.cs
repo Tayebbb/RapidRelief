@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using RapidRelief.Api.Features.Rescue.Domain;
 
 namespace RapidRelief.Api.Features.Rescue.Data;
@@ -22,6 +23,9 @@ public sealed class RescueDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // SQLite (tests) cannot ORDER BY a DateTimeOffset TEXT column — store UTC ticks there.
+        var isSqlite = Database.ProviderName == "Microsoft.EntityFrameworkCore.Sqlite";
+
         modelBuilder.Entity<RescueTeam>(t =>
         {
             t.ToTable("rescue_teams");
@@ -31,6 +35,12 @@ public sealed class RescueDbContext : DbContext
             t.Property(x => x.ContactNumber).HasMaxLength(30);
             t.Property(x => x.Status).HasMaxLength(30);
             t.HasIndex(x => x.TeamLeadUserId);
+
+            if (isSqlite)
+            {
+                t.Property(x => x.CreatedAtUtc).HasConversion(TicksConverter());
+                t.Property(x => x.UpdatedAtUtc).HasConversion(TicksConverter());
+            }
         });
 
         modelBuilder.Entity<RescueTeamMember>(m =>
@@ -42,6 +52,11 @@ public sealed class RescueDbContext : DbContext
                 .HasForeignKey(x => x.TeamId)
                 .OnDelete(DeleteBehavior.Cascade);
             m.HasIndex(x => x.RescuerUserId);
+
+            if (isSqlite)
+            {
+                m.Property(x => x.JoinedAtUtc).HasConversion(TicksConverter());
+            }
         });
 
         modelBuilder.Entity<RescueMission>(m =>
@@ -50,6 +65,7 @@ public sealed class RescueDbContext : DbContext
             m.HasKey(x => x.Id);
             m.Property(x => x.MissionTitle).IsRequired().HasMaxLength(200);
             m.Property(x => x.Priority).HasMaxLength(30);
+            m.Property(x => x.RejectionReason).HasMaxLength(500);
             m.Property(x => x.Status).HasConversion<string>().HasMaxLength(30);
             m.HasOne(x => x.Team)
                 .WithMany(t => t.Missions)
@@ -57,6 +73,17 @@ public sealed class RescueDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict);
             m.HasIndex(x => x.IncidentId);
             m.HasIndex(x => x.Status);
+
+            if (isSqlite)
+            {
+                m.Property(x => x.AssignedAtUtc).HasConversion(TicksConverter());
+                m.Property(x => x.CreatedAtUtc).HasConversion(TicksConverter());
+                m.Property(x => x.UpdatedAtUtc).HasConversion(TicksConverter());
+                m.Property(x => x.AcceptedAtUtc).HasConversion(NullableTicksConverter());
+                m.Property(x => x.StartedAtUtc).HasConversion(NullableTicksConverter());
+                m.Property(x => x.OnSceneAtUtc).HasConversion(NullableTicksConverter());
+                m.Property(x => x.CompletedAtUtc).HasConversion(NullableTicksConverter());
+            }
         });
 
         modelBuilder.Entity<RescueMissionLog>(l =>
@@ -68,6 +95,17 @@ public sealed class RescueDbContext : DbContext
                 .WithMany(m => m.Logs)
                 .HasForeignKey(x => x.MissionId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            if (isSqlite)
+            {
+                l.Property(x => x.TimestampUtc).HasConversion(TicksConverter());
+            }
         });
     }
+
+    private static ValueConverter<DateTimeOffset, long> TicksConverter() =>
+        new(v => v.UtcTicks, v => new DateTimeOffset(v, TimeSpan.Zero));
+
+    private static ValueConverter<DateTimeOffset?, long?> NullableTicksConverter() =>
+        new(v => v!.Value.UtcTicks, v => v == null ? null : new DateTimeOffset(v.Value, TimeSpan.Zero));
 }

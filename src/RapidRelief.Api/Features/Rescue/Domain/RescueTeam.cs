@@ -1,5 +1,16 @@
 namespace RapidRelief.Api.Features.Rescue.Domain;
 
+/// <summary>The three states a team can be in; "Dispatched" is system-driven by mission assignment.</summary>
+public static class TeamStatus
+{
+    public const string Available = "Available";
+    public const string Dispatched = "Dispatched";
+    public const string OffDuty = "OffDuty";
+
+    public static bool IsKnown(string value) =>
+        value is Available or Dispatched or OffDuty;
+}
+
 public sealed class RescueTeam
 {
     public Guid Id { get; set; } = Guid.NewGuid();
