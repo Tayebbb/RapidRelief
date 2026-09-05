@@ -1,3 +1,4 @@
+using RapidRelief.Api.Infrastructure.SeedData;
 using RapidRelief.Shared.Contracts.Common;
 using RapidRelief.Shared.Contracts.ReadModels;
 using RapidRelief.Shared.Contracts.Services;
@@ -8,11 +9,11 @@ namespace RapidRelief.Api.Features.Stubs;
 public sealed class FakeShelterReadService : IShelterReadService
 {
     public Task<IReadOnlyList<ShelterSummaryDto>> GetSheltersAsync(CancellationToken ct = default)
-        => Task.FromResult(SeedData.DhakaSeedData.Shelters);
+        => Task.FromResult(DhakaSeedData.Shelters);
 
     public Task<IReadOnlyList<ShelterSummaryDto>> GetNearestAsync(GeoPoint origin, int count = 5, CancellationToken ct = default)
     {
-        IReadOnlyList<ShelterSummaryDto> nearest = SeedData.DhakaSeedData.Shelters
+        IReadOnlyList<ShelterSummaryDto> nearest = DhakaSeedData.Shelters
             .OrderBy(s => HaversineMeters(origin, s.Location))
             .ThenBy(s => s.Id)
             .Take(Math.Max(count, 0))

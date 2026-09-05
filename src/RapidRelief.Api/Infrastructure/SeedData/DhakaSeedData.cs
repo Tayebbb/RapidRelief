@@ -2,7 +2,7 @@ using RapidRelief.Shared.Contracts.Common;
 using RapidRelief.Shared.Contracts.Enums;
 using RapidRelief.Shared.Contracts.ReadModels;
 
-namespace RapidRelief.Api.Features.Stubs.SeedData;
+namespace RapidRelief.Api.Infrastructure.SeedData;
 
 /// <summary>
 /// The single deterministic demo dataset (blueprint B4): fixed GUIDs, fixed anchor time,
@@ -143,18 +143,19 @@ public static class DhakaSeedData
         new(NgoId(5), "JAAGO Foundation", ["Youth Volunteers", "Education"], "volunteer@jaago.example"),
     ];
 
-    /// <summary>Teams have no contract surface yet — data-only, consumed by F5/F6 once ITeamReadService is added additively.</summary>
-    public sealed record RescueTeamSeed(Guid Id, string Name, string Speciality, bool IsAvailable, GeoPoint BaseLocation);
+    /// <summary>Deterministic demo units. Contact numbers are fictional 555-style demo lines.</summary>
+    public sealed record RescueTeamSeed(
+        Guid Id, string Name, string Speciality, bool IsAvailable, GeoPoint BaseLocation, string ContactNumber);
 
     private static Guid TeamId(int n) => Guid.Parse($"f0000000-0000-0000-0000-0000000000{n:D2}");
 
     public static IReadOnlyList<RescueTeamSeed> RescueTeams { get; } =
     [
-        new(TeamId(1), "FSCD Mirpur Unit", "Water Rescue", true, new GeoPoint(23.8223, 90.3654)),
-        new(TeamId(2), "FSCD Tejgaon Unit", "Fire Suppression", true, new GeoPoint(23.7590, 90.3929)),
-        new(TeamId(3), "Savar Urban Search & Rescue", "Collapse Rescue", false, new GeoPoint(23.8583, 90.2667)),
-        new(TeamId(4), "BDRCS Response Team Alpha", "Medical Evacuation", true, new GeoPoint(23.7256, 90.3970)),
-        new(TeamId(5), "Coast Guard River Unit", "Boat Rescue", true, new GeoPoint(23.7101, 90.3720)),
-        new(TeamId(6), "Army Engineer Detachment", "Heavy Lifting", false, new GeoPoint(23.8040, 90.4150)),
+        new(TeamId(1), "FSCD Mirpur Unit", "Water Rescue", true, new GeoPoint(23.8223, 90.3654), "+880 1555 000101"),
+        new(TeamId(2), "FSCD Tejgaon Unit", "Fire Suppression", true, new GeoPoint(23.7590, 90.3929), "+880 1555 000102"),
+        new(TeamId(3), "Savar Urban Search & Rescue", "Collapse Rescue", false, new GeoPoint(23.8583, 90.2667), "+880 1555 000103"),
+        new(TeamId(4), "BDRCS Response Team Alpha", "Medical Evacuation", true, new GeoPoint(23.7256, 90.3970), "+880 1555 000104"),
+        new(TeamId(5), "Coast Guard River Unit", "Boat Rescue", true, new GeoPoint(23.7101, 90.3720), "+880 1555 000105"),
+        new(TeamId(6), "Army Engineer Detachment", "Heavy Lifting", false, new GeoPoint(23.8040, 90.4150), "+880 1555 000106"),
     ];
 }

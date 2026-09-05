@@ -21,6 +21,8 @@ public sealed class StubsModule : IFeatureModule
         services.TryAddSingleton<IShelterReadService, FakeShelterReadService>();
         services.TryAddSingleton<IRegistryReadService, FakeRegistryReadService>();
         services.TryAddSingleton<IUserAdminService, FakeUserAdminService>();
+        services.TryAddSingleton<IAuditTrail, NoOpAuditTrail>();
+        services.TryAddSingleton<IResponderAvailabilityService, FakeResponderAvailabilityService>();
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)

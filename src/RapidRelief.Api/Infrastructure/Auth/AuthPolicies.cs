@@ -10,6 +10,9 @@ public static class AuthPolicies
     public const string RequireRescuer = "RequireRescuer";
     public const string RequireCitizen = "RequireCitizen";
 
+    /// <summary>Operational surface shared by rescuers and their government supervisors.</summary>
+    public const string RequireResponder = "RequireResponder";
+
     // Backward-compatible aliases
     public const string RequireAdmin = "RequireGovernment";
     public const string RequireRescue = "RequireRescuer";
@@ -20,6 +23,7 @@ public static class AuthPolicies
         options.AddPolicy(RequireGovernment, p => p.RequireRole(Roles.Government));
         options.AddPolicy(RequireRescuer, p => p.RequireRole(Roles.Rescuer));
         options.AddPolicy(RequireCitizen, p => p.RequireRole(Roles.Citizen));
+        options.AddPolicy(RequireResponder, p => p.RequireRole(Roles.Rescuer, Roles.Government));
 
         // Legacy compatibility
         options.AddPolicy("RequireAdmin", p => p.RequireRole(Roles.Government));

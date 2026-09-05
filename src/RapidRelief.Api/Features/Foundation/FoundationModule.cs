@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using RapidRelief.Api.Infrastructure.Auth;
 using RapidRelief.Api.Infrastructure.Modules;
 using RapidRelief.Api.Infrastructure.Persistence;
 using RapidRelief.Shared.Contracts.Common;
@@ -36,11 +37,19 @@ public sealed class FoundationModule : IFeatureModule
 
         // DEMO SURFACE — foundation-owned proof feed for the /sample RapidMap (stub-backed via
         // IIncidentReadService). Remove once F2/F7 expose real incident read endpoints.
+        // Responder-only: this returns REAL incidents, including the precise coordinates and
+        // summary of live SOS reports. It was anonymous, which handed an attacker a targeting
+        // feed for vulnerable people during a disaster.
         group.MapGet("/demo-incidents", async (IIncidentReadService incidents, CancellationToken ct) =>
         {
             var result = await incidents.GetIncidentsAsync(new IncidentQuery(PageSize: 100), ct);
             return Results.Ok(new ApiEnvelope<PagedResult<IncidentSummaryDto>>(result));
-        }).AllowAnonymous();
+        }).RequireAuthorization(AuthPolicies.RequireResponder);
+
+        // Anonymous because the landing map renders before sign-in. The key (when a keyed
+        // provider is configured) is substituted here so it never lives in client source.
+        group.MapGet("/map-config", (IConfiguration config) =>
+            Results.Ok(new ApiEnvelope<MapConfigDto>(ReadMapConfig(config)))).AllowAnonymous();
 
         // Dynamically discover all valid images in the hero images folder so adding/removing files is instant
         endpoints.MapGet("/api/hero-images", (IWebHostEnvironment env) =>
@@ -67,6 +76,37 @@ public sealed class FoundationModule : IFeatureModule
 
             return Results.Ok(files);
         }).AllowAnonymous();
+    }
+
+    /// <summary>
+    /// Reads <c>Map:*</c> with the OSM fallback, substituting <c>{key}</c> in the tile template
+    /// from <c>Map:ApiKey</c> so the key is never present in the client bundle or in source.
+    /// </summary>
+    private static MapConfigDto ReadMapConfig(IConfiguration config)
+    {
+        var section = config.GetSection("Map");
+        var fallback = MapConfigDto.Fallback;
+
+        var tileUrl = Value(section["TileUrl"], fallback.TileUrl);
+        var apiKey = section["ApiKey"];
+        tileUrl = string.IsNullOrWhiteSpace(apiKey)
+            ? tileUrl.Replace("{key}", string.Empty, StringComparison.Ordinal)
+            : tileUrl.Replace("{key}", apiKey, StringComparison.Ordinal);
+
+        return new MapConfigDto(
+            tileUrl,
+            Value(section["Attribution"], fallback.Attribution),
+            Clamp(section.GetValue("MaxZoom", fallback.MaxZoom), 1, 22, fallback.MaxZoom),
+            new GeoPointDto(
+                section.GetValue("DefaultLatitude", fallback.DefaultCenter.Latitude),
+                section.GetValue("DefaultLongitude", fallback.DefaultCenter.Longitude)),
+            Clamp(section.GetValue("DefaultZoom", fallback.DefaultZoom), 1, 22, fallback.DefaultZoom));
+
+        static string Value(string? candidate, string fallbackValue)
+            => string.IsNullOrWhiteSpace(candidate) ? fallbackValue : candidate.Trim();
+
+        static int Clamp(int candidate, int min, int max, int fallbackValue)
+            => candidate < min || candidate > max ? fallbackValue : candidate;
     }
 }
 

@@ -5,6 +5,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>12</LangVersion>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <RollForward>LatestMajor</RollForward>
+    <RollForward>LatestMinor</RollForward>
   </PropertyGroup>
 </Project>

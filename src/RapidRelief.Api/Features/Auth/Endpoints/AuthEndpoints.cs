@@ -39,9 +39,11 @@ public static class AuthEndpoints
             .AllowAnonymous()
             .RequireRateLimiting("auth");
         group.MapPost("/oauth/google-session", GoogleSessionAsync)
-            .AllowAnonymous();
+            .AllowAnonymous()
+            .RequireRateLimiting("auth");
         group.MapPost("/oauth/google-init", GoogleInitAsync)
-            .AllowAnonymous();
+            .AllowAnonymous()
+            .RequireRateLimiting("auth");
         group.MapPost("/logout", LogoutAsync)
             .RequireAuthorization();
         group.MapGet("/profile", GetProfileAsync)
@@ -91,9 +93,7 @@ public static class AuthEndpoints
             return created.ToValidationProblem();
         }
 
-        var assignedRole = string.Equals(request.Role, Roles.Rescuer, StringComparison.OrdinalIgnoreCase)
-            ? Roles.Rescuer
-            : Roles.Citizen;
+        var assignedRole = ResolveRegistrationRole(request.Role, env);
 
         var roleResult = await userManager.AddToRoleAsync(user, assignedRole);
         if (!roleResult.Succeeded)
@@ -435,6 +435,39 @@ public static class AuthEndpoints
     private static bool TryGetUserId(ClaimsPrincipal principal, out Guid userId) =>
         Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out userId);
 
+    /// <summary>
+    /// Rescuer is an operational role: it unlocks the dispatch queue, the team registry and every
+    /// reporter's precise location. Letting an anonymous registration body choose it is
+    /// self-service privilege escalation, so only Development and Testing honour the request —
+    /// they need self-registered responders for the demo. Everywhere else an administrator
+    /// promotes the account through PUT /api/auth/users/{id}/roles.
+    /// </summary>
+    private static string ResolveRegistrationRole(string? requestedRole, IHostEnvironment env)
+        => string.Equals(requestedRole, Roles.Rescuer, StringComparison.OrdinalIgnoreCase)
+           && (env.IsDevelopment() || env.IsEnvironment("Testing"))
+            ? Roles.Rescuer
+            : Roles.Citizen;
+
+    /// <summary>
+    /// Accepts a requested OAuth callback only when it stays on this deployment's own origin;
+    /// anything else falls back to the canonical callback path.
+    /// </summary>
+    internal static string SameOriginCallback(string? requested, string origin)
+    {
+        var fallback = $"{origin}/auth/callback";
+        if (string.IsNullOrWhiteSpace(requested))
+        {
+            return fallback;
+        }
+
+        return Uri.TryCreate(requested, UriKind.Absolute, out var candidate)
+               && Uri.TryCreate(origin, UriKind.Absolute, out var self)
+               && candidate.Scheme == self.Scheme
+               && string.Equals(candidate.Authority, self.Authority, StringComparison.OrdinalIgnoreCase)
+            ? candidate.ToString()
+            : fallback;
+    }
+
     private static CookieOptions BuildCookieOptions(IHostEnvironment env, DateTimeOffset? expires)
     {
         var options = new CookieOptions
@@ -492,9 +525,10 @@ public static class AuthEndpoints
             var payload = new
             {
                 provider = "google",
-                callbackURL = string.IsNullOrWhiteSpace(request.CallbackUrl)
-                    ? $"{origin}/auth/callback"
-                    : request.CallbackUrl
+                // Never forward a caller-supplied callback verbatim: it is the address the OAuth
+                // result is delivered to, so an attacker-chosen value turns this into an open
+                // redirect that hands them the victim's sign-in.
+                callbackURL = SameOriginCallback(request.CallbackUrl, origin),
             };
 
             using var msg = new HttpRequestMessage(HttpMethod.Post, "https://ep-little-mountain-b3ttfx56.neonauth.c-4.ap-southeast-1.aws.neon.tech/neondb/auth/sign-in/social");
@@ -530,6 +564,16 @@ public static class AuthEndpoints
         IHostEnvironment env,
         CancellationToken ct)
     {
+        // SECURITY (audit 2026-09-03): this endpoint mints a full session from a caller-supplied
+        // e-mail without verifying any provider token — an authentication bypass for every account.
+        // Refused outside local dev until the Neon Auth session is validated server-side.
+        if (!env.IsDevelopment() && !env.IsEnvironment("Testing"))
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Not found");
+        }
+
         if (databaseHealth.PostgresAvailable != true)
         {
             return DatabaseUnavailable();
@@ -540,9 +584,7 @@ public static class AuthEndpoints
             return Results.BadRequest("Email is required");
         }
 
-        var assignedRole = string.Equals(request.Role, Roles.Rescuer, StringComparison.OrdinalIgnoreCase)
-            ? Roles.Rescuer
-            : Roles.Citizen;
+        var assignedRole = ResolveRegistrationRole(request.Role, env);
 
         var user = await userManager.FindByEmailAsync(request.Email);
         if (user is null)

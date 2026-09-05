@@ -1,5 +1,5 @@
 using RapidRelief.Api.Features.Stubs;
-using RapidRelief.Api.Features.Stubs.SeedData;
+using RapidRelief.Api.Infrastructure.SeedData;
 using RapidRelief.Shared.Contracts.Enums;
 using RapidRelief.Shared.Contracts.ReadModels;
 
