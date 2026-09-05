@@ -58,6 +58,17 @@ public sealed class AiDbContext : DbContext
             assessment.Property(a => a.Provider).IsRequired().HasMaxLength(32);
             assessment.Property(a => a.ModelName).HasMaxLength(64);
             assessment.Property(a => a.FinishReason).HasMaxLength(32);
+            assessment.Property(a => a.Urgency).HasMaxLength(16);
+            assessment.Property(a => a.PriorityBand).HasMaxLength(16);
+            assessment.Property(a => a.Reasoning).HasMaxLength(600);
+            assessment.Property(a => a.DamageIndicatorsJson).HasMaxLength(1000);
+            assessment.Property(a => a.PriorityFactorsJson).HasMaxLength(2000);
+            assessment.Property(a => a.DegradedReason).HasMaxLength(120);
+            assessment.Property(a => a.DuplicateReason).HasMaxLength(300);
+            assessment.Property(a => a.DuplicateDecision).HasMaxLength(16);
+            assessment.Property(a => a.SnapshotDescriptionKey).HasMaxLength(600);
+            // The duplicate review queue reads flagged-and-undecided rows.
+            assessment.HasIndex(a => new { a.PossibleDuplicateOfId, a.DuplicateDecision });
 
             // SampleDbContext ticks gate: SQLite cannot compare DateTimeOffset TEXT columns
             // in SQL; Npgsql stays on native timestamptz.
@@ -68,6 +79,9 @@ public sealed class AiDbContext : DbContext
                     v => new DateTimeOffset(v, TimeSpan.Zero));
                 assessment.Property(a => a.CreatedAtUtc).HasConversion(
                     v => v.UtcTicks,
+                    v => new DateTimeOffset(v, TimeSpan.Zero));
+                assessment.Property(a => a.DuplicateReviewedAtUtc).HasConversion(
+                    v => v!.Value.UtcTicks,
                     v => new DateTimeOffset(v, TimeSpan.Zero));
             }
         });

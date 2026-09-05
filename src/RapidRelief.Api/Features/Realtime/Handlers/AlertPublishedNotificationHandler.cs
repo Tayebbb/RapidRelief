@@ -17,7 +17,7 @@ public sealed record AlertPublishedNotification(
 /// <summary>D-036: AlertPublished → topic <c>alerts.published</c> to everyone (dormant until F10 publishes).</summary>
 public sealed class AlertPublishedNotificationHandler : IEventHandler<AlertPublished>
 {
-    public const string Topic = "alerts.published";
+    public const string Topic = RealtimeTopics.AlertPublished;
 
     private readonly IRealtimeNotifier _notifier;
 
