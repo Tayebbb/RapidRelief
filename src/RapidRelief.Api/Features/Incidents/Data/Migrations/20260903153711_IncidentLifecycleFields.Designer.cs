@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using RapidRelief.Api.Features.Incidents.Data;
@@ -11,9 +12,11 @@ using RapidRelief.Api.Features.Incidents.Data;
 namespace RapidRelief.Api.Features.Incidents.Data.Migrations
 {
     [DbContext(typeof(IncidentsDbContext))]
-    partial class IncidentsDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260903153711_IncidentLifecycleFields")]
+    partial class IncidentLifecycleFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -118,10 +121,6 @@ namespace RapidRelief.Api.Features.Incidents.Data.Migrations
 
                     b.Property<double>("Longitude")
                         .HasColumnType("double precision");
-
-                    b.Property<string>("MissionStage")
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
 
                     b.Property<Guid?>("PossibleDuplicateOfId")
                         .HasColumnType("uuid");
