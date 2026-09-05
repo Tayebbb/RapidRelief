@@ -73,10 +73,30 @@ public sealed class AiEndpointsTests : IClassFixture<TestingWebAppFactory>
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    /// <summary>
+    /// An incident id is not a secret. These routes take one and return the AI summary derived
+    /// from the reporter's free text, so a citizen holding someone else's id must be refused —
+    /// they read their own AI estimate through the owner-scoped incident DTO instead.
+    /// </summary>
+    [Theory]
+    [InlineData("/api/ai/assessments/a0000000-0000-0000-0000-000000000001")]
+    [InlineData("/api/ai/insights/a0000000-0000-0000-0000-000000000001")]
+    [InlineData("/api/ai/recommendations/shelter?incidentId=a0000000-0000-0000-0000-000000000001")]
+    [InlineData("/api/ai/recommendations/team?incidentId=a0000000-0000-0000-0000-000000000001")]
+    [InlineData("/api/ai/recommendations/resource?incidentId=a0000000-0000-0000-0000-000000000001")]
+    public async Task A_citizen_cannot_read_decision_support_for_an_arbitrary_incident(string url)
+    {
+        var client = CreateClientWithRole(Roles.Citizen);
+
+        var response = await client.GetAsync(url);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
     [Fact]
     public async Task Unknown_incident_assessment_returns_404_problem()
     {
-        var client = CreateClientWithRole(Roles.Citizen);
+        var client = CreateClientWithRole(Roles.Rescuer);
 
         var response = await client.GetAsync($"/api/ai/assessments/{Guid.NewGuid()}");
 
@@ -89,7 +109,7 @@ public sealed class AiEndpointsTests : IClassFixture<TestingWebAppFactory>
     {
         var incidentId = Guid.NewGuid();
         await PublishAsync(Evt(incidentId, 23.7461, 90.3742));
-        var client = CreateClientWithRole(Roles.Citizen);
+        var client = CreateClientWithRole(Roles.Rescuer);
 
         var response = await WaitFor200Async(client, $"/api/ai/assessments/{incidentId}");
 
@@ -132,7 +152,7 @@ public sealed class AiEndpointsTests : IClassFixture<TestingWebAppFactory>
     [Fact]
     public async Task Missing_incident_id_returns_400()
     {
-        var client = CreateClientWithRole(Roles.Citizen);
+        var client = CreateClientWithRole(Roles.Rescuer);
 
         var response = await client.GetAsync("/api/ai/recommendations/shelter");
 
@@ -142,7 +162,7 @@ public sealed class AiEndpointsTests : IClassFixture<TestingWebAppFactory>
     [Fact]
     public async Task Unknown_incident_recommendations_return_404()
     {
-        var client = CreateClientWithRole(Roles.Citizen);
+        var client = CreateClientWithRole(Roles.Rescuer);
 
         var response = await client.GetAsync($"/api/ai/recommendations/shelter?incidentId={Guid.NewGuid()}");
 
@@ -231,7 +251,7 @@ public sealed class AiEndpointsTests : IClassFixture<TestingWebAppFactory>
         // Not in the seed data — only the ai_assessments snapshot knows this incident.
         var incidentId = Guid.NewGuid();
         await PublishAsync(Evt(incidentId, 23.8210, 90.3665));
-        var client = CreateClientWithRole(Roles.Citizen);
+        var client = CreateClientWithRole(Roles.Rescuer);
         Assert.Equal(HttpStatusCode.OK,
             (await WaitFor200Async(client, $"/api/ai/assessments/{incidentId}")).StatusCode);
 
@@ -248,7 +268,7 @@ public sealed class AiEndpointsTests : IClassFixture<TestingWebAppFactory>
     [Fact]
     public async Task Recommendation_responses_carry_the_no_store_header()
     {
-        var client = CreateClientWithRole(Roles.Citizen);
+        var client = CreateClientWithRole(Roles.Rescuer);
 
         var response = await client.GetAsync($"/api/ai/recommendations/resource?incidentId={SeededFloodIncident}");
 

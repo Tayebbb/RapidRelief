@@ -52,13 +52,16 @@ public sealed class OpenRouterClientTests
     }
 
     private static OpenRouterClient Create(HttpMessageHandler handler, out StubHttpClientFactory factory,
-        int textTimeoutSeconds = 10, int visionTimeoutSeconds = 20)
+        int textTimeoutSeconds = 10, int visionTimeoutSeconds = 20, int maxAttempts = 2)
     {
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["Ai:OpenRouter:ApiKey"] = ApiKey,
             ["Ai:OpenRouter:TimeoutSecondsText"] = textTimeoutSeconds.ToString(),
             ["Ai:OpenRouter:TimeoutSecondsVision"] = visionTimeoutSeconds.ToString(),
+            ["Ai:OpenRouter:MaxAttempts"] = maxAttempts.ToString(),
+            // Keep the retry pause out of the test clock; the backoff maths is pinned separately.
+            ["Ai:OpenRouter:RetryBaseDelayMs"] = "0",
         }).Build();
         factory = new StubHttpClientFactory(handler);
         return new OpenRouterClient(factory, config);
@@ -112,7 +115,7 @@ public sealed class OpenRouterClientTests
     }
 
     [Fact]
-    public async Task A_429_is_a_single_counted_failure_with_zero_retries()
+    public async Task A_429_is_retried_once_then_reported_as_a_counted_failure()
     {
         using var handler = new RecordingHandler((_, _) =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.TooManyRequests)));
@@ -122,7 +125,42 @@ public sealed class OpenRouterClientTests
             () => client.SendAsync("{}", isVision: false));
 
         Assert.Contains("429", ex.Message);
-        Assert.Single(handler.Requests); // D-026/D-060: zero retries — fallback is instant and free
+        // Overload is worth exactly one more try; after that the caller's fallback is faster
+        // than anything the provider will give us.
+        Assert.Equal(2, handler.Requests.Count);
+    }
+
+    [Fact]
+    public async Task A_400_is_not_retried_because_the_same_request_will_fail_again()
+    {
+        using var handler = new RecordingHandler((_, _) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.BadRequest)));
+        var client = Create(handler, out _);
+
+        await Assert.ThrowsAsync<AiProviderUnavailableException>(
+            () => client.SendAsync("{}", isVision: false));
+
+        Assert.Single(handler.Requests);
+    }
+
+    [Fact]
+    public async Task A_transient_500_that_recovers_on_the_second_attempt_returns_the_body()
+    {
+        const string responseBody = "{\"choices\":[{\"message\":{\"content\":\"x\"},\"finish_reason\":\"stop\"}]}";
+        var attempts = 0;
+        using var handler = new RecordingHandler((_, _) =>
+        {
+            attempts++;
+            return Task.FromResult(attempts == 1
+                ? new HttpResponseMessage(HttpStatusCode.InternalServerError)
+                : Ok(responseBody));
+        });
+        var client = Create(handler, out _);
+
+        var response = await client.SendAsync("{}", isVision: false);
+
+        Assert.Equal(responseBody, response);
+        Assert.Equal(2, handler.Requests.Count);
     }
 
     [Fact]
