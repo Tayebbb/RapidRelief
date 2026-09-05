@@ -3,8 +3,21 @@
 **STOP — before implementing, planning, or reviewing anything in this repo:**
 
 1. Read [PROJECT-CONTEXT.md](PROJECT-CONTEXT.md) — the single source of truth for what is implemented, what is next, and the architecture rules.
-2. For feature work, read that feature's section in [RapidRelief-Development-Plan.md](RapidRelief-Development-Plan.md).
-3. **Before creating or changing ANY page, component or style, read [design.md](design.md)** — the mandatory design system (tokens, components, dark/light rules, a11y gate). UI work that ignores it must not be merged.
+2. Read [PROJECT-AUDIT.md](PROJECT-AUDIT.md) — the verified state of the repository (capability matrix, known defects, P0–P3 backlog). If a status row and the audit disagree, the audit wins.
+3. For feature work, read that feature's section in [RapidRelief-Development-Plan.md](RapidRelief-Development-Plan.md).
+4. **Before creating or changing ANY page, component or style, read [design.md](design.md)** — the mandatory design system (tokens, components, dark/light rules, a11y gate). Colour hexes come from [RapidRelief-Website-Theme.md](RapidRelief-Website-Theme.md); the long-form UI guide is [frontend-uiux.md](frontend-uiux.md). UI work that ignores them must not be merged.
+5. **Before adding or changing an endpoint, read [api-conventions.md](api-conventions.md)** (routes, envelope, ProblemDetails, paging, rate-limit policies, per-context EF commands) and, for cross-module work, [event-bus.md](event-bus.md).
+
+## Facts agents get wrong (check these first)
+
+- **Roles are `Citizen`, `Rescuer`, `Government`.** `Roles.Admin`/`Roles.Ngo`/`Roles.Rescue` are aliases of those — there is no separate NGO role.
+- **The palette has no blue** (D-074). Action = Forest Green `#1e7a5a`; red is emergency/destructive only. Use `--rr-*` tokens, never raw hex.
+- **Ten DbContexts** exist (Sample, Auth, Ai, Notifications, Ops, Alerts, Incidents, Relief, Rescue, Audit) — always pass `--context` and the feature's `--output-dir`.
+- **Administrative actions must be audited.** Inject `IAuditTrail` (frozen contract) and record who/what/entity/result; never reference `Features/Audit` directly. Writes never throw, so an audit line can never fail the action (D-097).
+- **AI output is decision support, never fact.** Read `AiInsightDto`, render its `Disclaimer`, and never drop the confidence or the priority factors when you surface a score (D-102). Deterministic text evidence is unioned with the model, never replaced by it (D-104). Duplicate flags are advisory — nothing in the AI slice may close, merge or delete a report (D-107).
+- **Every feature maps endpoints now** — D-079 is superseded. F2 `/api/incidents`, F4 `/api/relief/requests` and F5 `/api/rescue` are all live as of 2026-09-03 (D-083, D-084, D-087, D-092…D-096). Use them; do not re-mock them.
+- **Rescue conflicts are refused, not merged**: assigning an already-assigned incident, a deployed team or an off-duty team is `409`; mission transitions are forward-only; reassignment is Government-only (D-094, D-095).
+- **Never call `navigator.geolocation` from a page** — inject `GeolocationService` (D-075).
 
 ## Hard rules (summary — full versions in PROJECT-CONTEXT.md §4)
 

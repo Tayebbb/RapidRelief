@@ -7,7 +7,7 @@
 > PROJECT-CONTEXT.md.
 
 The single source of truth for tokens is
-[src/RapidRelief.Client/wwwroot/css/app.css](src/RapidRelief.Client/wwwroot/css/app.css).
+[src/RapidRelief.Client/wwwroot/css/app.css](../src/RapidRelief.Client/wwwroot/css/app.css).
 This document explains how to use it.
 
 ---
@@ -19,7 +19,7 @@ This document explains how to use it.
 | Personality | Calm, trustworthy, government/health-grade. Premium through spacing, hierarchy and consistency — never through flashiness. |
 | Style | "Accessible & Ethical": high contrast, 16px+ body text, visible focus, WCAG-first. |
 | Typeface | **Lexend** (variable, vendored in `wwwroot/fonts/` — never a CDN link). Fallback: `Segoe UI, system-ui`. Mono for ids/code: `var(--rr-font-mono)`. |
-| Color roles | **Blue = action** (`--rr-primary`). **Red = emergency/destructive ONLY** (`--rr-danger`, brand mark). Never make ordinary buttons red — red must keep its alarm meaning in a disaster app. |
+| Color roles | **Forest Green = action** (`--rr-primary` `#1e7a5a`, dark `#2cb67d`). **Red = emergency/destructive ONLY** (`--rr-danger` `#e53935`). Never make ordinary buttons red — red must keep its alarm meaning in a disaster app. **There is no blue token** — the palette was repainted to the brand colors on 2026-09-03 (D-074, supersedes D-067's "blue = action"). |
 | Modes | Light + dark are first-class. Both must be checked before shipping any page. |
 | Motion | Subtle and purposeful: 150–300 ms, small fades/rises. Everything dies under `prefers-reduced-motion`. |
 | Anti-patterns | No emojis as icons. No complex/multi-layer shadows. No 3D. No color-only status indicators (always pair color with text or an icon). No `MarkupString`/`innerHTML` (enforced by `ClientRenderSafetyTests`). |
@@ -29,16 +29,30 @@ This document explains how to use it.
 Defined in `app.css` on `:root` (light) and `[data-theme='dark']` (dark). Components written
 with tokens are automatically correct in both themes.
 
+Brand palette (source of truth for the hexes: [RapidRelief-Website-Theme.md](RapidRelief-Website-Theme.md)):
+
+| Role | Light | Dark | Meaning |
+| --- | --- | --- | --- |
+| Action / brand / links | `#1e7a5a` Forest Green | `#2cb67d` Mint | Primary buttons, links, active nav, focus ring |
+| Emergency / destructive | `#e53935` Rescue Red | `#ef5350` | SOS, critical alerts, delete — **nothing else** |
+| Warning | `#fb8c00` Sunrise Orange (soft pairs) | orange @14% | Degraded, expiring, needs attention |
+| Success | `#2cb67d` Mint | `#2cb67d` | Safe, open, delivered |
+| Page background | `#faf7f2` Warm Ivory | `#111513` | Never pure white/black |
+| Soft surface | `#eef3ee` Sage Mist | `#1f2722` | Sections, chips, table headers |
+| Text | `#2f3431` Moss Charcoal | `#f3f5f4` | Body copy |
+
+The dark theme is **green-tinted, never navy**. Info surfaces are sage-green, not blue.
+
 ```text
 Surfaces   --rr-bg  --rr-surface  --rr-surface-2  --rr-surface-3
 Text       --rr-text  --rr-text-2 (secondary)  --rr-text-3 (meta/captions)
 Borders    --rr-border  --rr-border-strong
-Action     --rr-primary  --rr-primary-hover  --rr-on-primary  --rr-link
-Emergency  --rr-danger  --rr-danger-hover  --rr-brand
+Action     --rr-primary  --rr-primary-hover  --rr-on-primary  --rr-link  --rr-brand
+Emergency  --rr-danger  --rr-danger-hover
 Soft pairs --rr-{danger|warning|success|info}-soft / -soft-text / -soft-border
 Status     --rr-success
 Focus      --rr-focus (3px outline, applied globally via :focus-visible)
-Shadow     --rr-shadow (cards)  --rr-shadow-pop (popovers/toasts only)
+Shadow     --rr-shadow (cards)  --rr-shadow-pop (popovers/toasts only)  --rr-backdrop (drawer/modal scrim)
 Radius     --rr-radius-s (6) --rr-radius (10) --rr-radius-l (14, cards) --rr-radius-pill
 Spacing    --space-1..12 (0.25rem steps of an 8px rhythm)
 Z-index    --z-sticky 100 · --z-drawer 1100 · --z-popover 1200 · --z-toast 1300
@@ -47,7 +61,7 @@ Motion     --rr-ease  --rr-fast (150ms)  --rr-base (240ms)
 
 **Hard rule:** scoped `.razor.css` files may only use `var(--rr-*)` / `var(--space-*)` tokens
 for colors, spacing, radii, shadows and z-index. Raw hex values in a feature stylesheet are a
-review-blocker.
+review-blocker — and a blue one is a regression of D-074.
 
 ## 3. Ready-made components & classes
 
@@ -66,10 +80,10 @@ Reuse before inventing. All of these are in `app.css` unless noted.
 | Buttons | `btn btn-primary` (main action, one per view), `btn-secondary`, `btn-outline-secondary`, `btn-danger` (destructive only), `btn-link`. Icon-only: `rr-icon-btn` + `aria-label` |
 | Alerts | Bootstrap `alert alert-{danger,warning,info,success}` — themed soft surfaces |
 | Auth screens | `rr-auth-shell` > `rr-auth-card` (+ `rr-auth-brand`, `rr-auth-lede`, `rr-auth-foot`) |
-| Icons | `<AppIcon Name="map-pin" Size="19" />` ([Common/Ui/AppIcon.razor](src/RapidRelief.Client/Common/Ui/AppIcon.razor)). Add new glyphs THERE (Feather-style, 24 grid, stroke 1.8). Never emoji, never a second icon style |
+| Icons | `<AppIcon Name="map-pin" Size="19" />` ([Common/Ui/AppIcon.razor](../src/RapidRelief.Client/Common/Ui/AppIcon.razor)). Add new glyphs THERE (Feather-style, 24 grid, stroke 1.8). Never emoji, never a second icon style |
 | Theme toggle | `<ThemeToggle />` — already in the header; don't add more |
 | Router states | styled `rr-empty rr-router-state` blocks live in `App.razor` |
-| Map | `<RapidMap …/>` (`.rapid-map` = 480px, rounded) |
+| Map | `<RapidMap …/>` (`.rapid-map` = 480px, rounded). Pass `UserLocation` + `UserLocationAccuracyMeters` for the "you are here" dot — see §10 |
 
 Bootstrap 5.1 is themed via the "Bootstrap bridge" section of `app.css` — standard Bootstrap
 markup (cards, badges, tables, list-groups) automatically matches the design system in both
@@ -77,12 +91,13 @@ themes. Prefer the `rr-*` primitives for new work.
 
 ## 4. Layout & shell
 
-- The shell ([MainLayout](src/RapidRelief.Client/Layout/MainLayout.razor)) provides: skip-link,
-  sidebar (drawer < 900px), sticky glass header ([AppHeader](src/RapidRelief.Client/Layout/AppHeader.razor)),
+- The shell ([MainLayout](../src/RapidRelief.Client/Layout/MainLayout.razor)) provides: skip-link,
+  sidebar (drawer < 900px), sticky glass header ([AppHeader](../src/RapidRelief.Client/Layout/AppHeader.razor)),
   `<main id="rr-main">`. Pages render inside — never add another `position: sticky` header.
-- Add nav links in [NavMenu.razor](src/RapidRelief.Client/Layout/NavMenu.razor) under the right
-  section (`Response` / `Personal` (authed) / `Administration`) with an `AppIcon` and, for
-  role-gated pages, the `nav-tag` badge.
+- Add nav links in [NavMenu.razor](../src/RapidRelief.Client/Layout/NavMenu.razor) under the right
+  section (`Citizen Portal` / `Personal & Alerts` (authed) / `Government Command` / `Rescuer
+  Operations`) with an `AppIcon` and, for role-gated pages, the `nav-tag` badge. Role-gated
+  sections sit inside `AuthorizeView Roles="…"` — a dev role must never unlock UI.
 - Breakpoints: **900px** (sidebar/drawer switch), 640px, 480px, 400px for fine-tuning.
   Test every page at **375px** and desktop before calling it done.
 - The header is the app's ONLY translucent ("glass") surface. Do not add more glassmorphism.
@@ -90,7 +105,7 @@ themes. Prefer the `rr-*` primitives for new work.
 ## 5. Theme rules (dark + light)
 
 - Theme = `data-theme` attribute on `<html>`, set pre-paint by
-  [js/theme.js](src/RapidRelief.Client/wwwroot/js/theme.js) (localStorage `rr-theme`, falls back
+  [js/theme.js](../src/RapidRelief.Client/wwwroot/js/theme.js) (localStorage `rr-theme`, falls back
   to `prefers-color-scheme`, follows OS while no explicit choice).
 - localStorage may hold **UI preferences only** — never tokens, never PII (F1 rule stands).
 - Never branch on the theme in C# or markup. Write token-based CSS and both themes work.
@@ -173,3 +188,35 @@ themes. Prefer the `rr-*` primitives for new work.
 ```
 
 Then: add the `NavMenu` link, run through §8, update PROJECT-CONTEXT.md.
+
+## 10. Location & maps (D-075)
+
+Never call `navigator.geolocation` from a page. Inject the shared service instead:
+
+```razor
+@inject GeolocationService Geo
+
+var result = await Geo.GetCurrentAsync();   // never throws, never rejects
+if (result.Point is { } point)
+{
+    _userLocation = point;
+    _accuracy = result.AccuracyMeters;
+}
+else
+{
+    _notice = result.Message;   // already user-ready: denied / unavailable / timeout / unsupported
+}
+```
+
+Rules:
+
+- **Only ask on a user action** (a button, or an explicit "locating…" step on a page whose whole
+  purpose is location). A failed fix is a normal state — render `result.Message` in an
+  `alert alert-warning` with a **Retry** button, never an error page and never a dead end.
+- Always have a fallback: `SheltersFinder` falls back to central Dhaka so the map is never blank.
+- Show the user dot through `RapidMap`'s `UserLocation` / `UserLocationAccuracyMeters`
+  parameters (rendered by `rapidMap.js` `setUserLocation`, styled by `.rapid-map-user-dot` /
+  `.rapid-map-user-halo`). Do **not** push "you are here" into `Markers` — the marker diff would
+  erase it on the next refresh.
+- Coordinates displayed to the user are rounded; the assistant page keeps its own opt-in
+  `js/geo.js` flow with client-side rounding (D-057) — do not merge the two.

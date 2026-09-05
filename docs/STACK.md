@@ -44,7 +44,7 @@
 | :--- | :--- | :--- |
 | **Blazor WebAssembly (WASM) .NET 8** | Single Page Application (SPA) running client-side in the browser via WebAssembly. | Allows full-stack C# development, sharing models/contracts directly with the backend without JS duplication. |
 | **Progressive Web App (PWA)** | Service worker caching, offline capability, installability on mobile/desktop. | Enables disaster reporting in field conditions with low or no internet connectivity. |
-| **Vanilla CSS & HTML5** | Modern, responsive layout with custom design system. | Maximum styling control, zero heavy JS UI framework overhead. |
+| **Vanilla CSS & HTML5** | Modern, responsive layout with a token design system (`wwwroot/css/app.css`, light + dark via `data-theme`; Forest Green action / Rescue Red emergency palette — see [design.md](design.md)). | Maximum styling control, zero heavy JS UI framework overhead. |
 | **Leaflet.js + OpenStreetMap** | Interactive mapping, shelter locator, incident geo-tagging, and heatmaps. | 100% open-source, free tile server, no Google Maps API keys or billing required. |
 | **Microsoft.AspNetCore.SignalR.Client** | Real-time push updates for live alert feeds, chat, and status changes. | Instant bidirectional messaging over WebSockets with automatic fallback. |
 
@@ -58,7 +58,7 @@
 | **Minimal APIs** | Lightweight endpoint route definition per vertical slice. | Fast startup, clean routing syntax, minimal boilerplate compared to heavy MVC controllers. |
 | **FluentValidation** | Explicit request validation before hitting domain handlers. | Strong typed rules, testable, and produces standard RFC 7807 `ProblemDetails` errors. |
 | **Serilog (`Serilog.AspNetCore`)** | Structured JSON and console logging across application lifecycle. | Structured diagnostic events, easy troubleshooting, and configurable log sinks. |
-| **MultiAuth (JWT + FakeAuth)** | Multi-scheme authentication handling real JWT tokens for production and `X-Dev-Role` header for development. | Zero friction for frontend developers testing different user roles (Admin, Rescue, NGO, Citizen) without logging in/out. |
+| **MultiAuth (JWT + FakeAuth)** | Multi-scheme authentication handling real JWT tokens (password login and Google/Neon sign-in) plus the `X-Dev-Role` header in Development. | Zero friction for frontend developers testing the three roles (Citizen, Rescuer, Government) without logging in/out. |
 | **In-Process Scoped Event Bus** | Lightweight domain event dispatcher (`IEventBus`) decoupling slices. | Slices can notify other modules (e.g. `IncidentCreated`, `AlertPublished`) without referencing their code directly. |
 
 ---
@@ -69,7 +69,7 @@
 | :--- | :--- | :--- |
 | **PostgreSQL 16** | Primary relational database engine. | Robust ACID compliance, native JSON/Geo support, free cloud tiers (Neon DB) and local Docker support. |
 | **Entity Framework Core 8 (Npgsql)** | Object-Relational Mapper (ORM). | Strongly typed LINQ queries, automatic migrations, and connection pooling. |
-| **Per-Slice DbContext Pattern** | Each feature owns its own `DbContext` (e.g., `AuthDbContext`, `AiDbContext`, `SampleDbContext`) with independent migration history tables (`__efmigrationshistory_*`). | Prevents team migration merge conflicts across multiple developers. |
+| **Per-Slice DbContext Pattern** | Each feature owns its own `DbContext` — nine today (`SampleDbContext`, `AuthDbContext`, `AiDbContext`, `NotificationsDbContext`, `OpsDbContext`, `AlertsDbContext`, `IncidentsDbContext`, `ReliefDbContext`, `RescueDbContext`) with independent migration history tables (`__efmigrationshistory_*`). | Prevents team migration merge conflicts across multiple developers. |
 | **Database Degraded Mode** | `MigrationRunner` retries on startup and falls back to degraded mode if DB is unreachable. | The application never crashes on DB failure; read-only/stub features remain functional. |
 
 ---
@@ -78,7 +78,7 @@
 
 | Technology | Role & Usage | Why It Was Chosen |
 | :--- | :--- | :--- |
-| **OpenRouter API** | Cloud LLM provider accessing free tier models (e.g., `deepseek/deepseek-chat`, `meta-llama/llama-3.3-70b-instruct`). | Universal API endpoint, low latency, and zero vendor lock-in. |
+| **OpenRouter API** | Cloud LLM gateway pinned to free-tier models: text `z-ai/glm-5.2:free` → `nvidia/nemotron-3-super-120b-a12b:free`, vision `google/gemma-4-31b-it:free` → `minimax/minimax-m3:free` (D-061). Opt-in via `Ai:OpenRouter:ApiKey`. | One API for many providers, in-body model fallback, and zero vendor lock-in. |
 | **Rule-Based Fallback Engine** | Permanent offline/fallback AI classifier and chatbot engine. | Guarantees the system operates 100% reliably even if the internet drops, API keys expire, or rate limits are reached. |
 
 ---
@@ -142,5 +142,7 @@ dotnet test RapidRelief.sln
 
 ### Apply Database Migrations
 ```powershell
-dotnet ef database update --project src/RapidRelief.Api
+# always name the context and its feature-owned output dir — see docs/api-conventions.md
+dotnet ef database update --project src/RapidRelief.Api --context SampleDbContext
 ```
+*Startup applies every context automatically; this command is only for CI or manual checks.*

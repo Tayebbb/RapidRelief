@@ -19,7 +19,7 @@ The product is essentially **five actor-facing applications sharing one platform
 
 ### 1.1 Technology Selection (decided _after_ requirements analysis)
 
-> **Implementation note (2026-09-02):** the stack below is the original plan. Where reality diverged, [PROJECT-CONTEXT.md](PROJECT-CONTEXT.md) §7 decisions are authoritative — notably D-006 (hand-rolled event bus replaced MediatR), D-060…D-066 (AI provider is OpenRouter free models, not Gemini), D-032 (Realtime tri-state mode). See PROJECT-CONTEXT.md for the live stack.
+> **Implementation note (updated 2026-09-03):** everything below is the *original plan*. Where reality diverged, [PROJECT-CONTEXT.md](PROJECT-CONTEXT.md) §7 decisions are authoritative — notably D-006 (hand-rolled event bus replaced MediatR), D-060…D-066 (AI provider is OpenRouter free models, not Gemini), D-032 (Realtime tri-state mode), **D-070 (four roles collapsed to three: `Citizen` / `Rescuer` / `Government`; "Admin" and "NGO" are aliases of `Government` throughout this plan)**, **D-074 (brand palette: Forest Green action, no blue)** and **D-079 (F2/F4/F5 shipped schema + UI before endpoints)**. See PROJECT-CONTEXT.md for the live stack and status.
 
 Only .NET is mandated. Choices below optimize for: one language for the whole team, zero licensing cost, offline support, real-time support, and demo reliability.
 

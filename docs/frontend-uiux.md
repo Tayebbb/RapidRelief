@@ -16,7 +16,7 @@ RapidRelief is an **AI-Smart Disaster Response & Emergency Management System**. 
 
 ### 🚫 Design Anti-Patterns (Strictly Forbidden)
 1. **Never use generic or harsh hex colors.** Always use semantic `--rr-*` CSS tokens.
-2. **Never use red for ordinary actions.** `--rr-primary` (Safety Blue) is for primary actions. `--rr-danger` (Emergency Red) is **strictly reserved** for emergencies, critical alerts, SOS, and destructive actions.
+2. **Never use red for ordinary actions.** `--rr-primary` (Forest Green `#1e7a5a`) is for primary actions. `--rr-danger` (Rescue Red `#e53935`) is **strictly reserved** for emergencies, critical alerts, SOS, and destructive actions. **Blue is not part of the palette** (D-074) — a blue hex anywhere in the client is a regression.
 3. **Never use emojis as icons.** Always use `<AppIcon Name="..." />`.
 4. **Never render raw HTML (`MarkupString`, `innerHTML`, `outerHTML`, or markdown renderers).** All content must use Blazor's `@-interpolation` to prevent XSS (enforced by `ClientRenderSafetyTests`).
 5. **No decorative glassmorphism or 3D clutter.** The header is the only translucent surface (`--rr-backdrop`). Everything else uses clean, solid surface tokens.
@@ -25,50 +25,55 @@ RapidRelief is an **AI-Smart Disaster Response & Emergency Management System**. 
 
 ## 2. Design Token System
 
-All components must strictly use tokens defined on `:root` and `[data-theme='dark']` in `src/RapidRelief.Client/wwwroot/css/app.css`.
+All components must strictly use tokens defined on `:root` and `[data-theme='dark']` in `src/RapidRelief.Client/wwwroot/css/app.css`. Hex values below are the **current** brand palette (D-074, 2026-09-03) — see [RapidRelief-Website-Theme.md](RapidRelief-Website-Theme.md) for the brand rationale and [design.md](design.md) for the shorter mandatory rulebook.
 
 ### 🎨 Semantic Colors & Surfaces
 
 ```css
-/* Surface Tokens */
---rr-bg                 /* Main background (Light: #f6f7f9 | Dark: #0b1220) */
---rr-surface            /* Card / Container surface (Light: #ffffff | Dark: #121b2e) */
---rr-surface-2          /* Elevated section / muted background (Light: #eef1f5 | Dark: #182338) */
---rr-surface-3          /* Hover / active surface (Light: #e3e8ef | Dark: #203050) */
+/* Surface Tokens — Warm Ivory / Sage Mist family, green-tinted dark (never navy) */
+--rr-bg                 /* Main background (Light: #faf7f2 | Dark: #111513) */
+--rr-surface            /* Card / Container surface (Light: #ffffff | Dark: #181d1a) */
+--rr-surface-2          /* Elevated section / muted background (Light: #eef3ee | Dark: #1f2722) */
+--rr-surface-3          /* Hover / active surface (Light: #e0e8e1 | Dark: #2a342e) */
 
 /* Text & Foreground */
---rr-text               /* High-contrast primary text (Light: #0f172a | Dark: #edf2f9) */
---rr-text-2             /* Secondary body text (Light: #46556b | Dark: #a9b7cd) */
---rr-text-3             /* Muted captions & metadata (Light: #64748b | Dark: #8294ae) */
+--rr-text               /* High-contrast primary text (Light: #2f3431 | Dark: #f3f5f4) */
+--rr-text-2             /* Secondary body text (Light: #4d5751 | Dark: #aeb9b2) */
+--rr-text-3             /* Muted captions & metadata (Light: #6b7280 | Dark: #8b968f) */
 
 /* Borders */
---rr-border             /* Standard subtle border */
+--rr-border             /* Standard subtle border (Light: #d9e0db | Dark: #2c3631) */
 --rr-border-strong      /* High-contrast card & input border */
 
-/* Actions & Brand */
---rr-primary            /* Primary button & brand action (#2563eb) */
---rr-primary-hover      /* Hover state for primary action */
---rr-on-primary         /* Text color on primary button (#ffffff) */
---rr-link               /* Hyperlink color */
+/* Actions & Brand — Forest Green */
+--rr-primary            /* Primary button & brand action (Light: #1e7a5a | Dark: #2cb67d) */
+--rr-primary-hover      /* Hover state for primary action (Light: #176448) */
+--rr-on-primary         /* Text color on primary button (Light: #ffffff | Dark: #0b241a) */
+--rr-link               /* Hyperlink color (Light: #1e7a5a | Dark: #7fd7b2) */
+--rr-brand              /* Logo / brand mark */
 
 /* Severity & Semantic Soft Pairs */
---rr-danger             /* Critical alarm, emergency, destructive (#dc2626 / #ef4444) */
---rr-danger-soft        /* Soft emergency banner background */
---rr-danger-soft-text   /* Soft emergency text */
+--rr-danger             /* Critical alarm, emergency, destructive (Light: #e53935 | Dark: #ef5350) */
+--rr-danger-soft        /* Soft emergency banner background (#ffebee) */
+--rr-danger-soft-text   /* Soft emergency text (#c62828) */
 --rr-danger-soft-border /* Soft emergency border */
 
---rr-warning-soft       /* Warning background (amber/yellow) */
---rr-warning-soft-text  /* Warning text */
+--rr-warning-soft       /* Warning background — Sunrise Orange family (#fff3e0) */
+--rr-warning-soft-text  /* Warning text (#9a5b00) */
 --rr-warning-soft-border/* Warning border */
 
---rr-success            /* Success green (#16a34a / #22c55e) */
---rr-success-soft       /* Success background */
---rr-success-soft-text  /* Success text */
+--rr-success            /* Success — Mint Green (#2cb67d) */
+--rr-success-soft       /* Success background (#e8f8f2) */
+--rr-success-soft-text  /* Success text (#187a51) */
 --rr-success-soft-border/* Success border */
 
---rr-info-soft          /* Information blue background */
---rr-info-soft-text     /* Information text */
+--rr-info-soft          /* Information background — Sage Mist, NOT blue (#e8f2eb) */
+--rr-info-soft-text     /* Information text (#176448) */
 --rr-info-soft-border   /* Information border */
+
+/* Focus & scrim */
+--rr-focus              /* 3px focus ring, green (rgba(30, 122, 90, 0.55)) */
+--rr-backdrop           /* Drawer / modal scrim */
 ```
 
 ### 📐 Spacing Rhythm (8px Base Scale)
@@ -93,8 +98,8 @@ All components must strictly use tokens defined on `:root` and `[data-theme='dar
 --rr-radius-l: 14px;      /* Cards, modals, major containers */
 --rr-radius-pill: 999px;  /* Pill badges, avatar tags */
 
---rr-shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.08);
---rr-shadow-pop: 0 8px 24px rgba(15, 23, 42, 0.14); /* Modals, dropdowns, toasts */
+--rr-shadow: 0 1px 2px rgba(47, 52, 49, 0.05), 0 1px 3px rgba(47, 52, 49, 0.08);
+--rr-shadow-pop: 0 8px 24px rgba(47, 52, 49, 0.14); /* Modals, dropdowns, toasts */
 ```
 
 ### ⚡ Motion & Timing
@@ -296,11 +301,13 @@ RapidRelief uses a mobile-first responsive strategy:
 ## 7. Map UX Guidelines (Leaflet + OpenStreetMap)
 
 - All Leaflet maps must be encapsulated in `<RapidMap>` with a minimum height of `380px` on mobile and `480px` on desktop.
-- Markers must use high-contrast color pins corresponding to incident severity:
-  - Critical/High: Red (`#ef4444`)
-  - Medium/Warning: Amber (`#f59e0b`)
-  - Low/Info: Blue (`#3b82f6`)
-  - Resolved: Green (`#22c55e`)
+- Markers must pair a **token** color with a text label — never a raw hex, never color alone:
+  - Critical/High: `--rr-danger` (Rescue Red)
+  - Medium/Warning: `--rr-warning-soft-text` (Sunrise Orange family)
+  - Low/Info: `--rr-primary` (Forest Green) — the old blue is retired (D-074)
+  - Resolved/Safe: `--rr-success` (Mint)
+- The user's own position is **not** a marker. Pass `UserLocation` + `UserLocationAccuracyMeters` to `<RapidMap>`; it renders a dot + accuracy halo (`.rapid-map-user-dot` / `.rapid-map-user-halo`, `--rr-primary`) that the marker diff cannot erase (D-075).
+- Get coordinates from the injected `GeolocationService` — never from `navigator.geolocation` directly. It never throws; on failure render `result.Message` with a Retry action and keep a sensible map fallback (see [design.md](design.md) §10).
 - Popups must contain: Title, Severity Badge, Address/Coordinates, and a primary CTA ("View Incident" or "Navigate").
 
 ---

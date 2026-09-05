@@ -20,14 +20,45 @@ else) and are part of Contracts v1: additive-only changes (§4.6).
 | ------------------ | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `PingCreated`      | `Features/Sample` — `POST /api/sample/pings`                                                   | `PingCreatedLoggingHandler` (Sample)                                                                                                                                            |
 | `AuthEvent`        | `Features/Auth` — register, login, failed login, logout, lock/unlock, role change, token reuse | `AuthEventDisconnectHandler` (Realtime): `Lock`/`RoleChange`/`TokenReuse` abort live hub sockets; all other actions are ignored, and **no** notification row is written (D-036) |
-| `IncidentAssessed` | `Features/Ai` — `AiAnalysisWorker` after a successful assessment                               | `IncidentAssessedNotificationHandler` (Realtime) → topic `ai.incident.assessed` to roles Rescue + Admin                                                                         |
-| `IncidentCreated`  | **F2, not yet built** — today only tests publish it                                            | `IncidentCreatedHandler` (Ai) → enqueues to the bounded AI channel (D-021)                                                                                                      |
-| `AlertPublished`   | **F10, not yet built** — today only tests publish it                                           | `AlertPublishedNotificationHandler` (Realtime) → topic `alerts.published` to all                                                                                                |
+| `IncidentAssessed` | `Features/Ai` — `AiAnalysisWorker` after a successful assessment                               | `IncidentAssessedNotificationHandler` (Realtime) → topic `ai.incident.assessed` to roles Rescuer + Government                                                                   |
+| `IncidentCreated`  | `Features/Incidents` — `POST /api/incidents` after the report is committed (F2, D-083)        | `IncidentCreatedHandler` (Ai) → enqueues to the bounded AI channel (D-021) · `IncidentCreatedNotificationHandler` (Incidents) → topic `incidents.report.created` to Rescuer + Government                                                    || `AlertPublished`   | `Features/Alerts` — `POST /api/alerts` after the alert row is committed (F10, D-073)           | `AlertPublishedNotificationHandler` (Realtime) → topic `alerts.published` to all                                                                                                |
+| `IncidentVerified` | `Features/Incidents` — `POST /api/incidents/{id}/verify` (F2)                                  | `IncidentVerifiedAuditHandler` (Audit) → `Incident.Verify` / `Incident.Reject` on the trail                                                                                      |
+| `MissionAssigned`  | `Features/Rescue` — `POST /api/rescue/missions`, `/{id}/reassign` (F5, D-084, D-094)          | `MissionAssignedProjectionHandler` (Incidents) → incident → `Assigned`, notifies the reporter                                                                                   |
+| `MissionStatusChanged` | `Features/Rescue` — `/{id}/accept`, `/{id}/reject`, `/{id}/status` (F5, D-084, D-095)      | `MissionStatusProjectionHandler` (Incidents) → incident → `InProgress`/`Resolved`/back to `Verified` on cancel or reject, writes a timeline row per mission stage (D-088) and notifies the reporter |
 
-The last two rows are the zero-blocking model working as designed: the subscriber ships before the
-publisher exists, and publishing the event is the only integration step F2/F10 have to take.
-The remaining Contracts v1 events (`IncidentVerified`, `MissionAssigned`, `MissionStatusChanged`,
-`ReliefRequested`, `ReliefStatusChanged`) have neither a publisher nor a handler yet.
+The loop closes without a single cross-feature reference: Rescue never touches `incidents_*`, and
+Incidents never reads `ai_assessments` or `rescue_*` — each slice projects what it needs from the
+events it subscribes to (D-083).
+`ReliefRequested` and `ReliefStatusChanged` are published by `Features/Relief` (F4) on create and on
+each triage transition; the requester's notification is sent by Relief itself through the frozen
+`IRealtimeNotifier`, so no subscriber is required yet.
+
+## Notification topics
+
+Events are the *internal* contract; topics are what a signed-in user actually receives.
+
+| Topic | Audience | Sent when |
+| --- | --- | --- |
+| `alerts.published` | everyone | Government broadcasts an alert (F10) |
+| `incidents.report.created` | Rescuer + Government | a report is filed (F2) |
+| `ai.incident.assessed` | Rescuer + Government | the AI worker finishes triage (F8) — deliberately **not** sent to the citizen (D-089) |
+| `incidents.report.status` | the reporter | verified · assigned · en route · on site · resolved (five per rescue, D-089) |
+| `relief.request.status` | the requester | accepted · preparing · dispatched · delivered (four per request, D-089) |
+| `rescue.mission.assigned` | the assigned team's members | a mission is assigned or reassigned to their team (F5, D-092) |
+| `rescue.operations.updated` | Rescuer + Government | queue-affecting changes (assignment, rejection, completion) so open consoles refresh without waiting for the 15 s poll |
+
+## Audit projections (F14)
+
+`Features/Audit` is a pure subscriber plus a contract. It handles `IncidentVerified`,
+`MissionAssigned`, `MissionStatusChanged`, `AlertPublished`, `ReliefStatusChanged` and the
+security-only slice of `AuthEvent` (`TokenReuse`, `LoginFailed` — lock, unlock and role changes are
+recorded by the admin endpoints with richer wording, so recording them here too would duplicate).
+
+Everything a human decides directly — team create/update, shelter create/update/occupancy, resource
+create/update, incident close-out, alert revoke, user lock/unlock/roles/delete — is written at the
+endpoint through the frozen `IAuditTrail` contract, which carries the caller's identity from the
+`HttpContext`. `IncidentCreated` is deliberately **not** audited: filing a report is not an
+administrative action (D-097).
 
 ## Declaring an event
 

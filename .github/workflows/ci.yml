@@ -77,3 +77,33 @@ jobs:
         run: dotnet ef database update --project src/RapidRelief.Api --context NotificationsDbContext
         env:
           ConnectionStrings__Postgres: "Host=localhost;Port=5432;Database=rapidrelief;Username=rapidrelief;Password=rapidrelief_dev"
+
+      - name: Apply OpsDbContext migrations
+        run: dotnet ef database update --project src/RapidRelief.Api --context OpsDbContext
+        env:
+          ConnectionStrings__Postgres: "Host=localhost;Port=5432;Database=rapidrelief;Username=rapidrelief;Password=rapidrelief_dev"
+
+      - name: Apply AlertsDbContext migrations
+        run: dotnet ef database update --project src/RapidRelief.Api --context AlertsDbContext
+        env:
+          ConnectionStrings__Postgres: "Host=localhost;Port=5432;Database=rapidrelief;Username=rapidrelief;Password=rapidrelief_dev"
+
+      - name: Apply IncidentsDbContext migrations
+        run: dotnet ef database update --project src/RapidRelief.Api --context IncidentsDbContext
+        env:
+          ConnectionStrings__Postgres: "Host=localhost;Port=5432;Database=rapidrelief;Username=rapidrelief;Password=rapidrelief_dev"
+
+      - name: Apply RescueDbContext migrations
+        run: dotnet ef database update --project src/RapidRelief.Api --context RescueDbContext
+        env:
+          ConnectionStrings__Postgres: "Host=localhost;Port=5432;Database=rapidrelief;Username=rapidrelief;Password=rapidrelief_dev"
+
+      - name: Apply ReliefDbContext migrations
+        run: dotnet ef database update --project src/RapidRelief.Api --context ReliefDbContext
+        env:
+          ConnectionStrings__Postgres: "Host=localhost;Port=5432;Database=rapidrelief;Username=rapidrelief;Password=rapidrelief_dev"
+
+      - name: Apply AuditDbContext migrations
+        run: dotnet ef database update --project src/RapidRelief.Api --context AuditDbContext
+        env:
+          ConnectionStrings__Postgres: "Host=localhost;Port=5432;Database=rapidrelief;Username=rapidrelief;Password=rapidrelief_dev"

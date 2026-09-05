@@ -1,888 +1,213 @@
 # RapidRelief — Website Theme & Design System
 
-## 1. Brand Direction
-
-**Product:** RapidRelief  
-**Purpose:** AI-Smart Disaster Response & Emergency Management System
-
-### Visual Personality
-
-RapidRelief should feel:
-
-- Calm
-- Trustworthy
-- Human-centered
-- Actionable
-- Hopeful
-- Professional
-- Rescue-oriented
-- Modern
-- Reliable under pressure
-
-The interface should communicate **safety and confidence first**, while preserving strong visual signals for emergencies.
-
-Avoid making the website look like:
-- A generic SaaS dashboard
-- A crypto/fintech product
-- A gaming/cyberpunk interface
-- An overly futuristic AI product
-- A dark navy corporate website
-- An excessively colorful emergency app
-
-The design should feel appropriate for people who may be stressed or looking for urgent information.
+> **Status:** current. Replaces the Forest Green identity used until 2026-09-04.
+> The previous palette (`#1E7A5A` primary, "no blue anywhere") is **retired** —
+> do not reintroduce it. Legacy aliases such as `--rr-forest` and `--rr-mint`
+> still exist in the stylesheets but resolve to the tokens defined here.
 
 ---
 
-# 2. Primary Color Palette
+## 1. Design principle
 
-## Forest Green — Primary Brand
+**Usability beats visual decoration.**
 
-```text
-#1E7A5A
+People reach RapidRelief while stressed, on a phone, often on a poor connection.
+Every decision below is downstream of that. Where beauty and legibility conflict,
+legibility wins.
+
+Three rules the whole system obeys:
+
+1. **Colour communicates meaning.** A control is not coloured to look nice. Red
+   means emergency, amber means attention, emerald means resolved, cyan means
+   "this is the action". Everything else is neutral.
+2. **No raw values in markup.** Every size, colour, radius, duration and z-index
+   comes from a token. If a value is needed and no token exists, add the token.
+3. **One vocabulary per concept.** One button family, one focus ring, one
+   severity chip, one timeline. A pattern that exists twice is a defect.
+
+### Personality
+
+Calm, trustworthy, human-centred, actionable, reliable under pressure.
+
+It should **not** feel like a gaming/cyberpunk console, a crypto product, or an
+"excessively colourful emergency app". Restraint is the point: the interface is
+quiet so that an emergency can be loud.
+
+---
+
+## 2. Colour
+
+### 2.1 Roles
+
+| Role | Meaning | Light | Dark |
+| --- | --- | --- | --- |
+| Primary | Brand, headings, primary button fill | `#0f172a` deep navy | `#e8edf5` |
+| Accent | The action, links, focus | `#0e7490` cyan | `#22d3ee` |
+| Emergency | SOS and critical only | `#dc2626` | `#dc2626` |
+| Warning | Needs attention, degraded | `#b45309` | `#b45309` |
+| Success | Delivered, resolved, safe | `#059669` | `#059669` |
+| Surface | Page and card backgrounds | `--n-0` / `--n-50` | `#0b1120` / `#111a2b` |
+| Text | Body, secondary, tertiary | `--rr-text-1/2/3` | idem |
+
+Cyan is deliberately darker in light mode (`#0e7490`) than in dark mode
+(`#22d3ee`): the bright cyan does not reach 3:1 against a white background, so
+the focus ring would have failed WCAG 2.2 non-text contrast.
+
+### 2.2 Neutral ramp
+
+`--n-0` `#ffffff` through `--n-950` `#060b16`, cool-tinted slate. The neutrals
+carry almost all of the interface. If a screen looks grey, that is correct.
+
+### 2.3 On-colour tokens (mandatory)
+
+Every tinted surface has a matching foreground token:
+
+```
+--rr-danger-soft / --rr-danger-soft-text / --rr-danger-soft-border
+--rr-warning-soft / ...-text / ...-border
+--rr-success-soft / ...-text / ...-border
+--rr-accent-soft  / ...-text / ...-border
+--rr-on-danger  --rr-on-warning  --rr-on-success  --rr-on-primary
 ```
 
-**Purpose:**
-- Primary brand color
-- Main navigation accents
-- Primary buttons
-- Links
-- Active states
-- Brand highlights
-- Rescue/safety identity
+**Never** put `#ffffff` on a tinted background. In dark mode the tints are light,
+and white text on them measured between 1.4:1 and 2.8:1 - unreadable. Pair the
+tint with its `-text`/`on-` token instead.
 
-**Meaning:**
-Safety, resilience, nature, trust, reliability, recovery.
+### 2.4 Colour budget
+
+A citizen screen should show at most **one** saturated element: the SOS control.
+An operator screen should show colour only in severity chips and status dots.
 
 ---
 
-## Rescue Red — Emergency
+## 3. Typography
 
-```text
-#E53935
+```
+--rr-font: 'Inter', 'Aptos', 'Segoe UI Variable Text', 'Lexend',
+           'Segoe UI', system-ui, -apple-system, sans-serif;
 ```
 
-**Purpose:**
-- SOS actions
-- Emergency alerts
-- Critical incidents
-- Danger states
-- Destructive actions
-- High-priority CTAs
+Lexend is vendored locally and stays last in the stack as the guaranteed offline
+baseline - the CSP forbids CDN fonts and the app must work offline.
 
-**Meaning:**
-Urgency, danger, immediate action.
+| Token | Use |
+| --- | --- |
+| `--text-2xs` ... `--text-3xl` | The only permitted font sizes |
+| `--weight-regular/medium/semibold/bold` | The only permitted weights |
+| `--leading-tight/snug/normal/relaxed` | Line height |
+| `--tracking-tight/normal/wide/caps` | Letter spacing |
 
-### Important
-
-Red must NOT be used as a general decorative color.
-
-Reserve it for situations where the user needs to understand:
-
-> "This requires immediate attention."
+Headings step down without skipping. Numbers that are compared vertically
+(distance, wait time, capacity) use `font-variant-numeric: tabular-nums`.
 
 ---
 
-## Sunrise Orange — Warning
+## 4. Space, radius, elevation, motion
 
-```text
-#FB8C00
-```
+| Scale | Tokens |
+| --- | --- |
+| Spacing | `--space-1` (0.25rem) ... `--space-16` (4rem) |
+| Radius | `--rr-radius-s`, `-l`, `-xl`, `--rr-radius-pill` |
+| Z-index | `--z-base` through `--z-critical` (never a bare number) |
+| Motion | `--rr-fast 120ms`, `--rr-base 200ms`, `--rr-slow 320ms`, `--rr-ease*` |
+| Breakpoints | `--bp-sm 480` `--bp-md 768` `--bp-lg 1024` `--bp-xl 1280` |
 
-**Purpose:**
-- Warnings
-- Pending states
-- Important highlights
-- Attention indicators
-- Secondary high-priority actions
-
-**Meaning:**
-Attention, preparation, urgency without immediate danger.
+Motion is functional: state changes, not entrances. Everything animated is
+disabled under `prefers-reduced-motion: reduce`.
 
 ---
 
-## Mint Green — Success & Recovery
+## 5. Component layer
 
-```text
-#2CB67D
-```
+`wwwroot/css/components.css` loads **after** every legacy sheet and is the single
+definition of shared behaviour.
 
-**Purpose:**
-- Success messages
-- Completed actions
-- Recovery states
-- Positive status
-- Confirmations
-- Available/healthy states
-
-**Meaning:**
-Hope, recovery, progress, positive outcomes.
-
----
-
-## Sage Mist — Soft Background
-
-```text
-#E8F2EB
-```
-
-**Purpose:**
-- Section backgrounds
-- Information panels
-- Subtle highlights
-- Soft cards
-- Background accents
-
-Use this to create visual breathing room without relying on large amounts of white.
+| Component | Notes |
+| --- | --- |
+| `.rr-btn` + `-primary/-secondary/-outline/-ghost/-danger/-link` | The only button family. `.btn-dash-*`, `.btn-auth-primary`, `.btn-google-auth` are aliases onto it. Minimum height 44px. Active state uses `filter: brightness()`, never `transform` (a jumping button is a mis-tap). |
+| `:focus-visible` | Exactly one ring, defined once, 2px `--rr-accent-bright` plus offset. |
+| `.rr-sos` | The emergency control. See section 6. |
+| `.rr-timeline` | Vertical progress rail. Used by the citizen dashboard and My reports. |
+| `.rr-sev-*` | Severity: SOS triangle, Critical triangle, High diamond, Medium circle, Low bar. Shape **and** colour, so it survives greyscale and colour blindness. |
+| `.rr-panel`, `.rr-metric`, `.rr-statstrip` | Framing and figures. |
+| `.rr-table`, `.rr-queue-row`, `.rr-facts`, `.rr-filter` | Dense operational surfaces. |
+| `.rr-drawer` | Detail panel; becomes a bottom sheet at 640px and below. |
+| `.rr-ai-*` | Attributed AI output. See section 7. |
 
 ---
 
-## Warm Ivory — Surface
+## 6. The SOS control
 
-```text
-#FAF7F2
-```
+SOS is the single most important control in the product, and the single most
+dangerous to fire by accident.
 
-**Purpose:**
-- Cards
-- Modals
-- Elevated surfaces
-- Content containers
-- Secondary page surfaces
-
-This gives the interface a warmer, more human feel than a completely white UI.
-
----
-
-## Stone Gray — Muted UI
-
-```text
-#6B7280
-```
-
-**Purpose:**
-- Secondary text
-- Metadata
-- Borders
-- Disabled states
-- Supporting information
-- Low-priority UI
-
-Do not use this for critical information.
+- **Visible:** largest target on the citizen home, full width, `--rr-danger`.
+- **Hard to trigger accidentally:** two steps. Tapping SOS *arms* it; a second,
+  separate CONFIRM is required.
+- **Anti-misfire:** when armed, **Cancel occupies the coordinates the finger just
+  tapped** and CONFIRM appears below it, disabled for 700ms. A double-tap
+  therefore cancels; it can never confirm. The armed state auto-disarms after 12s.
+- **Fast after confirmation:** one request, optimistic UI, offline-queued.
+- **Receipt:** on success the citizen sees Incident ID, time, location, current
+  status and rescue status - never a bare toast.
 
 ---
 
-## Moss Charcoal — Dark Foundation
+## 7. AI presentation
 
-```text
-#2F3431
-```
+AI is decision *support*. It is never presented as authority.
 
-**Purpose:**
-- Main text
-- Headings
-- Icons
-- Dark navigation elements
-- Strong contrast
-- Footer
-- Important dark UI surfaces
-
-This replaces navy/dark blue as the primary dark neutral.
+- Labelled "AI - decision support" in the panel header.
+- Confidence is shown as a number **and** a meter.
+- The provider is named ("model X", "offline rule engine").
+- A **Because** list gives the factors and the evidence behind the score.
+- The verdict is worded "Suggested priority ...", not "Priority is ...".
+- The standing disclaimer sits in the panel footer, always rendered.
+- When there is no assessment, the panel says so rather than disappearing.
 
 ---
 
-# 3. Color Hierarchy
+## 8. Role surfaces
 
-Use the colors according to this hierarchy:
+**Citizen (`/c`)** - ordered by need, not by novelty:
 
-```text
-PRIMARY
-Forest Green       #1E7A5A
+1. Emergency / SOS
+2. Report incident
+3. Active emergency
+4. Shelter
+5. Relief
+6. Notifications
 
-EMERGENCY
-Rescue Red         #E53935
+**Rescue (`/r`)** - an operational interface. Severity, distance, waiting time,
+status and location are the only facts on a queue row, in that order. Filters are
+chips, not coloured tiles. Colour appears only on severity and on a call that has
+been waiting too long.
 
-WARNING
-Sunrise Orange     #FB8C00
-
-SUCCESS
-Mint Green         #2CB67D
-
-LIGHT BACKGROUND
-Sage Mist          #E8F2EB
-
-SURFACE
-Warm Ivory         #FAF7F2
-
-MUTED
-Stone Gray         #6B7280
-
-DARK
-Moss Charcoal      #2F3431
-```
-
-### General rule
-
-**Green = Safety & Rescue**  
-**Red = Emergency**  
-**Orange = Warning**  
-**Mint = Recovery & Hope**  
-**Sage = Calm**  
-**Ivory = Human warmth**  
-**Charcoal = Authority & readability**
+**Government (`/g`)** - a command centre. The **situation map is a primary
+information surface** on the overview, above the decision tables: the map answers
+*where*, the tables answer *which one*. Navigation is one shared `CommandTabs`
+component with `aria-current="page"`.
 
 ---
 
-# 4. Recommended CSS Variables
+## 9. Accessibility contract
 
-Use CSS custom properties instead of scattering hexadecimal values throughout components.
-
-```css
-:root {
-    --rr-primary: #1E7A5A;
-    --rr-primary-hover: #176448;
-    --rr-primary-light: #E8F2EB;
-
-    --rr-danger: #E53935;
-    --rr-warning: #FB8C00;
-    --rr-success: #2CB67D;
-
-    --rr-background: #FFFFFF;
-    --rr-background-soft: #E8F2EB;
-
-    --rr-surface: #FAF7F2;
-    --rr-surface-white: #FFFFFF;
-
-    --rr-text: #2F3431;
-    --rr-text-muted: #6B7280;
-
-    --rr-border: #D9E0DB;
-
-    --rr-focus: #1E7A5A;
-}
-```
-
-Exact derived shades may be adjusted when necessary to maintain accessibility and interaction contrast.
+- Contrast: at least 4.5:1 body text, at least 3:1 large text, UI borders and
+  focus rings.
+- Touch targets at least 44x44 CSS px.
+- Every interactive element is reachable and visible on keyboard focus.
+- Dialogs trap focus, autofocus a sensible control, lock background scroll and
+  restore focus on close (`wwwroot/js/dialog.js` plus `RrModal`).
+- Status is never colour-only: severity has a shape, connectivity has a word.
+- `prefers-reduced-motion` removes all animation.
 
 ---
 
-# 5. Typography
-
-Typography should prioritize:
-
-1. Readability
-2. Fast scanning
-3. Accessibility
-4. Clear hierarchy
-5. Emergency information comprehension
-
-Recommended hierarchy:
-
-```text
-Display
-↓
-H1
-↓
-H2
-↓
-H3
-↓
-Body
-↓
-Small
-↓
-Caption
-```
-
-### Guidelines
-
-- Use strong but clean headings.
-- Keep body text highly readable.
-- Avoid overly thin fonts.
-- Avoid excessive uppercase text.
-- Use bold/semibold weight for important information.
-- Keep emergency information visually obvious.
-- Do not use decorative typography for operational content.
-
----
-
-# 6. Layout
-
-RapidRelief should use a clean, spacious layout.
-
-### Principles
-
-- Strong visual hierarchy
-- Consistent spacing
-- Clear content grouping
-- Generous whitespace
-- Responsive containers
-- Easy scanning
-- Minimal visual clutter
-
-Avoid:
-- Excessively dense dashboards
-- Huge empty areas without purpose
-- Random card sizes
-- Inconsistent spacing
-- Too many borders
-
----
-
-# 7. Cards
-
-Cards should feel:
-
-- Clean
-- Stable
-- Lightweight
-- Informative
-
-Recommended characteristics:
-
-- Subtle border
-- Soft radius
-- Minimal shadow
-- Clear heading
-- Clear metadata
-- Strong status indicator when needed
-
-Do not make every card heavily elevated.
-
----
-
-# 8. Buttons
-
-### Primary Button
-
-Use Forest Green.
-
-```text
-Background: #1E7A5A
-Text: White
-```
-
-Use for:
-- Report Disaster
-- Find Shelter
-- Submit
-- Continue
-- Confirm
-- Main actions
-
-### Emergency Button
-
-Use Rescue Red.
-
-```text
-Background: #E53935
-Text: White
-```
-
-Use ONLY for genuinely critical actions:
-
-- SOS
-- Emergency call
-- Critical response
-- Dangerous/destructive actions
-
-### Warning Button
-
-Use Sunrise Orange sparingly.
-
-### Secondary Button
-
-Prefer neutral/outlined styling rather than introducing another strong color.
-
----
-
-# 9. Emergency Status System
-
-Severity should be immediately understandable.
-
-Suggested mapping:
-
-```text
-Critical  → Rescue Red
-High      → Red / strong warning treatment
-Moderate  → Sunrise Orange
-Low       → Forest Green
-Resolved  → Mint Green
-```
-
-Never rely on color alone.
-
-Pair color with:
-- Text
-- Icon
-- Status label
-- Appropriate shape/indicator
-
-Example:
-
-```text
-● CRITICAL
-● HIGH
-● MODERATE
-● LOW
-✓ RESOLVED
-```
-
----
-
-# 10. Navigation
-
-The navigation should be:
-
-- Simple
-- Predictable
-- Responsive
-- Role-aware
-- Easy to scan
-
-Important actions should never be hidden behind unnecessary navigation layers.
-
-Potential primary areas:
-
-- Home
-- Report Disaster
-- Incidents
-- Shelters
-- Rescue
-- Alerts
-- Assistant
-- Dashboard
-- Profile
-
-Only show options appropriate to the user's role.
-
----
-
-# 11. Landing Page Direction
-
-The landing page should immediately communicate:
-
-> **RapidRelief helps people report disasters, find help, and coordinate emergency response faster.**
-
-The hero section should establish:
-
-- What RapidRelief is
-- Why it matters
-- What the user can do
-- A strong primary CTA
-- A secondary exploration CTA
-
-### Visual direction
-
-Use:
-
-- Forest Green as the dominant brand color
-- Warm Ivory/white for content areas
-- Sage Mist for soft sections
-- Rescue Red only for emergency emphasis
-- Moss Charcoal for typography
-
-The landing page should feel hopeful and capable rather than frightening.
-
----
-
-# 12. Emergency UX
-
-RapidRelief is an emergency-management system.
-
-Design decisions should prioritize:
-
-1. Critical information
-2. Actionability
-3. Speed
-4. Legibility
-5. Clear severity
-6. Location awareness
-7. Current status
-8. Reliability
-9. Offline/degraded operation
-10. Low cognitive load
-
-A stressed user should be able to understand:
-
-> What happened?  
-> How serious is it?  
-> Where is it?  
-> What can I do now?
-
-as quickly as possible.
-
----
-
-# 13. Maps
-
-RapidRelief uses Leaflet.js and OpenStreetMap.
-
-Do NOT replace Leaflet.
-
-Map UI should use the brand system:
-
-- Forest Green → shelters / safe locations
-- Rescue Red → critical incidents
-- Sunrise Orange → warnings
-- Mint Green → resolved/recovered locations
-- Moss Charcoal → labels and controls
-
-Maps should remain visually clear and usable on mobile.
-
----
-
-# 14. Notifications
-
-Notifications should use semantic colors:
-
-### Critical
-
-```text
-Rescue Red
-```
-
-### Warning
-
-```text
-Sunrise Orange
-```
-
-### Information
-
-```text
-Forest Green / neutral
-```
-
-### Success
-
-```text
-Mint Green
-```
-
-Notifications should be concise and actionable.
-
-Do not overwhelm users with decorative toast animations.
-
----
-
-# 15. Forms
-
-Forms should be extremely clear.
-
-Every important field should have:
-
-- Visible label
-- Helpful placeholder only when useful
-- Clear validation
-- Clear error message
-- Focus state
-- Required indicator when necessary
-
-Emergency reporting forms should minimize unnecessary fields.
-
----
-
-# 16. Loading States
-
-Use:
-
-- Skeletons
-- Subtle spinners
-- Progress indicators
-
-Avoid blank screens.
-
-The user should understand that the system is working.
-
----
-
-# 17. Empty States
-
-Every empty state should explain:
-
-1. What is empty
-2. Why it may be empty
-3. What the user can do next
-
-Example:
-
-```text
-No nearby shelters found
-
-We couldn't find an available shelter in this area.
-
-[Search another area]
-```
-
----
-
-# 18. Error States
-
-Errors should be:
-
-- Human-readable
-- Calm
-- Actionable
-- Non-technical
-
-Avoid exposing raw exceptions.
-
-Example:
-
-Bad:
-
-```text
-HTTP 503 DbContext connection failure
-```
-
-Better:
-
-```text
-We're temporarily unable to load this information.
-
-Please try again in a moment.
-```
-
----
-
-# 19. Offline & Degraded Mode
-
-Offline capability is a core part of RapidRelief.
-
-The UI must clearly communicate:
-
-```text
-ONLINE
-OFFLINE
-SERVER UNAVAILABLE
-AI UNAVAILABLE
-REALTIME UNAVAILABLE
-SESSION EXPIRED
-```
-
-Do not make offline/degraded states look like application crashes.
-
-The interface should remain calm and useful.
-
----
-
-# 20. Animation
-
-Use subtle motion.
-
-Good uses:
-
-- Button feedback
-- Toast entrance
-- Modal entrance
-- Status transitions
-- Skeleton loading
-- Map selection
-- Small hover interactions
-
-Avoid:
-
-- Excessive page transitions
-- Constant floating animations
-- Large parallax effects
-- Distracting motion
-- Animation on critical emergency actions
-
-Respect:
-
-```css
-@media (prefers-reduced-motion: reduce) {
-    /* Minimize or disable non-essential animation */
-}
-```
-
----
-
-# 21. Accessibility
-
-Follow accessible UI principles.
-
-Ensure:
-
-- Semantic HTML
-- Keyboard navigation
-- Visible focus states
-- Proper labels
-- Good color contrast
-- Accessible buttons
-- Accessible dialogs
-- Screen-reader-friendly status updates
-- Reduced-motion support
-- Color is never the only way to communicate meaning
-
----
-
-# 22. Responsive Design
-
-Design intentionally for:
-
-```text
-Mobile
-Tablet
-Laptop
-Desktop
-Large Desktop
-```
-
-Important breakpoints should be based on layout needs rather than device names.
-
-Mobile users must be able to perform critical actions without horizontal scrolling.
-
-Emergency actions should remain easy to reach on small screens.
-
----
-
-# 23. Icons
-
-Use a consistent icon style.
-
-Icons should:
-
-- Reinforce meaning
-- Be recognizable
-- Have appropriate sizing
-- Never replace critical text
-- Match the overall visual language
-
-Avoid mixing multiple unrelated icon styles.
-
----
-
-# 24. Images & Illustrations
-
-Imagery should communicate:
-
-- Human assistance
-- Rescue
-- Community
-- Safety
-- Recovery
-- Preparedness
-- Technology helping people
-
-Avoid excessive disaster imagery that makes the product feel frightening.
-
-Prefer imagery that communicates:
-
-> "Help is available."
-
-rather than:
-
-> "Everything is going wrong."
-
----
-
-# 25. Design Do's
-
-- Use Forest Green as the main brand identity.
-- Use Rescue Red only for genuine urgency.
-- Use warm neutral surfaces.
-- Maintain strong readability.
-- Keep layouts clean.
-- Make critical actions obvious.
-- Design mobile-first.
-- Use meaningful micro-interactions.
-- Make offline states understandable.
-- Reuse components and design tokens.
-- Keep the interface consistent across roles.
-
----
-
-# 26. Design Don'ts
-
-- Do not use navy blue as a brand color.
-- Do not turn the UI into a dark cyberpunk dashboard.
-- Do not use red everywhere.
-- Do not use gradients excessively.
-- Do not overuse glassmorphism.
-- Do not use excessive shadows.
-- Do not use tiny text.
-- Do not rely on color alone.
-- Do not create random colors per page.
-- Do not introduce unnecessary frontend frameworks.
-- Do not make every section look like a card.
-- Do not sacrifice usability for visual effects.
-
----
-
-# 27. Blazor Implementation Rules
-
-RapidRelief uses:
-
-```text
-Blazor WebAssembly .NET 8
-HTML5
-Vanilla CSS
-Leaflet.js
-SignalR
-```
-
-UI should be implemented using:
-
-- Razor components
-- HTML
-- CSS
-- C#
-- Minimal JavaScript where necessary
-
-Do NOT migrate the project to:
-
-- React
-- Next.js
-- Vue
-- Angular
-
-Do NOT introduce a React-only component library.
-
-The design system must work naturally with the existing Blazor architecture.
-
----
-
-# 28. Component Philosophy
-
-Prefer reusable components such as:
-
-```text
-Button
-Card
-Badge
-Alert
-Modal
-Drawer
-Tabs
-Input
-Select
-TextArea
-DataTable
-Skeleton
-EmptyState
-ErrorState
-StatusIndicator
-Notification
-```
-
-Before creating a new component:
-
-1. Search for an existing equivalent.
-2. Reuse it if possible.
-3. Extend it if appropriate.
-4. Create a new component only when it represents a meaningful reusable pattern.
-
----
-
-# 29. Final Design Principle
-
-RapidRelief should visually communicate:
-
-**Safety → Action → Response → Recovery**
-
-The interface should make people feel:
-
-> "This system is reliable, I understand what is happening, and I know what I can do next."
-
-That is the core visual and UX identity of RapidRelief.
+## 10. Adding to the system
+
+1. Look for an existing token or component first.
+2. If a token is missing, add it to `app.css` section 2 in **both** themes.
+3. If a component is missing, add it to `components.css`, not to a page sheet.
+4. Never add a second way to do something that already exists.
+5. Check contrast in both themes before shipping.
