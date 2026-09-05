@@ -22,13 +22,14 @@ jobs:
         run: dotnet tool restore
 
       - name: Restore
-        run: dotnet restore
+        # Root holds both RapidRelief.sln and RapidRelief.slnx — bare dotnet commands fail with MSB1011.
+        run: dotnet restore RapidRelief.sln
 
       - name: Build
-        run: dotnet build -c Release --no-restore
+        run: dotnet build RapidRelief.sln -c Release --no-restore
 
       - name: Test (SQLite/unit/arch — no services)
-        run: dotnet test -c Release --no-build
+        run: dotnet test RapidRelief.sln -c Release --no-build
 
   # Proves the generated migrations are valid Npgsql SQL against a real postgres:16.
   # Extend with one `dotnet ef database update --context <X>` line per future context.
