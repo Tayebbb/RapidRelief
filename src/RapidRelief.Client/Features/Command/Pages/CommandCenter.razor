@@ -1,0 +1,510 @@
+@page "/g"
+@layout MainLayout
+@namespace RapidRelief.Client.Features.Command.Pages
+@using System.Security.Claims
+@using RapidRelief.Shared.Contracts.Common
+@using RapidRelief.Shared.Contracts.Enums
+@using RapidRelief.Shared.Contracts.ReadModels
+@using RapidRelief.Client.Features.Command.Components
+@using RapidRelief.Client.Common.Ui
+@using RapidRelief.Client.Common.Map
+@using RapidRelief.Client.Common.Realtime
+@using RapidRelief.Client.Features.Command
+@using RapidRelief.Client.Features.Rescue
+@using RapidRelief.Client.Features.Shelters
+@using RapidRelief.Client.Features.Relief
+@using RapidRelief.Client.Features.Reports
+@using RapidRelief.Shared.Contracts.Services
+@attribute [Authorize(Roles = "Government")]
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+@inject CommandClient Command
+@inject MapConfigService MapConfig
+@inject IncidentsClient Incidents
+@inject RescueClient Rescue
+@inject SheltersClient Shelters
+@inject ReliefClient Relief
+@inject NotificationState Notifications
+@inject LiveUpdateService Live
+@implements IDisposable
+
+<PageTitle>Emergency Operations Centre — RapidRelief</PageTitle>
+
+<div class="cmd-layout">
+    <header class="cmd-header">
+        <div>
+            <div class="cmd-role-badge">
+                <AppIcon Name="shield" Size="14" />
+                <span>Emergency Operations Centre</span>
+            </div>
+            <h1 class="cmd-title">@Posture.Headline</h1>
+            <p class="cmd-subtitle">@Posture.Detail</p>
+        </div>
+
+        <div class="cmd-header-actions">
+            <span class="cmd-refreshed">
+                @if (_loading)
+                {
+                    <span>Loading…</span>
+                }
+                else
+                {
+                    <span>Updated @RelativeTime(_updatedAtUtc)</span>
+                }
+            </span>
+            <RealtimeIndicator />
+            <button type="button" class="rr-btn rr-btn-ghost rr-btn-sm" @onclick="RefreshAsync" disabled="@_loading">
+                <AppIcon Name="refresh" Size="15" /><span>Refresh</span>
+            </button>
+            <a href="alerts/compose" class="rr-btn rr-btn-danger rr-btn-sm">
+                <AppIcon Name="alert-circle" Size="15" /><span>Broadcast alert</span>
+            </a>
+        </div>
+    </header>
+
+    @if (_error is not null)
+    {
+        <div class="cmd-banner error" role="alert">
+            <AppIcon Name="alert-circle" Size="18" />
+            <span>@_error</span>
+        </div>
+    }
+
+    <CommandTabs Active="g" />
+
+    @* ── What is happening ─────────────────────────────────────────────────────── *@
+    <section class="cmd-kpi-grid" aria-label="Live operational indicators">
+        <a class="cmd-kpi critical" href="g/incidents?filter=critical">
+            <span class="cmd-kpi-label">Critical incidents</span>
+            <span class="cmd-kpi-value">@Kpi.CriticalIncidents</span>
+            <span class="cmd-kpi-note">@Kpi.SosOpen SOS awaiting outcome</span>
+        </a>
+        <a class="cmd-kpi" href="g/incidents">
+            <span class="cmd-kpi-label">Active incidents</span>
+            <span class="cmd-kpi-value">@Kpi.ActiveIncidents</span>
+            <span class="cmd-kpi-note">@Kpi.NewLast24h reported in 24 h</span>
+        </a>
+        <a class="cmd-kpi @(Kpi.Unassigned > 0 ? "warn" : "")" href="g/incidents?filter=unassigned">
+            <span class="cmd-kpi-label">Awaiting a team</span>
+            <span class="cmd-kpi-value">@Kpi.Unassigned</span>
+            <span class="cmd-kpi-note">@Kpi.AwaitingTeam verified, not yet dispatched</span>
+        </a>
+        <a class="cmd-kpi @(AvailableTeams == 0 ? "warn" : "")" href="g/teams">
+            <span class="cmd-kpi-label">Teams available</span>
+            <span class="cmd-kpi-value">@AvailableTeams<span class="cmd-kpi-of"> / @_teams.Count</span></span>
+            <span class="cmd-kpi-note">@DeployedTeams deployed · @OffDutyTeams off duty</span>
+        </a>
+        <div class="cmd-kpi">
+            <span class="cmd-kpi-label">Active missions</span>
+            <span class="cmd-kpi-value">@_activeMissions</span>
+            <span class="cmd-kpi-note">@Kpi.InProgress incidents being worked</span>
+        </div>
+        <a class="cmd-kpi @(SheltersNearCapacity > 0 ? "warn" : "")" href="admin/shelters">
+            <span class="cmd-kpi-label">Shelters near capacity</span>
+            <span class="cmd-kpi-value">@SheltersNearCapacity<span class="cmd-kpi-of"> / @_shelters.Count</span></span>
+            <span class="cmd-kpi-note">@FreeSpaces.ToString("N0") spaces left in total</span>
+        </a>
+        <a class="cmd-kpi @(_pendingRelief > 0 ? "warn" : "")" href="g/relief">
+            <span class="cmd-kpi-label">Relief awaiting decision</span>
+            <span class="cmd-kpi-value">@_pendingRelief</span>
+            <span class="cmd-kpi-note">@_activeRelief in the pipeline</span>
+        </a>
+        <a class="cmd-kpi" href="g/analytics">
+            <span class="cmd-kpi-label">Average response</span>
+            <span class="cmd-kpi-value">@CommandClient.FormatMinutes(Kpi.AvgResponseMinutes)</span>
+            <span class="cmd-kpi-note">report → team dispatched</span>
+        </a>
+    </section>
+
+    <div class="cmd-grid">
+        @* ── Where it is happening. The map is the primary information surface for a
+             coordinator: the tables below answer "which one", the map answers "where". *@
+        <section class="cmd-card cmd-span-12 cmd-situation">
+            <header class="cmd-card-head">
+                <div>
+                    <h2>Situation map</h2>
+                    <p>Open incidents, rescue teams and shelters. Select a point for detail.</p>
+                </div>
+                <a href="g/map" class="rr-btn rr-btn-ghost rr-btn-sm">Full map &amp; filters</a>
+            </header>
+
+            <div class="cmd-situation-frame">
+                <RapidMap View="_situation" InitialCenter="@_situation.Center" InitialZoom="11" />
+            </div>
+
+            <ul class="cmd-legend cmd-legend-inline" aria-label="Map legend">
+                @foreach (var entry in _situation.Legend)
+                {
+                    <li class="cmd-legend-item">
+                        <span class="cmd-dot @LegendDot(entry.Layer)"></span>
+                        <span>@entry.Label (@entry.Count)</span>
+                    </li>
+                }
+            </ul>
+        </section>
+
+        @* ── Where is it happening / what is becoming critical ──────────────────── *@
+        <section class="cmd-card cmd-span-5">
+            <header class="cmd-card-head">
+                <div>
+                    <h2>Escalating areas</h2>
+                    <p>Open incidents grouped by area, last 6 hours against the 6 before.</p>
+                </div>
+                <a href="g/map" class="rr-btn rr-btn-ghost rr-btn-sm">Map</a>
+            </header>
+
+            @if (_summary is null)
+            {
+                <p class="cmd-empty">@(_loading ? "Loading area data…" : "No area data available.")</p>
+            }
+            else if (_summary.Hotspots.Count == 0)
+            {
+                <p class="cmd-empty">No open incidents anywhere. Nothing to escalate.</p>
+            }
+            else
+            {
+                <ul class="cmd-hotspots">
+                    @foreach (var spot in _summary.Hotspots)
+                    {
+                        <li class="cmd-hotspot">
+                            <div class="cmd-hotspot-main">
+                                <span class="cmd-hotspot-area">@spot.Area</span>
+                                <span class="cmd-trend @spot.Trend.ToLowerInvariant()">@spot.Trend</span>
+                            </div>
+                            <div class="cmd-hotspot-meta">
+                                @spot.Total open · @spot.Critical critical · @spot.Last6h in 6 h (was @spot.Previous6h)
+                            </div>
+                            <div class="cmd-hotspot-bar">
+                                <div class="cmd-hotspot-fill @(spot.Critical > 0 ? "danger" : "")"
+                                     style="width:@(BarWidth(spot.Total))%"></div>
+                            </div>
+                        </li>
+                    }
+                </ul>
+            }
+        </section>
+
+        @* ── Who needs help right now ───────────────────────────────────────────── *@
+        <section class="cmd-card cmd-span-7">
+            <header class="cmd-card-head">
+                <div>
+                    <h2>Needs a decision now</h2>
+                    <p>Unassigned incidents, highest AI priority and SOS first.</p>
+                </div>
+                <a href="g/incidents?filter=unassigned" class="rr-btn rr-btn-ghost rr-btn-sm">Open board</a>
+            </header>
+
+            @if (_urgent.Count == 0)
+            {
+                <p class="cmd-empty">@(_loading ? "Loading incidents…" : "Every open incident has a team assigned.")</p>
+            }
+            else
+            {
+                <div class="cmd-table-wrap">
+                    <table class="cmd-table">
+                        <thead>
+                            <tr>
+                                <th>Incident</th>
+                                <th>Area</th>
+                                <th>Severity</th>
+                                <th>Status</th>
+                                <th>Waiting</th>
+                                <th class="cmd-col-action">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var incident in _urgent)
+                            {
+                                <tr>
+                                    <td>
+                                        <a href="@($"r/incidents/{incident.Id}")" class="cmd-link">@incident.Title</a>
+                                        <span class="cmd-sub">@incident.DisasterType</span>
+                                    </td>
+                                    <td>@AreaLabel(incident)</td>
+                                    <td><span class="rr-sev @SeverityClass(incident)">@SeverityLabel(incident)</span></td>
+                                    <td><span class="cmd-pill status">@incident.Status</span></td>
+                                    <td>@RelativeTime(incident.CreatedAtUtc)</td>
+                                    <td class="cmd-col-action">
+                                        @if (incident.Status is IncidentStatus.Reported)
+                                        {
+                                            <button type="button" class="rr-btn rr-btn-primary rr-btn-xs" disabled="@_busy"
+                                                    @onclick="() => VerifyAsync(incident, true)">Verify</button>
+                                        }
+                                        else
+                                        {
+                                            <a href="@($"r/incidents/{incident.Id}")"
+                                               class="rr-btn rr-btn-ghost rr-btn-xs">Dispatch</a>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+
+        @* ── Which teams are available / deployed ───────────────────────────────── *@
+        <section class="cmd-card cmd-span-6">
+            <header class="cmd-card-head">
+                <div>
+                    <h2>Rescue capacity</h2>
+                    <p>Every registered team and what it is doing right now.</p>
+                </div>
+                <a href="g/teams" class="rr-btn rr-btn-ghost rr-btn-sm">Manage</a>
+            </header>
+
+            @if (_teams.Count == 0)
+            {
+                <p class="cmd-empty">@(_loading ? "Loading teams…" : "No rescue teams are registered yet.")</p>
+            }
+            else
+            {
+                <ul class="cmd-team-list">
+                    @foreach (var team in _teams.OrderBy(t => t.Status == "Available" ? 0 : t.Status == "Dispatched" ? 1 :
+                2).ThenBy(t => t.TeamName))
+                    {
+                        <li class="cmd-team">
+                            <span class="cmd-dot @TeamDot(team.Status)"></span>
+                            <div class="cmd-team-main">
+                                <span class="cmd-team-name">@team.TeamName</span>
+                                <span class="cmd-sub">@team.Specialization · @StatusWord(team.Status)</span>
+                            </div>
+                            <span class="cmd-team-load">@team.ActiveMissionCount active</span>
+                        </li>
+                    }
+                </ul>
+            }
+        </section>
+
+        @* ── Which shelters have capacity ───────────────────────────────────────── *@
+        <section class="cmd-card cmd-span-6">
+            <header class="cmd-card-head">
+                <div>
+                    <h2>Shelter capacity</h2>
+                    <p>Live occupancy — fullest first, because that is what needs relieving.</p>
+                </div>
+                <a href="admin/shelters" class="rr-btn rr-btn-ghost rr-btn-sm">Manage</a>
+            </header>
+
+            @if (_shelters.Count == 0)
+            {
+                <p class="cmd-empty">@(_loading ? "Loading shelters…" : "No shelters are registered yet.")</p>
+            }
+            else
+            {
+                <ul class="cmd-shelter-list">
+                    @foreach (var shelter in _shelters.OrderByDescending(Utilisation).Take(6))
+                    {
+                        var used = Utilisation(shelter);
+                        <li class="cmd-shelter">
+                            <div class="cmd-shelter-head">
+                                <span class="cmd-shelter-name">@shelter.Name</span>
+                                <span
+                                class="cmd-pill @(used >= 95 ? "danger" : used >= 80 ? "warn" : "ok")">@used.ToString("F0")%</span>
+                            </div>
+                            <div class="cmd-sub">@shelter.Occupancy.ToString("N0") of @shelter.Capacity.ToString("N0") ·
+                                @Math.Max(0, shelter.Capacity - shelter.Occupancy).ToString("N0") free</div>
+                                <div class="cmd-capacity-track">
+                                    <div class="cmd-capacity-fill @(used >= 95 ? "danger" : used >= 80 ? "warn" : "")"
+                                         style="width:@Math.Min(100, used).ToString("F0")%"></div>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                }
+            </section>
+        </div>
+    </div>
+
+@code {
+    private IncidentOpsSummaryDto? _summary;
+    private MapView _situation = new();
+    private readonly List<IncidentSearchRow> _urgent = new();
+    private List<RescueTeamDto> _teams = new();
+    private List<ShelterSummaryDto> _shelters = new();
+    private int _activeMissions;
+    private int _pendingRelief;
+    private int _activeRelief;
+
+    private bool _loading = true;
+    private bool _busy;
+    private string? _error;
+    private DateTimeOffset _updatedAtUtc = DateTimeOffset.UtcNow;
+    private IDisposable? _live;
+
+    private OpsKpiDto Kpi => _summary?.Kpi ?? new OpsKpiDto(0, 0, 0, 0, 0, 0, 0, 0, null, null, 0, 0);
+
+    private int AvailableTeams => _teams.Count(t => t.Status == "Available");
+    private int DeployedTeams => _teams.Count(t => t.Status == "Dispatched");
+    private int OffDutyTeams => _teams.Count(t => t.Status == "OffDuty");
+    private int SheltersNearCapacity => _shelters.Count(s => Utilisation(s) >= 80);
+    private int FreeSpaces => _shelters.Sum(s => Math.Max(0, s.Capacity - s.Occupancy));
+
+    private (string Headline, string Detail) Posture
+    {
+        get
+        {
+            if (_loading && _summary is null)
+            {
+                return ("Reading the national picture…", "Pulling live incidents, teams, shelters and relief demand.");
+            }
+
+            if (Kpi.CriticalIncidents > 0)
+            {
+                return ($"{Kpi.CriticalIncidents} critical incident{(Kpi.CriticalIncidents == 1 ? "" : "s")} open",
+                    Kpi.Unassigned > 0
+                        ? $"{Kpi.Unassigned} incident{(Kpi.Unassigned == 1 ? " is" : "s are")} still without a team. {AvailableTeams} team{(AvailableTeams == 1 ? " is" : "s are")} available."
+                        : $"Every open incident has a team. {AvailableTeams} team{(AvailableTeams == 1 ? "" : "s")} in reserve.");
+            }
+
+            if (Kpi.ActiveIncidents > 0)
+            {
+                return ($"{Kpi.ActiveIncidents} incident{(Kpi.ActiveIncidents == 1 ? "" : "s")} in progress",
+                    $"No critical calls open. Average response {CommandClient.FormatMinutes(Kpi.AvgResponseMinutes)}.");
+            }
+
+            return ("No active incidents", $"{Kpi.ResolvedLast24h} resolved in the last 24 hours. Monitoring.");
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _situation = MapConfig.CreateView();
+        _situation.SetVisible(MapLayerId.Relief, false);
+
+        await RefreshAsync();
+        _loading = false;
+        Notifications.Pushed += OnPushed;
+
+        // No timer: the command centre reloads when the operation actually changes.
+        _live = Live.Subscribe(() => InvokeAsync(RefreshAsync), RealtimeTopics.CommandFeed);
+    }
+
+    private void OnPushed(NotificationDto item) => _ = InvokeAsync(RefreshAsync);
+
+    private async Task RefreshAsync()
+    {
+        var summaryTask = Command.GetOpsSummaryAsync();
+        var urgentTask = Command.SearchIncidentsAsync(new IncidentFilter { UnassignedOnly = true, PageSize = 8 });
+        // Separate, wider query: the urgent table is a shortlist, the map is the picture.
+        var mapTask = Command.SearchIncidentsAsync(new IncidentFilter { PageSize = 200 });
+        var teamsTask = Rescue.GetTeamsAsync();
+        var missionsTask = Rescue.GetMissionsAsync(mine: false, activeOnly: true);
+        var sheltersTask = Shelters.GetSheltersAsync();
+        var reliefTask = Relief.GetQueueAsync();
+
+        await Task.WhenAll(summaryTask, urgentTask, mapTask, teamsTask, missionsTask, sheltersTask, reliefTask);
+
+        _summary = await summaryTask;
+        _urgent.Clear();
+        _urgent.AddRange(await urgentTask);
+        _teams = (await teamsTask).ToList();
+        _activeMissions = (await missionsTask).Count;
+
+        var shelters = await sheltersTask;
+        _shelters = shelters?.Data?.Items?.ToList() ?? new List<ShelterSummaryDto>();
+
+        var relief = await reliefTask;
+        _pendingRelief = relief.Count(r => r.Status == ReliefStatus.Pending);
+        _activeRelief = relief.Count(r => r.Status is ReliefStatus.Approved or ReliefStatus.Allocated or
+ReliefStatus.Dispatched);
+
+        var openIncidents = (await mapTask)
+            .Where(i => i.Status is not (IncidentStatus.Resolved or IncidentStatus.Rejected))
+            .ToList();
+        _situation
+            .SetLayer(MapLayerId.Incidents, openIncidents.ToPlacemarks())
+            .SetLayer(MapLayerId.Teams, _teams.ToPlacemarks())
+            .SetLayer(MapLayerId.Shelters, _shelters.ToPlacemarks());
+
+        _error = _summary is null ? "Operational metrics are unavailable right now — the figures below may be incomplete." :
+null;
+        _updatedAtUtc = DateTimeOffset.UtcNow;
+        StateHasChanged();
+    }
+
+    private async Task VerifyAsync(IncidentSearchRow incident, bool approved)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        _error = null;
+
+        var result = await Incidents.VerifyAsync(incident.Id, approved,
+            approved ? null : "Not actionable after command-centre review.");
+        if (!result.Ok)
+        {
+            _error = result.Error;
+        }
+
+        await RefreshAsync();
+        _busy = false;
+    }
+
+    public void Dispose()
+    {
+        Notifications.Pushed -= OnPushed;
+        _live?.Dispose();
+    }
+
+    private static double Utilisation(ShelterSummaryDto shelter) =>
+        shelter.Capacity <= 0 ? 0 : shelter.Occupancy * 100.0 / shelter.Capacity;
+
+    private int BarWidth(int total)
+    {
+        var max = _summary?.Hotspots.Max(h => h.Total) ?? 1;
+        return max <= 0 ? 0 : (int)Math.Round(Math.Max(6, total * 100.0 / max));
+    }
+
+    private static string AreaLabel(IncidentSearchRow incident) => string.IsNullOrWhiteSpace(incident.AddressOrArea)
+        ? $"{CommandClient.FormatCoordinate(incident.Location.Latitude)}, {CommandClient.FormatCoordinate(incident.Location.Longitude)}"
+        : incident.AddressOrArea;
+
+    private static string SeverityLabel(IncidentSearchRow incident) =>
+        incident.IsSos ? "SOS" : incident.Severity.ToString();
+
+    // Same chip vocabulary the rescue queue and the AI panel use, so a severity
+    // reads identically no matter which screen a coordinator is looking at.
+    private static string SeverityClass(IncidentSearchRow incident) =>
+        incident.IsSos ? "rr-sev-sos"
+        : incident.Severity >= Severity.Severe ? "rr-sev-critical"
+        : incident.Severity >= Severity.Moderate ? "rr-sev-high"
+        : "rr-sev-low";
+
+    private static string TeamDot(string status) => status switch
+    {
+        "Available" => "ok",
+        "Dispatched" => "warn",
+        _ => "idle",
+    };
+
+    private static string LegendDot(MapLayerId layer) => layer switch
+    {
+        MapLayerId.Incidents => "warn",
+        MapLayerId.Teams => "ok",
+        _ => "idle",
+    };
+    private static string StatusWord(string status) => status switch
+    {
+        "Available" => "available",
+        "Dispatched" => "on a mission",
+        "OffDuty" => "off duty",
+        _ => status,
+    };
+
+    private static string RelativeTime(DateTimeOffset moment)
+    {
+        var delta = DateTimeOffset.UtcNow - moment;
+        return delta switch
+        {
+            { TotalSeconds: < 60 } => "just now",
+            { TotalMinutes: < 60 } => $"{delta.TotalMinutes:F0} min ago",
+            { TotalHours: < 24 } => $"{delta.TotalHours:F0} h ago",
+            _ => $"{delta.TotalDays:F0} d ago",
+        };
+    }
+}

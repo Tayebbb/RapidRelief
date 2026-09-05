@@ -1,0 +1,174 @@
+@page "/g/duplicates"
+@layout MainLayout
+@namespace RapidRelief.Client.Features.Command.Pages
+@using RapidRelief.Client.Common.Ai
+@using RapidRelief.Client.Features.Command.Components
+@using RapidRelief.Client.Common.Ui
+@attribute [Authorize(Roles = "Government")]
+@inject AiClient Ai
+
+<PageTitle>Duplicate review — RapidRelief</PageTitle>
+
+<div class="cmd-layout">
+    <header class="cmd-header">
+        <div>
+            <div class="cmd-role-badge">
+                <AppIcon Name="copy" Size="14" />
+                <span>Duplicate review</span>
+            </div>
+            <h1 class="cmd-title">@_flags.Count flag@(_flags.Count == 1 ? "" : "s") @(_pendingOnly ? "awaiting review" : "on record")</h1>
+            <p class="cmd-subtitle">
+                The analyser flags reports that look like the same event. Nothing is merged or deleted automatically —
+                two neighbours calling about one fire and one family calling twice look identical from here.
+            </p>
+        </div>
+        <div class="cmd-header-actions">
+            <label class="cmd-check">
+                <input type="checkbox" checked="@_pendingOnly" @onchange="TogglePendingAsync" />
+                <span>Pending only</span>
+            </label>
+            <button type="button" class="rr-btn rr-btn-ghost rr-btn-sm" @onclick="RefreshAsync" disabled="@_loading">
+                <AppIcon Name="refresh" Size="15" /><span>Refresh</span>
+            </button>
+        </div>
+    </header>
+
+    @if (_message is not null)
+    {
+        <div class="cmd-banner @(_messageIsError ? "error" : "ok")" role="alert">
+            <AppIcon Name="@(_messageIsError ? "alert-circle" : "check-circle")" Size="18" />
+            <span>@_message</span>
+        </div>
+    }
+
+    <CommandTabs Active="g/incidents" />
+
+    <div class="cmd-banner ok">
+        <AppIcon Name="sparkles" Size="18" />
+        <span>@AiInsightDto.Disclaimer</span>
+    </div>
+
+    <section class="cmd-card">
+        @if (_loading)
+        {
+            <p class="cmd-empty">Loading flags…</p>
+        }
+        else if (_flags.Count == 0)
+        {
+            <p class="cmd-empty">No duplicate flags@(_pendingOnly ? " are waiting for review" : " on record"). Every report is being handled on its own.</p>
+        }
+        else
+        {
+            <div class="cmd-table-wrap">
+                <table class="cmd-table">
+                    <thead>
+                        <tr>
+                            <th>Report</th>
+                            <th>Looks like</th>
+                            <th>Confidence</th>
+                            <th>Evidence</th>
+                            <th>Flagged</th>
+                            <th class="cmd-col-action">Decision</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var flag in _flags)
+                        {
+                            <tr>
+                                <td><a href="@($"r/incidents/{flag.IncidentId}")" class="cmd-link">#@ShortId(flag.IncidentId)</a></td>
+                                <td><a href="@($"r/incidents/{flag.PossibleDuplicateOfId}")" class="cmd-link">#@ShortId(flag.PossibleDuplicateOfId)</a></td>
+                                <td>
+                                    <span class="cmd-pill @(flag.Confidence >= 0.75 ? "danger" : flag.Confidence >= 0.6 ? "warn" : "")">
+                                        @flag.Confidence.ToString("P0")
+                                    </span>
+                                </td>
+                                <td class="cmd-sub">@flag.Reason</td>
+                                <td>@flag.FlaggedAtUtc.ToLocalTime().ToString("dd MMM HH:mm")</td>
+                                <td class="cmd-col-action">
+                                    @if (flag.Decision is null)
+                                    {
+                                        <button type="button" class="rr-btn rr-btn-ghost rr-btn-xs" disabled="@_busy"
+                                                @onclick="() => ConfirmAsync(flag)">Same event</button>
+                                        <button type="button" class="rr-btn rr-btn-primary rr-btn-xs" disabled="@_busy"
+                                                @onclick="() => DismissAsync(flag)">Separate</button>
+                                    }
+                                    else
+                                    {
+                                        <span class="cmd-pill @(flag.Decision == "Confirmed" ? "warn" : "ok")">@flag.Decision</span>
+                                        <span class="cmd-sub">@flag.ReviewedAtUtc?.ToLocalTime().ToString("dd MMM HH:mm")</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <p class="cmd-sub">
+                “Same event” records the verdict for the audit trail; it does not close either report.
+                Close the redundant one from the incident board once you are certain.
+            </p>
+        }
+    </section>
+</div>
+
+@code {
+    private IReadOnlyList<DuplicateFlagDto> _flags = [];
+    private bool _pendingOnly = true;
+    private bool _loading = true;
+    private bool _busy;
+    private string? _message;
+    private bool _messageIsError;
+
+    protected override Task OnInitializedAsync() => RefreshAsync();
+
+    private async Task RefreshAsync()
+    {
+        _loading = true;
+        _flags = await Ai.GetDuplicatesAsync(_pendingOnly);
+        _loading = false;
+        StateHasChanged();
+    }
+
+    private async Task TogglePendingAsync(ChangeEventArgs args)
+    {
+        _pendingOnly = (bool?)args.Value == true;
+        await RefreshAsync();
+    }
+
+    private async Task ConfirmAsync(DuplicateFlagDto flag)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        var error = await Ai.ConfirmDuplicateAsync(flag.IncidentId, "Reviewed in the command centre.");
+        Report(error ?? $"#{ShortId(flag.IncidentId)} recorded as the same event — both reports remain open.", error is not null);
+        await RefreshAsync();
+        _busy = false;
+    }
+
+    private async Task DismissAsync(DuplicateFlagDto flag)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        var error = await Ai.DismissDuplicateAsync(flag.IncidentId, "Confirmed as a separate emergency.");
+        Report(error ?? $"#{ShortId(flag.IncidentId)} kept as a separate emergency.", error is not null);
+        await RefreshAsync();
+        _busy = false;
+    }
+
+    private void Report(string? message, bool isError)
+    {
+        _message = message;
+        _messageIsError = isError;
+    }
+
+    private static string ShortId(Guid id) => id.ToString("N")[..6].ToUpperInvariant();
+}

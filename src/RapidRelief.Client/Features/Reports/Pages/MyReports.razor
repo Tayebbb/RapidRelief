@@ -2,8 +2,15 @@
 @layout MainLayout
 @namespace RapidRelief.Client.Features.Reports.Pages
 @using RapidRelief.Shared.Contracts.Enums
+@using RapidRelief.Shared.Contracts.Services
+@using RapidRelief.Client.Common.Realtime
 @using RapidRelief.Client.Common.Ui
+@using RapidRelief.Client.Features.Reports
+@attribute [Authorize]
 @inject NavigationManager Navigation
+@inject IncidentsClient Incidents
+@inject LiveUpdateService Live
+@implements IDisposable
 
 <PageTitle>Track My Reports — RapidRelief</PageTitle>
 
@@ -29,118 +36,284 @@
 
     <!-- Active Reports List -->
     <div class="d-flex flex-column gap-4">
-        @foreach (var report in _myReports)
+        @if (_loading)
         {
-            <div class="dash-card">
-                <div class="dash-card-header">
-                    <div>
-                        <div class="d-flex align-items-center gap-2 mb-1">
-                            <span class="badge @report.UrgencyBadge rounded-pill px-2 py-1 small">@report.Urgency</span>
-                            <span class="text-secondary small fw-bold">Ticket: #@report.TicketId</span>
-                        </div>
-                        <h2 class="dash-card-title">@report.Title</h2>
-                        <div class="dash-item-sub mt-1">
-                            <span><AppIcon Name="map-pin" Size="13" /> @report.Location</span>
-                            <span>• Filed @report.FiledTime</span>
-                            <span>• People: @report.PeopleCount</span>
-                        </div>
-                    </div>
-
-                    <div class="d-flex align-items-center gap-2">
-                        <span class="badge @report.StatusBadge rounded-pill px-3 py-2 fs-6">@report.Status</span>
-                    </div>
-                </div>
-
-                <!-- Mission Progression Stepper -->
-                <div class="tactical-stepper mb-3">
-                    <div class="stepper-node @(report.Step >= 1 ? (report.Step == 1 ? "active" : "completed") : "")">
-                        1. Reported
-                    </div>
-                    <div class="stepper-node @(report.Step >= 2 ? (report.Step == 2 ? "active" : "completed") : "")">
-                        2. Verified by EOC
-                    </div>
-                    <div class="stepper-node @(report.Step >= 3 ? (report.Step == 3 ? "active" : "completed") : "")">
-                        3. Unit Dispatched
-                    </div>
-                    <div class="stepper-node @(report.Step >= 4 ? "completed active" : "")">
-                        4. Resolved / Safe
-                    </div>
-                </div>
-
-                <div class="p-3 rounded-3 d-flex align-items-center justify-content-between flex-wrap gap-3" style="background: var(--rr-surface-2); border: 1px solid var(--rr-border);">
-                    <div class="d-flex align-items-center gap-3">
-                        <div class="dash-kpi-icon-wrap forest" style="width: 40px; height: 40px;">
-                            <AppIcon Name="navigation" Size="20" />
-                        </div>
-                        <div>
-                            <div class="fw-bold" style="font-size: 0.92rem;">Assigned Responder: @report.AssignedUnit</div>
-                            <div class="text-secondary small">Status: @report.UnitStatus • ETA: @report.Eta</div>
-                        </div>
-                    </div>
-                    <div class="d-flex align-items-center gap-2">
-                        <a href="sample" class="btn-dash-outline">
-                            <AppIcon Name="map" Size="14" />
-                            <span>View on Map</span>
-                        </a>
-                        <a href="assistant" class="btn-dash-outline">
-                            <AppIcon Name="chat" Size="14" />
-                            <span>Ask Assistant</span>
-                        </a>
-                    </div>
-                </div>
+            <div class="dash-card" aria-busy="true">
+                <span class="rr-skeleton" style="width:40%;height:1.1rem;"></span>
+                <span class="rr-skeleton mt-3" style="width:100%;height:3rem;"></span>
             </div>
         }
+        else if (_error is not null)
+        {
+            <div class="alert alert-warning d-flex align-items-center gap-2" role="alert">
+                <AppIcon Name="alert-circle" Size="18" />
+                <div>@_error <button type="button" class="btn btn-link p-0 align-baseline"
+                                         @onclick="LoadAsync">Retry</button></div>
+                </div>
+            }
+        else if (_reports.Count == 0)
+            {
+                <div class="rr-empty">
+                    <AppIcon Name="inbox" Size="28" />
+                    <strong>No reports yet</strong>
+                    <p>When you file an emergency report it appears here with live rescue progress.</p>
+                    <a href="reports/new" class="btn-dash-primary">File your first report</a>
+                </div>
+            }
+            else
+            {
+                @foreach (var report in _reports)
+                {
+                    <div class="dash-card">
+                        <div class="dash-card-header">
+                            <div>
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <span
+                                    class="badge @UrgencyBadge(report) rounded-pill px-2 py-1 small">@UrgencyLabel(report)</span>
+                                    <span class="text-secondary small fw-bold">Ticket: #RR-@ShortId(report.Id)</span>
+                                </div>
+                                <h2 class="dash-card-title">@report.Title</h2>
+                                <div class="dash-item-sub mt-1">
+                                    <span>
+                                        <AppIcon Name="map-pin" Size="13" /> @LocationLabel(report)
+                                    </span>
+                                    <span>• Filed @Relative(report.CreatedAtUtc)</span>
+                                    <span>• People: @report.AffectedPeopleCount</span>
+                                </div>
+                            </div>
+
+                            <div class="d-flex align-items-center gap-2">
+                                <span
+                                class="badge @StatusBadge(report.Status) rounded-pill px-3 py-2 fs-6">@StatusLabel(report.Status)</span>
+                            </div>
+                        </div>
+
+                        @* The same timeline the dashboard uses: one vocabulary for "where is my
+                           rescue", and it wraps on a phone instead of overflowing sideways. *@
+                        @{
+                            var step = Step(report);
+                        }
+                        <ol class="rr-timeline mb-3">
+                            @foreach (var node in TimelineSteps(step))
+                            {
+                                <li class="rr-timeline-step @node.State">
+                                    <span class="rr-timeline-node" aria-hidden="true">
+                                        @if (node.State == "is-done")
+                                        {
+                                            <AppIcon Name="check" Size="11" />
+                                        }
+                                    </span>
+                                    <span>
+                                        <span class="rr-timeline-label">@node.Label</span>
+                                        <span class="rr-timeline-meta">@node.Detail</span>
+                                    </span>
+                                </li>
+                            }
+                        </ol>
+
+                        <div class="rr-inset d-flex align-items-center justify-content-between flex-wrap gap-3">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="dash-kpi-icon-wrap forest rr-icon-tile">
+                                    <AppIcon Name="navigation" Size="20" />
+                                </div>
+                                <div>
+                                    <div class="rr-meta-strong">@ResponderLabel(report)</div>
+                                    <div class="text-secondary small">@ProgressLabel(report)</div>
+                                </div>
+                            </div>
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <a href="sample" class="btn-dash-outline">
+                                    <AppIcon Name="map" Size="14" />
+                                    <span>View on Map</span>
+                                </a>
+                                <a href="assistant" class="btn-dash-outline">
+                                    <AppIcon Name="chat" Size="14" />
+                                    <span>Ask Assistant</span>
+                                </a>
+                            </div>
+                        </div>
+
+                        @if (report.Timeline.Count > 0)
+                        {
+                            <details class="mt-3" open>
+                                <summary class="text-secondary small">What happened, step by step</summary>
+                                <ul class="mt-2 mb-0 ps-3">
+                                    @foreach (var entry in report.Timeline)
+                                    {
+                                        <li class="small text-secondary">
+                                            <strong>@entry.ChangedAtUtc.ToLocalTime().ToString("dd MMM HH:mm")</strong> — @Humanise(entry)
+                                        </li>
+                                    }
+                                </ul>
+                            </details>
+                        }
+                    </div>
+                }
+            }
+        </div>
     </div>
-</div>
 
 @code {
-    private readonly List<UserReport> _myReports = new()
+    private readonly List<IncidentDto> _reports = new();
+    private bool _loading = true;
+    private string? _error;
+    private IDisposable? _live;
+
+    protected override async Task OnInitializedAsync()
     {
-        new UserReport(
-            "RR-9812",
-            "Water Surging Around 2-Story Residential Home",
-            "Sector 3, Riverside Road, Dhaka (23.8103° N, 90.4125° E)",
-            "Critical",
-            "bg-danger text-white",
-            "Dispatched",
-            "bg-danger-subtle text-danger border border-danger-subtle",
-            3,
-            "45 minutes ago",
-            3,
-            "Search & Rescue Unit Alpha-7 (Boat 02)",
-            "En route to coordinates",
-            "~12 minutes"
-        ),
-        new UserReport(
-            "RR-8419",
-            "Minor Roadblock & Fallen Tree",
-            "Near Community Clinic, Ward 5",
-            "Moderate",
-            "bg-warning text-dark",
-            "Resolved",
-            "bg-success-subtle text-success border border-success-subtle",
-            2,
-            "Yesterday, 4:20 PM",
-            4,
-            "Municipal Quick Response Crew",
-            "Obstacle cleared and traffic restored",
-            "Completed"
-        ),
+        await LoadAsync();
+
+        // Status moves while the citizen watches: reload when it actually moves, not on a clock.
+        _live = Live.Subscribe(() => InvokeAsync(RefreshAsync), RealtimeTopics.CitizenFeed);
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        await RefreshAsync();
+        _loading = false;
+    }
+
+    private async Task RefreshAsync()
+    {
+        var page = await Incidents.GetMineAsync();
+        if (page is null)
+        {
+            _error = "We could not load your reports. Check your connection and try again.";
+        }
+        else
+        {
+            _error = null;
+            _reports.Clear();
+            _reports.AddRange(page.Items);
+        }
+
+        StateHasChanged();
+    }
+
+    public void Dispose() => _live?.Dispose();
+
+    private static string ShortId(Guid id) => id.ToString("N")[..6].ToUpperInvariant();
+
+    private static int Step(IncidentDto report) => report.Status switch
+    {
+        IncidentStatus.Reported => 1,
+        IncidentStatus.Verified => 2,
+        IncidentStatus.Assigned => 3,
+        IncidentStatus.InProgress => string.Equals(report.MissionStage, "OnScene", StringComparison.OrdinalIgnoreCase) ? 5 : 4,
+        IncidentStatus.Resolved => 6,
+        _ => 1,
     };
 
-    private sealed record UserReport(
-        string TicketId,
-        string Title,
-        string Location,
-        string Urgency,
-        string UrgencyBadge,
-        string Status,
-        string StatusBadge,
-        int Step,
-        string FiledTime,
-        int PeopleCount,
-        string AssignedUnit,
-        string UnitStatus,
-        string Eta
-    );
+    private sealed record TimelineStep(string Label, string Detail, string State);
+
+    /// <summary>Mirrors the citizen dashboard so "where is my rescue" reads the same everywhere.</summary>
+    private static IReadOnlyList<TimelineStep> TimelineSteps(int stage)
+    {
+        var names = new[]
+        {
+            ("Report received", "We have your report and location"),
+            ("Verified", "The command centre confirmed it"),
+            ("Rescue assigned", "A team has been given this job"),
+            ("En route", "The team is on its way to you"),
+            ("On site", "The team has reached your location"),
+            ("Resolved", "This emergency has been closed"),
+        };
+
+        return names.Select((n, i) =>
+        {
+            var position = i + 1;
+            var state = position < stage ? "is-done" : position == stage ? "is-current" : string.Empty;
+            var detail = position == stage ? n.Item2 : position < stage ? "Done" : "Waiting";
+            return new TimelineStep(n.Item1, detail, state);
+        }).ToList();
+    }
+
+    /// <summary>Timeline notes are written for responders — the citizen gets plain language.</summary>
+    private static string Humanise(IncidentStatusEntryDto entry) => entry.Notes switch
+    {
+        "SOS report received" => "Your SOS reached the command centre.",
+        "Report received" => "Your report reached the command centre.",
+        "Verified by command centre" => "The command centre verified your report.",
+        "Rescue team assigned" => "A rescue team was assigned to you.",
+        "Mission EnRoute" => "The rescue team started travelling to you.",
+        "Mission OnScene" => "The rescue team arrived at your location.",
+        "Mission Completed" => "The team completed the rescue and closed the case.",
+        "Mission Cancelled" => "The assigned mission was cancelled — you are back in the queue.",
+        _ => entry.Notes,
+    };
+
+    private static string StatusLabel(IncidentStatus status) => status switch
+    {
+        IncidentStatus.InProgress => "In progress",
+        IncidentStatus.Rejected => "Closed",
+        _ => status.ToString(),
+    };
+
+    private static string StatusBadge(IncidentStatus status) => status switch
+    {
+        IncidentStatus.Resolved => "bg-success-subtle text-success border border-success-subtle",
+        IncidentStatus.Rejected => "bg-secondary-subtle text-secondary border border-secondary-subtle",
+        IncidentStatus.Assigned or IncidentStatus.InProgress => "bg-danger-subtle text-danger border border-danger-subtle",
+        _ => "bg-warning-subtle text-warning-emphasis border border-warning-subtle",
+    };
+
+    private static string UrgencyLabel(IncidentDto report) => report.IsSos ? "SOS" : report.Severity.ToString();
+
+    private static string UrgencyBadge(IncidentDto report) => report.IsSos || report.Severity >= Severity.Severe
+        ? "bg-danger text-white"
+        : "bg-warning text-dark";
+
+    private static string LocationLabel(IncidentDto report) => string.IsNullOrWhiteSpace(report.AddressOrArea)
+        ? $"{IncidentsClient.FormatCoordinate(report.Location.Latitude)}, {IncidentsClient.FormatCoordinate(report.Location.Longitude)}"
+        : report.AddressOrArea;
+
+    private static string ResponderLabel(IncidentDto report) => report.AssignedMissionId is null
+        ? "No unit assigned yet"
+        : $"Assigned responder: unit {ShortId(report.AssignedTeamId ?? Guid.Empty)}";
+
+    private static string ProgressLabel(IncidentDto report)
+    {
+        if (report.Status == IncidentStatus.Rejected)
+        {
+            return $"Closed by the command centre: {report.RejectionReason}";
+        }
+
+        if (report.Status == IncidentStatus.Resolved)
+        {
+            return $"Resolved {Relative(report.ResolvedAtUtc ?? report.UpdatedAtUtc)}";
+        }
+
+        if (report.Status == IncidentStatus.InProgress)
+        {
+            return string.Equals(report.MissionStage, "OnScene", StringComparison.OrdinalIgnoreCase)
+                ? "The team is at your location now."
+                : "The team is travelling to you now.";
+        }
+
+        // Labelled as an estimate: a citizen must never read a triage score as a promise.
+        var priority = report.PriorityScore is { } score
+            ? $"AI estimate (decision support, not confirmed): priority {score:F0}/100"
+            : "AI assessment pending";
+        return string.IsNullOrWhiteSpace(report.AiSummary) ? priority : $"{priority} • {report.AiSummary}";
+    }
+
+    private static string Relative(DateTimeOffset moment)
+    {
+        var delta = DateTimeOffset.UtcNow - moment;
+        if (delta < TimeSpan.FromMinutes(1))
+        {
+            return "just now";
+        }
+
+        if (delta < TimeSpan.FromHours(1))
+        {
+            return $"{(int)delta.TotalMinutes} min ago";
+        }
+
+        return delta < TimeSpan.FromDays(1)
+            ? $"{(int)delta.TotalHours} h ago"
+            : moment.ToLocalTime().ToString("dd MMM, HH:mm");
+    }
 }

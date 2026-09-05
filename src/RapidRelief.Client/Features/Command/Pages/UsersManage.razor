@@ -1,0 +1,246 @@
+@page "/g/users"
+@layout MainLayout
+@namespace RapidRelief.Client.Features.Command.Pages
+@using RapidRelief.Shared.Contracts.ReadModels
+@using RapidRelief.Client.Features.Command.Components
+@using RapidRelief.Client.Common.Ui
+@using RapidRelief.Client.Features.Command
+@attribute [Authorize(Roles = "Government")]
+@inject CommandClient Command
+
+<PageTitle>User management — RapidRelief</PageTitle>
+
+<div class="cmd-layout">
+    <header class="cmd-header">
+        <div>
+            <div class="cmd-role-badge">
+                <AppIcon Name="user" Size="14" />
+                <span>User management</span>
+            </div>
+            <h1 class="cmd-title">@_users.Count account@(_users.Count == 1 ? "" : "s")</h1>
+            <p class="cmd-subtitle">
+                Roles decide what a person can do in an emergency. Every change here is written to the audit trail.
+            </p>
+        </div>
+        <div class="cmd-header-actions">
+            <button type="button" class="rr-btn rr-btn-ghost rr-btn-sm" @onclick="RefreshAsync" disabled="@_loading">
+                <AppIcon Name="refresh" Size="15" /><span>Refresh</span>
+            </button>
+        </div>
+    </header>
+
+    @if (_message is not null)
+    {
+        <div class="cmd-banner @(_messageIsError ? "error" : "ok")" role="alert">
+            <AppIcon Name="@(_messageIsError ? "alert-circle" : "check-circle")" Size="18" />
+            <span>@_message</span>
+        </div>
+    }
+
+    <CommandTabs Active="g/users" />
+
+    <div class="cmd-filters">
+        <div class="cmd-search">
+            <span class="cmd-search-icon"><AppIcon Name="search" Size="15" /></span>
+            <input type="search" placeholder="Search name or email…" @bind="_query" @bind:event="oninput" aria-label="Search users" />
+        </div>
+        <select class="cmd-select" aria-label="Role filter" @onchange="e => _roleFilter = e.Value?.ToString()">
+            <option value="">Any role</option>
+            @foreach (var role in Roles)
+            {
+                <option value="@role">@role</option>
+            }
+        </select>
+        <label class="cmd-check">
+            <input type="checkbox" checked="@_lockedOnly" @onchange="e => _lockedOnly = (bool?)e.Value == true" />
+            <span>Locked only</span>
+        </label>
+        <span class="cmd-result-count">@Filtered.Count() shown · @_users.Count(u => u.IsLocked) locked</span>
+    </div>
+
+    <section class="cmd-card">
+        @if (_loading)
+        {
+            <p class="cmd-empty">Loading accounts…</p>
+        }
+        else if (!Filtered.Any())
+        {
+            <p class="cmd-empty">No account matches this search.</p>
+        }
+        else
+        {
+            <div class="cmd-table-wrap">
+                <table class="cmd-table">
+                    <thead>
+                        <tr>
+                            <th>Person</th>
+                            <th>Email</th>
+                            <th>Roles</th>
+                            <th>State</th>
+                            <th class="cmd-col-action">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var user in Filtered)
+                        {
+                            <tr>
+                                <td><strong>@user.DisplayName</strong><span class="cmd-sub">#@ShortId(user.Id)</span></td>
+                                <td class="cmd-audit-entity">@user.Email</td>
+                                <td>
+                                    @if (_editingRolesFor == user.Id)
+                                    {
+                                        <div class="cmd-legend">
+                                            @foreach (var role in Roles)
+                                            {
+                                                <label class="cmd-check">
+                                                    <input type="checkbox" checked="@_draftRoles.Contains(role)"
+                                                           @onchange="e => ToggleRole(role, (bool?)e.Value == true)" />
+                                                    <span>@role</span>
+                                                </label>
+                                            }
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var role in user.Roles)
+                                        {
+                                            <span class="cmd-pill @(role == "Government" ? "ok" : "")">@role</span>
+                                        }
+                                        @if (user.Roles.Count == 0)
+                                        {
+                                            <span class="cmd-sub">No role assigned</span>
+                                        }
+                                    }
+                                </td>
+                                <td>
+                                    <span class="cmd-pill @(user.IsLocked ? "danger" : "ok")">@(user.IsLocked ? "Locked" : "Active")</span>
+                                </td>
+                                <td class="cmd-col-action">
+                                    @if (_editingRolesFor == user.Id)
+                                    {
+                                        <button type="button" class="rr-btn rr-btn-primary rr-btn-xs" disabled="@_busy"
+                                                @onclick="() => SaveRolesAsync(user)">Save</button>
+                                        <button type="button" class="rr-btn rr-btn-ghost rr-btn-xs" @onclick="() => _editingRolesFor = null">Cancel</button>
+                                    }
+                                    else
+                                    {
+                                        <button type="button" class="rr-btn rr-btn-ghost rr-btn-xs" @onclick="() => StartRoleEdit(user)">Roles</button>
+                                        <button type="button" class="rr-btn @(user.IsLocked ? "rr-btn-primary" : "rr-btn-ghost") rr-btn-xs"
+                                                disabled="@_busy" @onclick="() => ToggleLockAsync(user)">
+                                            @(user.IsLocked ? "Unlock" : "Lock")
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</div>
+
+@code {
+    private static readonly string[] Roles = ["Citizen", "Rescuer", "Government"];
+
+    private List<UserSummaryDto> _users = new();
+    private string? _query;
+    private string? _roleFilter;
+    private bool _lockedOnly;
+    private bool _loading = true;
+    private bool _busy;
+    private string? _message;
+    private bool _messageIsError;
+    private Guid? _editingRolesFor;
+    private readonly HashSet<string> _draftRoles = new(StringComparer.OrdinalIgnoreCase);
+
+    private IEnumerable<UserSummaryDto> Filtered => _users
+        .Where(u => string.IsNullOrWhiteSpace(_query)
+            || u.DisplayName.Contains(_query, StringComparison.OrdinalIgnoreCase)
+            || u.Email.Contains(_query, StringComparison.OrdinalIgnoreCase))
+        .Where(u => string.IsNullOrEmpty(_roleFilter) || u.Roles.Contains(_roleFilter, StringComparer.OrdinalIgnoreCase))
+        .Where(u => !_lockedOnly || u.IsLocked)
+        .OrderByDescending(u => u.IsLocked)
+        .ThenBy(u => u.DisplayName);
+
+    protected override Task OnInitializedAsync() => RefreshAsync();
+
+    private async Task RefreshAsync()
+    {
+        _loading = true;
+        var paged = await Command.GetUsersAsync();
+        _users = paged?.Items?.ToList() ?? new List<UserSummaryDto>();
+        if (paged is null)
+        {
+            Report("Could not load accounts.", true);
+        }
+
+        _loading = false;
+        StateHasChanged();
+    }
+
+    private void StartRoleEdit(UserSummaryDto user)
+    {
+        _editingRolesFor = user.Id;
+        _draftRoles.Clear();
+        foreach (var role in user.Roles)
+        {
+            _draftRoles.Add(role);
+        }
+    }
+
+    private void ToggleRole(string role, bool selected)
+    {
+        if (selected)
+        {
+            _draftRoles.Add(role);
+        }
+        else
+        {
+            _draftRoles.Remove(role);
+        }
+    }
+
+    private async Task SaveRolesAsync(UserSummaryDto user)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        if (_draftRoles.Count == 0)
+        {
+            Report("Give the account at least one role — an account with none cannot use the platform.", true);
+            return;
+        }
+
+        _busy = true;
+        var error = await Command.SetUserRolesAsync(user.Id, _draftRoles.ToList());
+        Report(error ?? $"{user.DisplayName} is now {string.Join(", ", _draftRoles)}.", error is not null);
+        _editingRolesFor = null;
+        await RefreshAsync();
+        _busy = false;
+    }
+
+    private async Task ToggleLockAsync(UserSummaryDto user)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        var error = await Command.SetUserLockAsync(user.Id, !user.IsLocked);
+        Report(error ?? $"{user.DisplayName} {(user.IsLocked ? "unlocked" : "locked out")}.", error is not null);
+        await RefreshAsync();
+        _busy = false;
+    }
+
+    private void Report(string? message, bool isError)
+    {
+        _message = message;
+        _messageIsError = isError;
+    }
+
+    private static string ShortId(Guid id) => id.ToString("N")[..6].ToUpperInvariant();
+}

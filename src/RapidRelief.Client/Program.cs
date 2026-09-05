@@ -2,13 +2,21 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.JSInterop;
 using RapidRelief.Client;
+using RapidRelief.Client.Common.Ai;
 using RapidRelief.Client.Common.Auth;
 using RapidRelief.Client.Common.Geo;
+using RapidRelief.Client.Common.Map;
+using RapidRelief.Client.Common.Offline;
 using RapidRelief.Client.Common.Realtime;
 using RapidRelief.Client.Features.Assistant;
 using RapidRelief.Client.Features.Alerts;
 using RapidRelief.Client.Features.Auth;
+using RapidRelief.Client.Features.Command;
+using RapidRelief.Client.Features.Relief;
+using RapidRelief.Client.Features.Reports;
+using RapidRelief.Client.Features.Rescue;
 using RapidRelief.Client.Features.Shelters;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
@@ -43,6 +51,12 @@ builder.Services.AddScoped<IAlertsApi>(sp => new AlertsApi(sp.GetRequiredService
 // own instance of the SAME handler chain — Bearer and X-Dev-Role behave identically.
 builder.Services.AddSingleton<INotificationsApi>(sp => new NotificationsApi(ApiClient(sp)));
 builder.Services.AddSingleton<NotificationState>();
+
+// Pages subscribe to topics instead of holding a Timer: while the hub is up there is no polling.
+builder.Services.AddSingleton(sp => new LiveUpdateService(
+    sp.GetRequiredService<NotificationState>(),
+    sp.GetRequiredService<ILogger<LiveUpdateService>>()));
+
 builder.Services.AddSingleton(sp => new NotificationHubClient(
     sp.GetRequiredService<JwtAuthStateProvider>(),
     sp.GetRequiredService<AuthApi>(),
@@ -55,8 +69,28 @@ builder.Services.AddSingleton(sp => new NotificationHubClient(
 // F3 Client
 builder.Services.AddScoped(sp => new SheltersClient(sp.GetRequiredService<HttpClient>()));
 
+// F2 incident ingestion + F5 rescue operations ride the main Bearer / X-Dev-Role chain.
+builder.Services.AddScoped(sp => new IncidentsClient(sp.GetRequiredService<HttpClient>()));
+builder.Services.AddScoped(sp => new RescueClient(sp.GetRequiredService<HttpClient>()));
+builder.Services.AddScoped(sp => new ReliefClient(sp.GetRequiredService<HttpClient>()));
+
+// F7 command centre: aggregates the ops metrics, audit trail, inventory and admin surfaces.
+builder.Services.AddScoped(sp => new CommandClient(sp.GetRequiredService<HttpClient>()));
+
+// F8 decision support: structured insight, explanation and the duplicate review queue.
+builder.Services.AddScoped(sp => new AiClient(sp.GetRequiredService<HttpClient>()));
+
+// Store-and-forward outbox: a report typed offline is persisted before any network attempt.
+builder.Services.AddScoped(sp => new OutboxService(
+    sp.GetRequiredService<IJSRuntime>(),
+    sp.GetRequiredService<IncidentsClient>()));
+
 // Foundation geolocation (browser prompt only fires on user action — see js/geolocation.js).
 builder.Services.AddScoped<GeolocationService>();
+
+// The one map service: tile settings from the server (never a key in client source) and the
+// factory for the per-page MapView that owns layers, filters and distances.
+builder.Services.AddScoped(sp => new MapConfigService(sp.GetRequiredService<HttpClient>()));
 
 var host = builder.Build();
 
@@ -78,6 +112,16 @@ try
 catch
 {
     // realtime is best-effort; the inbox endpoints keep working without it
+}
+
+// Deliver anything the citizen filed while offline, then keep listening for reconnects.
+try
+{
+    await host.Services.GetRequiredService<OutboxService>().InitializeAsync();
+}
+catch
+{
+    // a broken IndexedDB must never stop the app from starting
 }
 
 await host.RunAsync();

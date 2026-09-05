@@ -1,0 +1,452 @@
+@page "/g/incidents"
+@layout MainLayout
+@namespace RapidRelief.Client.Features.Command.Pages
+@using RapidRelief.Shared.Contracts.Common
+@using RapidRelief.Shared.Contracts.Enums
+@using RapidRelief.Shared.Contracts.Services
+@using RapidRelief.Client.Common.Map
+@using RapidRelief.Client.Common.Realtime
+@using RapidRelief.Client.Features.Command.Components
+@using RapidRelief.Client.Common.Ui
+@using RapidRelief.Client.Features.Command
+@using RapidRelief.Client.Features.Reports
+@attribute [Authorize(Roles = "Government")]
+@inject CommandClient Command
+@inject IncidentsClient Incidents
+@inject NavigationManager Navigation
+@inject LiveUpdateService Live
+@implements IDisposable
+
+<PageTitle>Incident management — RapidRelief</PageTitle>
+
+<div class="cmd-layout">
+    <header class="cmd-header">
+        <div>
+            <div class="cmd-role-badge">
+                <AppIcon Name="layers" Size="14" />
+                <span>Incident management</span>
+            </div>
+            <h1 class="cmd-title">@_rows.Count incident@(_rows.Count == 1 ? "" : "s") in view</h1>
+            <p class="cmd-subtitle">Search, triage, verify, dispatch and close every report in the system.</p>
+        </div>
+        <div class="cmd-header-actions">
+            <button type="button" class="rr-btn rr-btn-ghost rr-btn-sm" @onclick="ToggleView">
+                <AppIcon Name="@(_mapView ? "layers" : "map")" Size="15" />
+                <span>@(_mapView ? "Table view" : "Map view")</span>
+            </button>
+            <RealtimeIndicator />
+            <button type="button" class="rr-btn rr-btn-ghost rr-btn-sm" @onclick="ReloadAsync" disabled="@_loading">
+                <AppIcon Name="refresh" Size="15" /><span>Refresh</span>
+            </button>
+        </div>
+    </header>
+
+    @if (_message is not null)
+    {
+        <div class="cmd-banner @(_messageIsError ? "error" : "ok")" role="alert">
+            <AppIcon Name="@(_messageIsError ? "alert-circle" : "check-circle")" Size="18" />
+            <span>@_message</span>
+        </div>
+    }
+
+    <CommandTabs Active="g/incidents" />
+
+    <div class="cmd-filters">
+        <div class="cmd-search">
+            <span class="cmd-search-icon">
+                <AppIcon Name="search" Size="15" />
+            </span>
+            <input type="search" placeholder="Search title, description or area…" value="@_filter.Query"
+                   @oninput="OnQueryInput" aria-label="Search incidents" />
+        </div>
+
+        <select class="cmd-select" aria-label="Status" value="@(_filter.Status?.ToString() ?? "")"
+                @onchange="e => ApplyAsync(f => f.Status = ParseEnum<IncidentStatus>(e.Value))">
+            <option value="">Any status</option>
+            @foreach (var status in Enum.GetValues<IncidentStatus>())
+            {
+                <option value="@status">@StatusLabel(status)</option>
+            }
+        </select>
+
+        <select class="cmd-select" aria-label="Disaster type" value="@(_filter.Type?.ToString() ?? "")"
+                @onchange="e => ApplyAsync(f => f.Type = ParseEnum<DisasterType>(e.Value))">
+            <option value="">Any type</option>
+            @foreach (var type in Enum.GetValues<DisasterType>())
+            {
+                <option value="@type">@type</option>
+            }
+        </select>
+
+        <select class="cmd-select" aria-label="Severity" value="@(_filter.Severity?.ToString() ?? "")"
+                @onchange="e => ApplyAsync(f => f.Severity = ParseEnum<Severity>(e.Value))">
+            <option value="">Any severity</option>
+            @foreach (var severity in Enum.GetValues<Severity>().Reverse())
+            {
+                <option value="@severity">@severity</option>
+            }
+        </select>
+
+        <label class="cmd-check">
+            <input type="checkbox" checked="@_filter.SosOnly"
+                   @onchange="e => ApplyAsync(f => f.SosOnly = (bool?)e.Value == true)" />
+            <span>SOS only</span>
+        </label>
+
+        <label class="cmd-check">
+            <input type="checkbox" checked="@_filter.UnassignedOnly"
+                   @onchange="e => ApplyAsync(f => f.UnassignedOnly = (bool?)e.Value == true)" />
+            <span>Unassigned</span>
+        </label>
+
+        <select class="cmd-select" aria-label="Sort order" @onchange="e => SortChanged(e.Value?.ToString())">
+            <option value="priority">Priority first</option>
+            <option value="newest">Newest first</option>
+            <option value="oldest">Longest waiting</option>
+            <option value="severity">Severity</option>
+        </select>
+
+        @if (!_filter.IsEmpty)
+        {
+            <button type="button" class="rr-btn rr-btn-ghost rr-btn-xs" @onclick="ClearFiltersAsync">Clear</button>
+        }
+
+        <span class="cmd-result-count">@Sorted.Count() shown</span>
+    </div>
+
+    @if (_mapView)
+    {
+        <section class="cmd-card">
+            <header class="cmd-card-head">
+                <div>
+                    <h2>Filtered incidents on the map</h2>
+                    <p>Red pins are SOS or severe; every pin honours the filters above.</p>
+                </div>
+            </header>
+            <div class="cmd-map-frame">
+                <RapidMap View="_map" InitialCenter="@MapCentre" InitialZoom="12" />
+            </div>
+        </section>
+    }
+    else
+    {
+        <section class="cmd-card">
+            @if (_loading)
+            {
+                <p class="cmd-empty">Loading incidents…</p>
+            }
+            else if (!Sorted.Any())
+            {
+                <p class="cmd-empty">No incident matches these filters.</p>
+            }
+            else
+            {
+                <div class="cmd-table-wrap">
+                    <table class="cmd-table">
+                        <thead>
+                            <tr>
+                                <th>Incident</th>
+                                <th>Area</th>
+                                <th>Type</th>
+                                <th>Severity</th>
+                                <th>Priority</th>
+                                <th>Status</th>
+                                <th>Team</th>
+                                <th>Reported</th>
+                                <th class="cmd-col-action">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in Sorted)
+                            {
+                                <tr class="@(row.IsSos ? "is-sos" : "")">
+                                    <td>
+                                        <a href="@($"r/incidents/{row.Id}")" class="cmd-link">@row.Title</a>
+                                        <span class="cmd-sub">#@ShortId(row.Id) · @row.AffectedPeopleCount affected</span>
+                                    </td>
+                                    <td>@AreaLabel(row)</td>
+                                    <td>@row.DisasterType</td>
+                                    <td><span class="rr-sev @SeverityClass(row)">@(row.IsSos ? "SOS" :
+                                                                        row.Severity.ToString())</span></td>
+                                        <td>@(row.PriorityScore is { } score ? score.ToString("F0") : "—")</td>
+                                        <td><span class="cmd-pill status">@StatusLabel(row.Status)</span></td>
+                                        <td>@(row.AssignedTeamId is { } team ? $"Unit {ShortId(team)}" : "—")<span
+                                            class="cmd-sub">@row.MissionStage</span></td>
+                                            <td>@RelativeTime(row.CreatedAtUtc)</td>
+                                            <td class="cmd-col-action">
+                                                @if (row.Status is IncidentStatus.Reported)
+                                                {
+                                                    <button type="button" class="rr-btn rr-btn-primary rr-btn-xs" disabled="@_busy"
+                                                            @onclick="() => VerifyAsync(row, true)">Verify</button>
+                                                    <button type="button" class="rr-btn rr-btn-ghost rr-btn-xs" disabled="@_busy"
+                                                            @onclick="() => RejectAsync(row)">Reject</button>
+                                                }
+                                                else if (row.Status is IncidentStatus.Verified && row.AssignedMissionId is null)
+                                                {
+                                                    <a href="@($"r/incidents/{row.Id}")" class="rr-btn rr-btn-primary rr-btn-xs">Dispatch</a>
+                                                    <button type="button" class="rr-btn rr-btn-ghost rr-btn-xs" disabled="@_busy"
+                                                            @onclick="() => OpenResolve(row)">Close</button>
+                                                }
+                                                else if (row.Status is IncidentStatus.Resolved or IncidentStatus.Rejected)
+                                                {
+                                                    <a href="@($"r/incidents/{row.Id}")" class="rr-btn rr-btn-ghost rr-btn-xs">Review</a>
+                                                }
+                                                else
+                                                {
+                                                    <a href="@($"r/incidents/{row.Id}")" class="rr-btn rr-btn-ghost rr-btn-xs">Track</a>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </section>
+            }
+        </div>
+
+        @if (_resolveTarget is not null)
+        {
+            <div class="cmd-modal-backdrop" role="dialog" aria-modal="true" aria-label="Close incident">
+                <div class="cmd-modal">
+                    <h2>Close “@_resolveTarget.Title”</h2>
+                    <p class="cmd-subtitle">
+                        The reporter is told the command centre closed this report. Use this only when no rescue
+                        mission is running — an active mission must be completed or cancelled from rescue operations.
+                    </p>
+                    <div class="cmd-field">
+                        <label for="resolve-notes">What happened?</label>
+                        <textarea id="resolve-notes" rows="3" @bind="_resolveNotes"
+                                  placeholder="e.g. Handled by the fire service on arrival; no further action needed."></textarea>
+                    </div>
+                    <div class="cmd-form-actions">
+                        <button type="button" class="rr-btn rr-btn-primary rr-btn-sm" disabled="@_busy"
+                                @onclick="ConfirmResolveAsync">Close incident</button>
+                        <button type="button" class="rr-btn rr-btn-ghost rr-btn-sm"
+                                @onclick="() => _resolveTarget = null">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        }
+
+@code {
+    private readonly IncidentFilter _filter = new();
+    private readonly List<IncidentSearchRow> _rows = new();
+    private string _sort = "priority";
+    private bool _mapView;
+    private bool _loading = true;
+    private bool _busy;
+    private string? _message;
+    private bool _messageIsError;
+    private IncidentSearchRow? _resolveTarget;
+    private string _resolveNotes = string.Empty;
+    private CancellationTokenSource? _debounce;
+    private IDisposable? _live;
+
+    private IEnumerable<IncidentSearchRow> Sorted => _sort switch
+    {
+        "newest" => _rows.OrderByDescending(r => r.CreatedAtUtc),
+        "oldest" => _rows.OrderBy(r => r.CreatedAtUtc),
+        "severity" => _rows.OrderByDescending(r => r.IsSos).ThenByDescending(r => r.Severity).ThenByDescending(r =>
+r.CreatedAtUtc),
+        _ => _rows.OrderByDescending(r => r.IsSos).ThenByDescending(r => r.PriorityScore ?? 0).ThenByDescending(r =>
+r.CreatedAtUtc),
+    };
+
+    private GeoPoint MapCentre => Sorted.FirstOrDefault() is { } first
+        ? first.Location
+        : _map.FallbackCenter;
+
+    private readonly MapView _map = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        ApplyQueryString();
+        await ReloadAsync();
+
+        // No timer: the board reloads when an incident actually changes.
+        _live = Live.Subscribe(() => InvokeAsync(ReloadAsync), RealtimeTopics.IncidentFeed);
+    }
+
+    private void ApplyQueryString()
+    {
+        var query = Navigation.ToAbsoluteUri(Navigation.Uri).Query;
+        var preset = query
+            .TrimStart('?')
+            .Split('&', StringSplitOptions.RemoveEmptyEntries)
+            .Select(pair => pair.Split('=', 2))
+            .FirstOrDefault(parts => parts[0] == "filter");
+
+        switch (preset is { Length: 2 } ? Uri.UnescapeDataString(preset[1]) : null)
+        {
+            case "critical":
+                _filter.SosOnly = true;
+                break;
+            case "unassigned":
+                _filter.UnassignedOnly = true;
+                break;
+            case "reported":
+                _filter.Status = IncidentStatus.Reported;
+                break;
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        var rows = await Command.SearchIncidentsAsync(_filter);
+        _rows.Clear();
+        _rows.AddRange(rows);
+        _map.SetLayer(MapLayerId.Incidents, Sorted.ToPlacemarks());
+        _loading = false;
+        StateHasChanged();
+    }
+
+    private async Task ApplyAsync(Action<IncidentFilter> mutate)
+    {
+        mutate(_filter);
+        await ReloadAsync();
+    }
+
+    private void OnQueryInput(ChangeEventArgs args)
+    {
+        _filter.Query = args.Value?.ToString();
+        _debounce?.Cancel();
+        _debounce = new CancellationTokenSource();
+        var token = _debounce.Token;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(350, token);
+                await InvokeAsync(ReloadAsync);
+            }
+            catch (TaskCanceledException)
+            {
+                // Superseded by a later keystroke.
+            }
+        }, token);
+    }
+
+    private Task ClearFiltersAsync() => ApplyAsync(f =>
+    {
+        f.Query = null;
+        f.Status = null;
+        f.Type = null;
+        f.Severity = null;
+        f.SosOnly = false;
+        f.UnassignedOnly = false;
+    });
+
+    private void SortChanged(string? value) => _sort = value ?? "priority";
+
+    private void ToggleView() => _mapView = !_mapView;
+
+    private async Task VerifyAsync(IncidentSearchRow row, bool approved)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        var result = await Incidents.VerifyAsync(row.Id, approved, approved ? null : "Not actionable after command-centre review.");
+        Report(result.Ok ? $"“{row.Title}” verified — it is now in the dispatch queue." : result.Error, !result.Ok);
+        await ReloadAsync();
+        _busy = false;
+    }
+
+    private async Task RejectAsync(IncidentSearchRow row)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        var result = await Incidents.VerifyAsync(row.Id, false, "Not actionable after command-centre review.");
+        Report(result.Ok ? $"“{row.Title}” rejected and the reporter notified." : result.Error, !result.Ok);
+        await ReloadAsync();
+        _busy = false;
+    }
+
+    private void OpenResolve(IncidentSearchRow row)
+    {
+        _resolveTarget = row;
+        _resolveNotes = string.Empty;
+    }
+
+    private async Task ConfirmResolveAsync()
+    {
+        if (_resolveTarget is null || _busy)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_resolveNotes))
+        {
+            Report("Say how it was resolved — the reporter reads this.", true);
+            return;
+        }
+
+        _busy = true;
+        var error = await Command.ResolveIncidentAsync(_resolveTarget.Id, _resolveNotes.Trim());
+        Report(error ?? $"“{_resolveTarget.Title}” closed and the reporter notified.", error is not null);
+        _resolveTarget = null;
+        await ReloadAsync();
+        _busy = false;
+    }
+
+    private void Report(string? message, bool isError)
+    {
+        _message = message;
+        _messageIsError = isError;
+    }
+
+    public void Dispose()
+    {
+        _debounce?.Cancel();
+        _debounce?.Dispose();
+        _live?.Dispose();
+    }
+
+    private static T? ParseEnum<T>(object? value) where T : struct, Enum =>
+        Enum.TryParse<T>(value?.ToString(), out var parsed) ? parsed : null;
+
+    private static string ShortId(Guid id) => id.ToString("N")[..6].ToUpperInvariant();
+
+    private static string AreaLabel(IncidentSearchRow row) => string.IsNullOrWhiteSpace(row.AddressOrArea)
+        ? $"{CommandClient.FormatCoordinate(row.Location.Latitude)}, {CommandClient.FormatCoordinate(row.Location.Longitude)}"
+        : row.AddressOrArea;
+
+    private static string SeverityClass(IncidentSearchRow row) =>
+        row.IsSos ? "rr-sev-sos"
+        : row.Severity >= Severity.Severe ? "rr-sev-critical"
+        : row.Severity >= Severity.Moderate ? "rr-sev-high"
+        : "rr-sev-low";
+
+    private static string StatusLabel(IncidentStatus status) => status switch
+    {
+        IncidentStatus.Reported => "Awaiting review",
+        IncidentStatus.Verified => "Verified",
+        IncidentStatus.Assigned => "Team assigned",
+        IncidentStatus.InProgress => "In progress",
+        IncidentStatus.Resolved => "Resolved",
+        IncidentStatus.Rejected => "Rejected",
+        _ => status.ToString(),
+    };
+
+    private static string RelativeTime(DateTimeOffset moment)
+    {
+        var delta = DateTimeOffset.UtcNow - moment;
+        return delta switch
+        {
+            { TotalSeconds: < 60 } => "just now",
+            { TotalMinutes: < 60 } => $"{delta.TotalMinutes:F0} min ago",
+            { TotalHours: < 24 } => $"{delta.TotalHours:F0} h ago",
+            _ => $"{delta.TotalDays:F0} d ago",
+        };
+    }
+}

@@ -1,6 +1,13 @@
 @namespace RapidRelief.Client.Common.Ui
 
-<div class="@ComputedClass" @onclick="HandleClick" @attributes="AdditionalAttributes">
+@* A card that acts as a button must be reachable and operable from the keyboard, or the whole
+   surface is invisible to anyone not using a mouse. *@
+<div class="@ComputedClass"
+     role="@(OnClick.HasDelegate ? "button" : null)"
+     tabindex="@(OnClick.HasDelegate ? "0" : null)"
+     @onclick="HandleClick"
+     @onkeydown="HandleKeyDown"
+     @attributes="AdditionalAttributes">
     @if (Header is not null)
     {
         <div class="rr-card-head">
@@ -37,6 +44,14 @@
         if (OnClick.HasDelegate)
         {
             await OnClick.InvokeAsync(e);
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (OnClick.HasDelegate && e.Key is "Enter" or " ")
+        {
+            await OnClick.InvokeAsync(new MouseEventArgs());
         }
     }
 

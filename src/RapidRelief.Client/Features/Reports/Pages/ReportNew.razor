@@ -1,243 +1,442 @@
 @page "/reports/new"
 @layout MainLayout
 @namespace RapidRelief.Client.Features.Reports.Pages
+@using Microsoft.AspNetCore.Components.Forms
+@using RapidRelief.Shared.Contracts.Common
 @using RapidRelief.Shared.Contracts.Enums
+@using RapidRelief.Client.Common.Geo
+@using RapidRelief.Client.Common.Map
+@using RapidRelief.Client.Common.Offline
 @using RapidRelief.Client.Common.Ui
+@using RapidRelief.Client.Features.Reports
+@attribute [Authorize]
 @inject NavigationManager Navigation
-@inject IJSRuntime JS
 @inject GeolocationService Geo
+@inject IncidentsClient Incidents
+@inject OutboxService Outbox
 
-<PageTitle>Report an Emergency Incident & SOS — RapidRelief</PageTitle>
+<PageTitle>Report an emergency — RapidRelief</PageTitle>
 
 <div class="dash-layout">
-    <!-- Header -->
     <div class="dash-header-banner">
         <div class="dash-title-group">
             <div class="dash-role-badge citizen">
                 <AppIcon Name="alert-circle" Size="14" />
-                <span>Emergency Filing</span>
+                <span>Emergency filing</span>
             </div>
-            <h1 class="dash-title">Report Emergency Incident</h1>
-            <p class="dash-subtitle">Submit disaster alerts, request immediate search & rescue, or report hazards.</p>
+            <h1 class="dash-title">Report an emergency</h1>
+            <p class="dash-subtitle">Four short steps. If you are in immediate danger, use SOS or call 999.</p>
         </div>
-
         <div class="dash-header-actions">
             <a href="reports/my" class="btn-dash-outline">
                 <AppIcon Name="clock" Size="16" />
-                <span>Track My Reports</span>
+                <span>Track my reports</span>
             </a>
         </div>
     </div>
 
-    <!-- 1-Tap SOS Priority Rescue Strip -->
-    <div class="dash-sos-box">
-        <div class="dash-sos-content">
-            <div class="dash-sos-text">
-                <h3>
-                    <AppIcon Name="alert-circle" Size="22" />
-                    <span>Instant 1-Tap SOS Signal</span>
-                </h3>
-                <p>Trapped or in direct life peril? Press the button to immediately broadcast your GPS coordinates to
-                    all active rescue units.</p>
-                </div>
-                <div class="dash-sos-btn-row">
-                    <button type="button" class="btn-sos-trigger" @onclick="TriggerInstantSos">
-                        <AppIcon Name="activity" Size="18" />
-                        <span>Send Immediate SOS</span>
-                    </button>
-                    <a href="tel:999" class="btn-sos-call">
-                        <AppIcon Name="phone" Size="16" />
-                        <span>Call 999</span>
-                    </a>
-                </div>
-            </div>
+    <OutboxStatus />
 
-            @if (_sosBroadcasted)
-            {
-                <div class="alert alert-danger mb-0 d-flex align-items-center gap-2 mt-2" role="alert">
-                    <AppIcon Name="check" Size="18" />
+    @if (_submitted is not null)
+    {
+        <div class="dash-card">
+            <div class="alert alert-success d-flex align-items-center justify-content-between p-4 rounded-3 mb-0">
+                <div class="d-flex align-items-center gap-3">
+                    <AppIcon Name="check-circle" Size="24" />
                     <div>
-                        <strong>SOS Signal Transmitted!</strong> Coordinates locked: <strong>@_locationText</strong>. A priority
-                        rescue dispatch ticket #SOS-@_randomId has been assigned to regional field units.
+                        <h4 class="alert-heading mb-1 fw-bold">Report received</h4>
+                        <p class="mb-0 text-secondary">
+                            Ticket <strong>#RR-@ShortId(_submitted.Id)</strong> was filed at
+                            @_submitted.CreatedAtUtc.ToLocalTime().ToString("HH:mm") and is being assessed now.
+                            You will be notified as soon as a rescue team is assigned.
+                        </p>
                     </div>
                 </div>
-            }
+                <a href="reports/my" class="btn-dash-primary">Track status</a>
+            </div>
         </div>
+    }
+    else if (_queuedOffline)
+    {
+        <div class="dash-card">
+            <div class="alert alert-warning d-flex align-items-center gap-3 p-4 rounded-3 mb-0">
+                <AppIcon Name="wifi-off" Size="24" />
+                <div>
+                    <h4 class="alert-heading mb-1 fw-bold">Saved on this device</h4>
+                    <p class="mb-0 text-secondary">
+                        You are offline, so your report is stored here and will be sent automatically the moment you
+                        reconnect. Do not close the app. If lives are at risk, call <strong>999</strong> now.
+                    </p>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        @if (_error is not null)
+        {
+            <div class="alert alert-danger d-flex align-items-center gap-2" role="alert">
+                <AppIcon Name="alert-circle" Size="18" />
+                <div>@_error</div>
+            </div>
+        }
 
-        <!-- Standard Incident Submission Form -->
         <div class="dash-card">
             <div class="dash-card-header">
                 <div>
                     <h2 class="dash-card-title">
                         <AppIcon Name="layers" Size="18" />
-                        <span>Incident Details</span>
+                        <span>1. What is happening?</span>
                     </h2>
-                    <p class="dash-card-subtitle">Provide details so emergency responders can deploy appropriate vehicles
-                        and medical gear.</p>
+                    <p class="dash-card-subtitle">Pick the closest match, then describe it in one or two lines.</p>
+                </div>
+            </div>
+
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label fw-bold small" for="report-type">Emergency type <span class="text-danger">*</span></label>
+                    <select id="report-type" class="form-select" @bind="_type">
+                        <option value="@DisasterType.Flood">Flood / rising water</option>
+                        <option value="@DisasterType.BuildingCollapse">Building collapse / people trapped</option>
+                        <option value="@DisasterType.Fire">Fire</option>
+                        <option value="@DisasterType.Cyclone">Cyclone / storm damage</option>
+                        <option value="@DisasterType.Landslide">Landslide / mudflow</option>
+                        <option value="@DisasterType.Earthquake">Earthquake damage</option>
+                        <option value="@DisasterType.Other">Something else</option>
+                    </select>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label fw-bold small" for="report-severity">How bad is it? <span class="text-danger">*</span></label>
+                    <select id="report-severity" class="form-select" @bind="_severity">
+                        <option value="@Severity.Catastrophic">Life-threatening right now</option>
+                        <option value="@Severity.Severe">People trapped or injured</option>
+                        <option value="@Severity.Moderate">Cut off, but safe for now</option>
+                        <option value="@Severity.Minor">Damage only, nobody at risk</option>
+                    </select>
+                </div>
+
+                <div class="col-12">
+                    <label class="form-label fw-bold small" for="report-description">Describe it <span class="text-danger">*</span></label>
+                    <textarea id="report-description" class="form-control" rows="3" maxlength="4000"
+                              placeholder="Water depth, how many people, children or elderly, medical needs, landmarks…"
+                              @bind="_description" @bind:event="oninput"></textarea>
+                    <div class="rr-field-help">@_description.Length / 4000 characters</div>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label fw-bold small" for="report-people">People affected</label>
+                    <input id="report-people" type="number" min="0" max="500" class="form-control" @bind="_peopleCount" />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label fw-bold small" for="report-phone">Callback number</label>
+                    <input id="report-phone" type="tel" class="form-control" placeholder="+880 17…" @bind="_contactPhone" />
+                </div>
+            </div>
+        </div>
+
+        <div class="dash-card">
+            <div class="dash-card-header">
+                <div>
+                    <h2 class="dash-card-title">
+                        <AppIcon Name="map-pin" Size="18" />
+                        <span>2. Where are you?</span>
+                    </h2>
+                    <p class="dash-card-subtitle">We use GPS first. Tap the map to correct the pin if it is off.</p>
+                </div>
+                <button type="button" class="btn-dash-outline" disabled="@_locating" @onclick="AutoDetectLocation">
+                    <AppIcon Name="navigation" Size="14" />
+                    <span>@(_locating ? "Locating…" : "Use my location")</span>
+                </button>
+            </div>
+
+            <div class="row g-3">
+                <div class="col-12">
+                    <div class="input-group">
+                        <span class="input-group-text bg-transparent"><AppIcon Name="map-pin" Size="16" /></span>
+                        <input type="text" class="form-control" placeholder="Landmark, block, floor" @bind="_locationText" />
+                    </div>
+                    @if (_geoError is not null)
+                    {
+                        <div class="rr-field-error mt-1">@_geoError</div>
+                    }
+                    <div class="rr-field-help mt-1">
+                        @if (_pin is not null)
+                        {
+                            <span>Pin set to @IncidentsClient.FormatCoordinate(_pin.Latitude), @IncidentsClient.FormatCoordinate(_pin.Longitude)@(_pinAdjusted ? " (adjusted by you)" : "")</span>
+                        }
+                        else
+                        {
+                            <span>No location yet — tap “Use my location” or tap the map.</span>
+                        }
                     </div>
                 </div>
 
-                @if (_submitted)
-                {
-                    <div class="alert alert-success d-flex align-items-center justify-content-between p-4 rounded-3">
-                        <div class="d-flex align-items-center gap-3">
-                            <AppIcon Name="check" Size="24" />
-                            <div>
-                                <h4 class="alert-heading mb-1 fw-bold">Incident Report Filed Successfully!</h4>
-                                <p class="mb-0 text-secondary">
-                                    Your report <strong>#RR-@_randomId</strong> has been logged into the regional command center. AI
-                                    classification is estimating severity and matching nearby rescue units.
-                                </p>
-                            </div>
-                        </div>
-                        <a href="reports/my" class="btn-dash-primary">View Status in My Reports</a>
-                    </div>
-                }
-                else
-                {
-                    <div class="row g-4">
-                        <!-- Incident Type -->
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold small">Disaster / Hazard Category <span
-                                class="text-danger">*</span></label>
-                                <select class="form-select" @bind="_incidentType">
-                                    <option value="Flash Flood / Water Surge">Flash Flood / Rising Water Surge</option>
-                                    <option value="Building Collapse / Trapped Persons">Building Collapse / Trapped Persons</option>
-                                    <option value="Cyclone / Wind Damage">Cyclone / Severe Gale Damage</option>
-                                    <option value="Fire Outbreak">Fire Outbreak</option>
-                                    <option value="Landslide / Mudflow">Landslide / Mudflow</option>
-                                    <option value="Medical Emergency in Flood Zone">Medical Emergency in Disaster Zone</option>
-                                </select>
-                            </div>
+                <div class="col-12">
+                    <RapidMap InitialCenter="@(_pin ?? DhakaCenter)" InitialZoom="15" Markers="_markers"
+                              UserLocation="_gpsFix" UserLocationAccuracyMeters="_gpsAccuracy" OnMapClick="OnMapClicked" />
+                </div>
+            </div>
+        </div>
 
-                            <!-- Severity Assessment -->
-                            <div class="col-md-6">
-                                <label class="form-label fw-bold small">Estimated Urgency Level <span
-                                    class="text-danger">*</span></label>
-                                    <select class="form-select" @bind="_severity">
-                                        <option value="Critical">Critical (Immediate life risk, water rising fast)</option>
-                                        <option value="Severe">Severe (Trapped, injured, or elderly without shelter)</option>
-                                        <option value="Moderate">Moderate (Property cut off, power loss, safe for now)</option>
-                                        <option value="Low">Low (Road blockage, minor waterlogging)</option>
-                                    </select>
-                                </div>
+        <div class="dash-card">
+            <div class="dash-card-header">
+                <div>
+                    <h2 class="dash-card-title">
+                        <AppIcon Name="copy" Size="18" />
+                        <span>3. Add a photo or video <span class="text-secondary fw-normal">(optional)</span></span>
+                    </h2>
+                    <p class="dash-card-subtitle">A photo helps the AI judge severity and helps the team pack the right gear.</p>
+                </div>
+            </div>
 
-                                <!-- Location & GPS -->
-                                <div class="col-12">
-                                    <label class="form-label fw-bold small">Location / Landmark / Address <span
-                                        class="text-danger">*</span></label>
-                                        <div class="input-group">
-                                            <span class="input-group-text bg-transparent">
-                                                <AppIcon Name="map-pin" Size="16" />
-                                            </span>
-                                            <input type="text" class="form-control"
-                                                   placeholder="e.g. Sector 4, Block C, near City High School, East Bank" @bind="_locationText" />
-                                            <button class="btn btn-outline-secondary d-flex align-items-center gap-1" type="button"
-                                                    @onclick="AutoDetectLocation">
-                                                <AppIcon Name="navigation" Size="14" />
-                                                <span>@(_detectingLoc ? "Detecting GPS..." : "Use My Location")</span>
-                                            </button>
-                                        </div>
-                                        @if (_geoError is not null)
-                                        {
-                                            <div class="rr-field-error mt-1">@_geoError</div>
-                                        }
-                                    </div>
+            <InputFile OnChange="OnMediaSelectedAsync" class="form-control" accept="image/*,video/*" multiple />
+            @if (_uploading)
+            {
+                <div class="rr-field-help mt-2" aria-busy="true">Uploading @_uploadedNames.Count of @_selectedCount…</div>
+            }
+            @if (_uploadedNames.Count > 0)
+            {
+                <ul class="mt-2 mb-0 small text-secondary">
+                    @foreach (var name in _uploadedNames)
+                    {
+                        <li>@name attached</li>
+                    }
+                </ul>
+            }
+            @if (_mediaError is not null)
+            {
+                <div class="rr-field-error mt-2">@_mediaError</div>
+            }
+        </div>
 
-                                    <!-- People Count -->
-                                    <div class="col-md-6">
-                                        <label class="form-label fw-bold small">Number of People Affected / Stranded</label>
-                                        <input type="number" min="1" max="500" class="form-control" @bind="_peopleCount" />
-                                    </div>
+        <div class="dash-card">
+            <div class="dash-card-header">
+                <div>
+                    <h2 class="dash-card-title">
+                        <AppIcon Name="send" Size="18" />
+                        <span>4. Send it</span>
+                    </h2>
+                    <p class="dash-card-subtitle">
+                        @(Outbox.IsOnline
+                            ? "Your report goes straight to the command centre and the AI triage queue."
+                            : "You are offline — the report will be saved here and sent automatically when you reconnect.")
+                    </p>
+                </div>
+            </div>
 
-                                    <!-- Contact Phone -->
-                                    <div class="col-md-6">
-                                        <label class="form-label fw-bold small">Callback Phone Number <span class="text-danger">*</span></label>
-                                        <input type="tel" class="form-control" placeholder="+880 1700-000000" @bind="_contactPhone" />
-                                    </div>
-
-                                    <!-- Description -->
-                                    <div class="col-12">
-                                        <label class="form-label fw-bold small">Detailed Situation Description</label>
-                                        <textarea class="form-control" rows="4"
-                                                  placeholder="Describe the water depth, structural conditions, special needs (children, elderly, oxygen, medical), and any visible landmarks..."
-                                                  @bind="_description"></textarea>
-                                    </div>
-
-                                    <!-- Submit Button -->
-                                    <div class="col-12 d-flex justify-content-end gap-3 pt-2">
-                                        <a href="c" class="btn-dash-outline">Cancel</a>
-                                        <button type="button" class="btn-dash-primary" @onclick="SubmitIncidentReport">
-                                            <AppIcon Name="send" Size="16" />
-                                            <span>Submit Emergency Report</span>
-                                        </button>
-                                    </div>
-                                </div>
-                            }
-                        </div>
-                    </div>
+            <div class="d-flex justify-content-end gap-3">
+                <a href="c" class="btn-dash-outline">Cancel</a>
+                <button type="button" class="btn-dash-primary" disabled="@_submitting" @onclick="SubmitAsync">
+                    <AppIcon Name="send" Size="16" />
+                    <span>@(_submitting ? "Sending…" : "Submit report")</span>
+                </button>
+            </div>
+        </div>
+    }
+</div>
 
 @code {
-    private string _incidentType = "Flash Flood / Water Surge";
-    private string _severity = "Critical";
-    private string _locationText = "Sector 3, Riverside Block, Dhaka (23.8103° N, 90.4125° E)";
-    private int _peopleCount = 3;
-    private string _contactPhone = "+880 1711-234567";
+    private static readonly GeoPoint DhakaCenter = new(23.8103, 90.4125);
+
+    private DisasterType _type = DisasterType.Flood;
+    private Severity _severity = Severity.Severe;
     private string _description = "";
-    private bool _detectingLoc;
+    private string _locationText = "";
+    private string _contactPhone = "";
+    private int _peopleCount = 1;
+
+    private GeoPoint? _pin;
+    private GeoPoint? _gpsFix;
+    private double _gpsAccuracy;
+    private bool _pinAdjusted;
+    private bool _locating;
     private string? _geoError;
-    private bool _sosBroadcasted;
-    private bool _submitted;
-    private int _randomId = 7842;
+    private IReadOnlyList<MapMarker> _markers = [];
 
-    protected override void OnInitialized()
-    {
-        _randomId = Random.Shared.Next(1000, 9999);
-    }
+    private readonly List<string> _photoPaths = new();
+    private readonly List<string> _uploadedNames = new();
+    private int _selectedCount;
+    private bool _uploading;
+    private string? _mediaError;
 
-    private void TriggerInstantSos()
-    {
-        _sosBroadcasted = true;
-        _ = CaptureSosLocationAsync();
-    }
+    private bool _submitting;
+    private bool _queuedOffline;
+    private string? _error;
+    private IncidentDto? _submitted;
 
-    // SOS must confirm instantly; the GPS fix updates the ticket text when it lands.
-    private async Task CaptureSosLocationAsync()
+    // One key per visit: a double-tap, a retry or an offline replay re-uses the same report.
+    private readonly string _idempotencyKey = Guid.NewGuid().ToString("N");
+
+    protected override async Task OnInitializedAsync()
     {
-        var fix = await Geo.GetCurrentAsync(highAccuracy: true, timeoutMs: 8000);
-        if (fix.Ok)
-        {
-            var p = fix.Point!;
-            _locationText = $"GPS Fixed: {Math.Abs(p.Latitude):F4}° {(p.Latitude >= 0 ? "N" : "S")}, {Math.Abs(p.Longitude):F4}° {(p.Longitude >= 0 ? "E" : "W")} (Accuracy: ±{Math.Max(1, (int)Math.Round(fix.AccuracyMeters))}m)";
-            StateHasChanged();
-        }
+        // Location is the one field a citizen cannot type under stress — get it before they ask.
+        await AutoDetectLocation();
     }
 
     private async Task AutoDetectLocation()
     {
-        _detectingLoc = true;
+        _locating = true;
         _geoError = null;
 
         var fix = await Geo.GetCurrentAsync(highAccuracy: true);
         if (fix.Ok)
         {
-            var p = fix.Point!;
-            var accuracy = Math.Max(1, (int)Math.Round(fix.AccuracyMeters));
-            _locationText = $"GPS Fixed: {Math.Abs(p.Latitude):F4}° {(p.Latitude >= 0 ? "N" : "S")}, {Math.Abs(p.Longitude):F4}° {(p.Longitude >= 0 ? "E" : "W")} (Accuracy: ±{accuracy}m)";
+            _gpsFix = fix.Point;
+            _gpsAccuracy = fix.AccuracyMeters;
+            SetPin(fix.Point!, adjusted: false);
         }
         else
         {
             _geoError = fix.Message;
         }
 
-        _detectingLoc = false;
+        _locating = false;
     }
 
-    private void SubmitIncidentReport()
+    private void OnMapClicked(GeoPoint point) => SetPin(point, adjusted: true);
+
+    private void SetPin(GeoPoint point, bool adjusted)
     {
-        if (!string.IsNullOrWhiteSpace(_locationText))
-        {
-            _submitted = true;
-        }
+        _pin = point;
+        _pinAdjusted = adjusted;
+        _markers = [new MapMarker("report-pin", point.Latitude, point.Longitude, "Reported location", "incident")];
     }
+
+    private async Task OnMediaSelectedAsync(InputFileChangeEventArgs e)
+    {
+        _mediaError = null;
+        _uploading = true;
+        _uploadedNames.Clear();
+        _photoPaths.Clear();
+
+        var files = e.GetMultipleFiles(maximumFileCount: 5);
+        _selectedCount = files.Count;
+
+        foreach (var file in files)
+        {
+            const long maxBytes = 10 * 1024 * 1024;
+            if (file.Size > maxBytes)
+            {
+                _mediaError = $"{file.Name} is larger than 10 MB and was skipped.";
+                continue;
+            }
+
+            await using var stream = file.OpenReadStream(maxBytes);
+            var uploaded = await Incidents.UploadPhotoAsync(stream, file.Name, file.ContentType);
+            if (uploaded is null)
+            {
+                _mediaError = "Some files could not be uploaded. You can still submit the report without them.";
+                continue;
+            }
+
+            _photoPaths.Add(uploaded.Path);
+            _uploadedNames.Add(file.Name);
+        }
+
+        _uploading = false;
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (_submitting)
+        {
+            return;
+        }
+
+        _error = null;
+
+        // 1. Validate here, on the device. A report that cannot be accepted must not be queued
+        //    for hours only to be rejected on reconnect.
+        if (string.IsNullOrWhiteSpace(_description))
+        {
+            _error = "Please describe what is happening so responders arrive prepared.";
+            return;
+        }
+
+        if (_pin is null)
+        {
+            var fix = await Geo.GetCurrentAsync(highAccuracy: true, timeoutMs: 8000);
+            if (fix.Ok)
+            {
+                _gpsFix = fix.Point;
+                _gpsAccuracy = fix.AccuracyMeters;
+                SetPin(fix.Point!, adjusted: false);
+            }
+            else
+            {
+                _error = "We need a location to dispatch a team. Tap “Use my location”, or tap the map to place the pin.";
+                return;
+            }
+        }
+
+        _submitting = true;
+        var request = new CreateIncidentRequest(
+            Title: TitleFor(_type),
+            Description: _description.Trim(),
+            DisasterType: _type,
+            Severity: _severity,
+            Latitude: _pin!.Latitude,
+            Longitude: _pin!.Longitude,
+            AddressOrArea: _locationText,
+            AffectedPeopleCount: Math.Max(0, _peopleCount),
+            IsSos: false,
+            ContactPhone: _contactPhone,
+            PhotoPaths: _photoPaths.Count == 0 ? null : _photoPaths.ToList(),
+            IdempotencyKey: _idempotencyKey);
+
+        // 2. Store it locally BEFORE touching the network. A crash, a closed tab or a dead
+        //    connection between here and the server can no longer lose the report.
+        var stored = await Outbox.EnqueueAsync(request);
+
+        if (!Outbox.IsOnline)
+        {
+            _queuedOffline = stored;
+            _error = stored
+                ? null
+                : "You are offline and this device cannot store the report. Call 999 immediately.";
+            _submitting = false;
+            return;
+        }
+
+        // 3. Try to deliver it now. The idempotency key means a retry after a timeout the server
+        //    actually honoured returns that same incident instead of filing a second one.
+        var result = await Incidents.CreateAsync(request);
+        if (result.Ok)
+        {
+            _submitted = result.Incident;
+            await Outbox.DiscardAsync(_idempotencyKey);
+        }
+        else if (result.FieldErrors is { Count: > 0 })
+        {
+            // The server will never take this payload; leaving it queued would retry forever.
+            await Outbox.DiscardAsync(_idempotencyKey);
+            _error = string.Join(" ", result.FieldErrors.SelectMany(x => x.Value));
+        }
+        else if (stored)
+        {
+            // Unreachable mid-submit: it is already on the device and the outbox owns it now.
+            _queuedOffline = true;
+        }
+        else
+        {
+            _error = $"{result.Error} This device could not save the report either — call 999 immediately.";
+        }
+
+        _submitting = false;
+    }
+
+    private static string ShortId(Guid id) => id.ToString("N")[..6].ToUpperInvariant();
+
+    private static string TitleFor(DisasterType type) => type switch
+    {
+        DisasterType.Flood => "Flood / rising water",
+        DisasterType.BuildingCollapse => "Building collapse",
+        DisasterType.Fire => "Fire",
+        DisasterType.Cyclone => "Cyclone damage",
+        DisasterType.Landslide => "Landslide",
+        DisasterType.Earthquake => "Earthquake damage",
+        _ => "Emergency report",
+    };
 }

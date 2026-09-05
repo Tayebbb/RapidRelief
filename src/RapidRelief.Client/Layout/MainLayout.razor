@@ -1,4 +1,5 @@
 ﻿@inherits LayoutComponentBase
+@using RapidRelief.Client.Common.Offline
 <a class="skip-link" href="#rr-main">Skip to main content</a>
 
 <div class="page @(_navOpen ? "nav-open" : null)">
@@ -16,6 +17,12 @@
             @Body
         </main>
     </div>
+</div>
+
+@* Connectivity is never hidden: whether a report is on this device or on the server is the one
+   thing a citizen in a disaster has to be able to see at a glance. *@
+<div class="rr-conn-anchor">
+    <ConnectivityBadge />
 </div>
 
 @* Live push toasts. Rendered outside AuthorizeView so a dev-role session (D-035) sees them too;

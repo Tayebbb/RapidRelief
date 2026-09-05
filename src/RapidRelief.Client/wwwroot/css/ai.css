@@ -1,0 +1,213 @@
+/* ==========================================================================
+   AI decision-support panel (F8)
+   Visually distinct from confirmed data — an assessment is never a fact.
+   ========================================================================== */
+
+.ai-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border-radius: var(--rr-radius);
+    background: var(--rr-info-soft);
+    border: 1px dashed var(--rr-info-soft-border);
+}
+
+.ai-panel.pending {
+    background: var(--rr-surface-2);
+    border-style: dashed;
+    border-color: var(--rr-border);
+}
+
+.ai-panel-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.ai-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: var(--rr-radius-pill);
+    background: var(--rr-surface);
+    border: 1px solid var(--rr-info-soft-border);
+    color: var(--rr-info-soft-text);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.ai-band {
+    padding: 0.2rem 0.6rem;
+    border-radius: var(--rr-radius-pill);
+    font-size: 0.74rem;
+    font-weight: 650;
+    background: var(--rr-surface);
+    border: 1px solid var(--rr-border);
+    color: var(--rr-text-3);
+}
+
+.ai-band.critical {
+    color: var(--rr-danger-soft-text);
+    background: var(--rr-danger-soft);
+    border-color: var(--rr-danger-soft-border);
+}
+
+.ai-band.high {
+    color: var(--rr-warning-soft-text);
+    background: var(--rr-warning-soft);
+    border-color: var(--rr-warning-soft-border);
+}
+
+.ai-score {
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    color: var(--rr-text);
+}
+
+.ai-disclaimer {
+    margin: 0;
+    font-size: 0.76rem;
+    font-style: italic;
+    color: var(--rr-text-3);
+}
+
+.ai-summary {
+    margin: 0;
+    font-size: 0.92rem;
+    color: var(--rr-text);
+}
+
+.ai-pending-text {
+    margin: 0;
+    font-size: 0.86rem;
+    color: var(--rr-text-3);
+}
+
+.ai-facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--space-3);
+    margin: 0;
+}
+
+.ai-facts dt {
+    font-size: 0.72rem;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--rr-text-3);
+}
+
+.ai-facts dd {
+    margin: 0.15rem 0 0;
+    font-size: 0.88rem;
+    color: var(--rr-text);
+}
+
+.ai-flag {
+    color: var(--rr-danger-soft-text);
+    font-weight: 600;
+}
+
+.ai-muted {
+    color: var(--rr-text-3);
+    font-size: 0.82rem;
+}
+
+.ai-section h4 {
+    margin: 0 0 0.4rem;
+    font-size: 0.78rem;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--rr-text-3);
+}
+
+.ai-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.ai-chip {
+    padding: 0.2rem 0.55rem;
+    border-radius: var(--rr-radius-s);
+    background: var(--rr-surface);
+    border: 1px solid var(--rr-border);
+    font-size: 0.78rem;
+    color: var(--rr-text-2);
+}
+
+.ai-factors {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.ai-factors li {
+    display: grid;
+    grid-template-columns: 3.2rem minmax(110px, auto) 1fr;
+    gap: var(--space-2);
+    align-items: baseline;
+    font-size: 0.84rem;
+}
+
+.ai-factor-points {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    color: var(--rr-primary);
+}
+
+.ai-factor-label {
+    font-weight: 600;
+    color: var(--rr-text);
+}
+
+.ai-factor-evidence {
+    color: var(--rr-text-3);
+}
+
+.ai-reasoning {
+    margin: 0;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--rr-text-2);
+}
+
+.ai-duplicate {
+    display: flex;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border-radius: var(--rr-radius-s);
+    background: var(--rr-warning-soft);
+    border: 1px solid var(--rr-warning-soft-border);
+    color: var(--rr-warning-soft-text);
+    font-size: 0.85rem;
+}
+
+.ai-duplicate p {
+    margin: 0.2rem 0 0;
+}
+
+@media (max-width: 640px) {
+    .ai-factors li {
+        grid-template-columns: 3.2rem 1fr;
+    }
+
+    .ai-factor-evidence {
+        grid-column: 1 / -1;
+    }
+}

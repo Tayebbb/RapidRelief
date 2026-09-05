@@ -1,0 +1,347 @@
+@page "/g/analytics"
+@layout MainLayout
+@namespace RapidRelief.Client.Features.Command.Pages
+@using System.Globalization
+@using RapidRelief.Shared.Contracts.Enums
+@using RapidRelief.Shared.Contracts.Services
+@using RapidRelief.Client.Common.Realtime
+@using RapidRelief.Client.Common.Ui
+@using RapidRelief.Client.Features.Command
+@using RapidRelief.Client.Features.Command.Components
+@attribute [Authorize(Roles = "Government")]
+@inject CommandClient Command
+@inject LiveUpdateService Live
+@implements IDisposable
+
+<PageTitle>Response analytics — RapidRelief</PageTitle>
+
+<div class="cmd-layout">
+    <header class="cmd-header">
+        <div>
+            <div class="cmd-role-badge">
+                <AppIcon Name="activity" Size="14" />
+                <span>Response analytics</span>
+            </div>
+            <h1 class="cmd-title">@Headline</h1>
+            <p class="cmd-subtitle">Every chart answers one operational question. Figures come from the incident store, not samples.</p>
+        </div>
+        <div class="cmd-header-actions">
+            <select class="cmd-select" aria-label="Window" @onchange="OnWindowChanged">
+                <option value="7">Last 7 days</option>
+                <option value="14" selected>Last 14 days</option>
+                <option value="30">Last 30 days</option>
+                <option value="90">Last 90 days</option>
+            </select>
+            <button type="button" class="rr-btn rr-btn-ghost rr-btn-sm" @onclick="RefreshAsync" disabled="@_loading">
+                <AppIcon Name="refresh" Size="15" /><span>Refresh</span>
+            </button>
+        </div>
+    </header>
+
+    <CommandTabs Active="g/analytics" />
+
+    @if (_summary is null)
+    {
+        <section class="cmd-card">
+            <p class="cmd-empty">@(_loading ? "Loading analytics…" : "Analytics are unavailable — the metrics service did not respond.")</p>
+        </section>
+    }
+    else
+    {
+        <section class="cmd-kpi-grid" aria-label="Performance indicators">
+            <div class="cmd-kpi">
+                <span class="cmd-kpi-label">Average response</span>
+                <span class="cmd-kpi-value">@CommandClient.FormatMinutes(_summary.Kpi.AvgResponseMinutes)</span>
+                <span class="cmd-kpi-note">report accepted → team dispatched</span>
+            </div>
+            <div class="cmd-kpi">
+                <span class="cmd-kpi-label">Average resolution</span>
+                <span class="cmd-kpi-value">@CommandClient.FormatMinutes(_summary.Kpi.AvgResolutionMinutes)</span>
+                <span class="cmd-kpi-note">report → incident closed</span>
+            </div>
+            <div class="cmd-kpi @(_summary.Kpi.ResolutionRatePercent < 50 ? "warn" : "")">
+                <span class="cmd-kpi-label">Resolution rate</span>
+                <span class="cmd-kpi-value">@_summary.Kpi.ResolutionRatePercent.ToString("F1")%</span>
+                <span class="cmd-kpi-note">@_summary.Kpi.TotalIncidents reports on record</span>
+            </div>
+            <div class="cmd-kpi @(Backlog > 0 ? "warn" : "")">
+                <span class="cmd-kpi-label">Backlog</span>
+                <span class="cmd-kpi-value">@Backlog</span>
+                <span class="cmd-kpi-note">@_summary.Kpi.NewLast24h in vs @_summary.Kpi.ResolvedLast24h out (24 h)</span>
+            </div>
+        </section>
+
+        <div class="cmd-grid">
+            @* Is demand outpacing us? *@
+            <section class="cmd-card cmd-span-8">
+                <header class="cmd-card-head">
+                    <div>
+                        <h2>Incidents over time</h2>
+                        <p>Are we closing reports as fast as they arrive? Divergence means the backlog is growing.</p>
+                    </div>
+                </header>
+
+                @if (_summary.Daily.Count == 0)
+                {
+                    <p class="cmd-empty">No incidents in this window.</p>
+                }
+                else
+                {
+                    var max = Math.Max(1, _summary.Daily.Max(d => Math.Max(d.Reported, d.Resolved)));
+                    <svg class="cmd-chart" viewBox="0 0 320 130" role="img"
+                         aria-label="@($"Incidents reported and resolved per day over the last {_days} days")">
+                        @for (var g = 0; g <= 4; g++)
+                        {
+                            var y = 10 + g * 25;
+                            <line class="cmd-chart-grid" x1="26" y1="@y" x2="314" y2="@y" />
+                        }
+                        <line class="cmd-chart-axis" x1="26" y1="110" x2="314" y2="110" />
+                        <text class="cmd-chart-label" x="2" y="14">@max</text>
+                        <text class="cmd-chart-label" x="2" y="112">0</text>
+
+                        <polyline class="cmd-chart-line" points="@Series(_summary.Daily.Select(d => d.Reported), max)" />
+                        <polyline class="cmd-chart-line resolved" points="@Series(_summary.Daily.Select(d => d.Resolved), max)" />
+
+                        <text class="cmd-chart-label" x="26" y="124">@ShortDay(_summary.Daily.First().Day)</text>
+                        <text class="cmd-chart-label" x="280" y="124">@ShortDay(_summary.Daily.Last().Day)</text>
+                    </svg>
+                    <div class="cmd-chart-legend">
+                        <span class="cmd-chart-key"><span class="cmd-swatch"></span> Reported</span>
+                        <span class="cmd-chart-key"><span class="cmd-swatch muted"></span> Resolved</span>
+                        <span>Peak day: @PeakDay</span>
+                    </div>
+                }
+            </section>
+
+            @* What are we actually responding to? *@
+            <section class="cmd-card cmd-span-4">
+                <header class="cmd-card-head">
+                    <div>
+                        <h2>Disaster distribution</h2>
+                        <p>Which hazard should equipment and training go to?</p>
+                    </div>
+                </header>
+
+                @if (_summary.ByType.Count == 0)
+                {
+                    <p class="cmd-empty">No incidents recorded.</p>
+                }
+                else
+                {
+                    var maxType = Math.Max(1, _summary.ByType.Max(t => t.Count));
+                    <ul class="cmd-dist">
+                        @foreach (var row in _summary.ByType.Take(8))
+                        {
+                            <li class="cmd-dist-row">
+                                <span class="cmd-dist-name">@row.Key</span>
+                                <span class="cmd-dist-track">
+                                    <span class="cmd-dist-fill" style="width:@Percent(row.Count, maxType)%"></span>
+                                </span>
+                                <span class="cmd-dist-count">@row.Count</span>
+                            </li>
+                        }
+                    </ul>
+                }
+            </section>
+
+            @* How bad is what we are getting? *@
+            <section class="cmd-card cmd-span-6">
+                <header class="cmd-card-head">
+                    <div>
+                        <h2>Severity distribution</h2>
+                        <p>A heavy top end means more teams per call, not more calls.</p>
+                    </div>
+                </header>
+
+                @{
+                    var maxSeverity = Math.Max(1, _summary.BySeverity.Max(s => s.Count));
+                }
+                <ul class="cmd-dist">
+                    @foreach (var row in _summary.BySeverity)
+                    {
+                        <li class="cmd-dist-row">
+                            <span class="cmd-dist-name">@row.Key</span>
+                            <span class="cmd-dist-track">
+                                <span class="cmd-dist-fill @SeverityFill(row.Key)" style="width:@Percent(row.Count, maxSeverity)%"></span>
+                            </span>
+                            <span class="cmd-dist-count">@row.Count</span>
+                        </li>
+                    }
+                </ul>
+            </section>
+
+            @* Where is the pipeline stuck? *@
+            <section class="cmd-card cmd-span-6">
+                <header class="cmd-card-head">
+                    <div>
+                        <h2>Pipeline state</h2>
+                        <p>Where incidents are sitting right now — the widest bar is the bottleneck.</p>
+                    </div>
+                </header>
+
+                @{
+                    var maxStatus = Math.Max(1, _summary.ByStatus.Max(s => s.Count));
+                }
+                <ul class="cmd-dist">
+                    @foreach (var row in _summary.ByStatus)
+                    {
+                        <li class="cmd-dist-row">
+                            <span class="cmd-dist-name">@StatusLabel(row.Key)</span>
+                            <span class="cmd-dist-track">
+                                <span class="cmd-dist-fill @StatusFill(row.Key)" style="width:@Percent(row.Count, maxStatus)%"></span>
+                            </span>
+                            <span class="cmd-dist-count">@row.Count</span>
+                        </li>
+                    }
+                </ul>
+            </section>
+
+            @* Where should we pre-position? *@
+            <section class="cmd-card cmd-span-12">
+                <header class="cmd-card-head">
+                    <div>
+                        <h2>Geographic concentration</h2>
+                        <p>Areas carrying the open load, with the 6-hour trend that decides pre-positioning.</p>
+                    </div>
+                    <a href="g/map" class="rr-btn rr-btn-ghost rr-btn-sm">Show on map</a>
+                </header>
+
+                @if (_summary.Hotspots.Count == 0)
+                {
+                    <p class="cmd-empty">No open incidents to concentrate anywhere.</p>
+                }
+                else
+                {
+                    <div class="cmd-table-wrap">
+                        <table class="cmd-table">
+                            <thead>
+                                <tr>
+                                    <th>Area</th>
+                                    <th>Open</th>
+                                    <th>Critical</th>
+                                    <th>Last 6 h</th>
+                                    <th>Previous 6 h</th>
+                                    <th>Trend</th>
+                                    <th>Centroid</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var spot in _summary.Hotspots)
+                                {
+                                    <tr>
+                                        <td><strong>@spot.Area</strong></td>
+                                        <td>@spot.Total</td>
+                                        <td>@spot.Critical</td>
+                                        <td>@spot.Last6h</td>
+                                        <td>@spot.Previous6h</td>
+                                        <td><span class="cmd-trend @spot.Trend.ToLowerInvariant()">@spot.Trend</span></td>
+                                        <td class="cmd-audit-entity">
+                                            @CommandClient.FormatCoordinate(spot.Location.Latitude), @CommandClient.FormatCoordinate(spot.Location.Longitude)
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
+        </div>
+    }
+</div>
+
+@code {
+    private IncidentOpsSummaryDto? _summary;
+    private int _days = 14;
+    private bool _loading = true;
+    private IDisposable? _live;
+
+    private int Backlog => _summary is null ? 0 : _summary.Kpi.ActiveIncidents;
+
+    private string Headline => _summary is null
+        ? "Reading response performance…"
+        : $"{_summary.Kpi.ResolutionRatePercent:F0}% of {_summary.Kpi.TotalIncidents} reports resolved";
+
+    private string PeakDay
+    {
+        get
+        {
+            if (_summary is null || _summary.Daily.Count == 0)
+            {
+                return "—";
+            }
+
+            var peak = _summary.Daily.MaxBy(d => d.Reported)!;
+            return $"{ShortDay(peak.Day)} ({peak.Reported})";
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAsync();
+
+        // No timer: the numbers reload when the operation actually changes.
+        _live = Live.Subscribe(() => InvokeAsync(RefreshAsync), RealtimeTopics.CommandFeed);
+    }
+
+    private async Task OnWindowChanged(ChangeEventArgs args)
+    {
+        _days = int.TryParse(args.Value?.ToString(), out var parsed) ? parsed : 14;
+        await RefreshAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        _loading = true;
+        _summary = await Command.GetOpsSummaryAsync(_days);
+        _loading = false;
+        StateHasChanged();
+    }
+
+    public void Dispose() => _live?.Dispose();
+
+    /// <summary>Maps a series onto the 26..314 × 110..10 plot box of the inline SVG.</summary>
+    private static string Series(IEnumerable<int> values, int max)
+    {
+        var points = values.ToList();
+        if (points.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var step = points.Count == 1 ? 0d : 288d / (points.Count - 1);
+        return string.Join(' ', points.Select((value, index) =>
+        {
+            var x = 26 + index * step;
+            var y = 110 - (value * 100.0 / max);
+            return string.Create(CultureInfo.InvariantCulture, $"{x:F1},{y:F1}");
+        }));
+    }
+
+    private static int Percent(int value, int max) => max <= 0 ? 0 : (int)Math.Round(value * 100.0 / max);
+
+    private static string ShortDay(string isoDay) =>
+        DateOnly.TryParse(isoDay, CultureInfo.InvariantCulture, out var day) ? day.ToString("dd MMM") : isoDay;
+
+    private static string SeverityFill(string severity) => severity switch
+    {
+        nameof(Severity.Catastrophic) or nameof(Severity.Severe) => "danger",
+        nameof(Severity.Moderate) => "warn",
+        _ => string.Empty,
+    };
+
+    private static string StatusFill(string status) => status switch
+    {
+        nameof(IncidentStatus.Reported) => "warn",
+        nameof(IncidentStatus.Verified) => "danger",
+        _ => string.Empty,
+    };
+
+    private static string StatusLabel(string status) => status switch
+    {
+        nameof(IncidentStatus.Reported) => "Awaiting review",
+        nameof(IncidentStatus.Verified) => "Verified, no team",
+        nameof(IncidentStatus.Assigned) => "Team assigned",
+        nameof(IncidentStatus.InProgress) => "In progress",
+        _ => status,
+    };
+}

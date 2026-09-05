@@ -51,7 +51,7 @@
     color: var(--rr-brand);
 }
 
-@media (max-width: 899.98px) {
+@media (max-width: 1023.98px) {
     .menu-btn {
         display: inline-flex;
     }
@@ -61,14 +61,14 @@
     }
 }
 
-@media (max-width: 639.98px) {
-    /* Dev-only tool yields space to primary actions on small screens. */
+@media (max-width: 767.98px) {
+    /* Dev-only tool yields space to primary actions until there is real room for it. */
     .role-picker-slot {
         display: none;
     }
 }
 
-@media (max-width: 399.98px) {
+@media (max-width: 479.98px) {
     .mobile-brand-text {
         display: none;
     }

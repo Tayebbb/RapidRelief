@@ -1,7 +1,18 @@
 @namespace RapidRelief.Client.Common.Ui
 
+@* Inline SVG, not a raster asset: the mark has to stay crisp at 20px, follow the
+   theme, and never ship a colour the design system does not own. The form is a
+   locator pin inside a response ping — where, and help is coming. *@
 <div class="rr-logo-wrapper @CssClass" style="@Style">
-    <img src="logo.png" alt="@Alt" class="rr-logo-img" style="width: @(Size)px; height: @(Size)px; object-fit: contain;" />
+    <svg class="rr-logo-mark" width="@Size" height="@Size" viewBox="0 0 32 32" role="img"
+         aria-label="@Alt" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="32" height="32" rx="8" class="rr-logo-plate" />
+        <path d="M16 8.5c-3.03 0-5.5 2.44-5.5 5.45 0 3.9 4.53 8.5 5.19 9.15a.44.44 0 0 0 .62 0c.66-.65 5.19-5.25 5.19-9.15 0-3.01-2.47-5.45-5.5-5.45Z"
+              class="rr-logo-pin" />
+        <circle cx="16" cy="13.9" r="2.05" class="rr-logo-core" />
+        <path d="M23.7 6.6a10.6 10.6 0 0 1 0 14.9" class="rr-logo-wave" stroke-width="1.7" stroke-linecap="round" />
+        <path d="M8.3 6.6a10.6 10.6 0 0 0 0 14.9" class="rr-logo-wave" stroke-width="1.7" stroke-linecap="round" />
+    </svg>
     @if (ShowText)
     {
         <span class="rr-logo-text @TextCssClass">RapidRelief</span>
@@ -11,7 +22,7 @@
 @code {
     [Parameter] public int Size { get; set; } = 32;
     [Parameter] public bool ShowText { get; set; }
-    [Parameter] public string Alt { get; set; } = "RapidRelief Logo";
+    [Parameter] public string Alt { get; set; } = "RapidRelief";
     [Parameter] public string CssClass { get; set; } = "";
     [Parameter] public string TextCssClass { get; set; } = "";
     [Parameter] public string Style { get; set; } = "";

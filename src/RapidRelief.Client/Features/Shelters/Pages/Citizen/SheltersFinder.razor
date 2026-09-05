@@ -1,11 +1,12 @@
 @page "/shelters/finder"
 @using RapidRelief.Shared.Contracts.Common
 @using RapidRelief.Shared.Contracts.ReadModels
+@using RapidRelief.Client.Common.Ui
 @using RapidRelief.Client.Features.Shelters.Components
 @inject SheltersClient Client
 @inject GeolocationService Geo
 
-<PageTitle>Find Shelter</PageTitle>
+<PageTitle>Find shelter — RapidRelief</PageTitle>
 
 <h1>Nearest Shelters</h1>
 
@@ -26,37 +27,75 @@
     <div class="col-md-4">
         @if (_locating)
         {
-            <p><em>Determining your location...</em></p>
+            <p aria-live="polite"><em>Determining your location…</em></p>
         }
         else if (_shelters is null && _error is null)
         {
-            <p><em>Loading shelters...</em></p>
+            <div class="rr-skeleton-group" aria-busy="true" aria-label="Loading shelters">
+                <div class="rr-skeleton rr-skeleton-rect"></div>
+                <div class="rr-skeleton rr-skeleton-rect"></div>
+                <div class="rr-skeleton rr-skeleton-rect"></div>
+            </div>
         }
         else if (_shelters is not null)
         {
-            @if (_recommendedShelter is null)
+            @if (_recommendations.Count == 0)
             {
-                <div class="alert alert-info">No AI recommendation available at this time.</div>
+                <div class="alert alert-warning">
+                    No open shelter with free space was found near you. Call <strong>999</strong> for guidance.
+                </div>
             }
             else
             {
-                <div class="card border-success mb-3">
-                    <div class="card-header bg-success text-white">
-                        <strong>Recommended for you</strong>
+                <h2 class="h6 text-uppercase text-secondary mb-2">Best for you right now</h2>
+                @for (var i = 0; i < _recommendations.Count; i++)
+                {
+                    var rec = _recommendations[i];
+                    <div class="card mb-3 @(i == 0 ? "border-success" : "")">
+                        @if (i == 0)
+                        {
+                            <div class="card-header bg-success text-white d-flex align-items-center justify-content-between">
+                                <strong>Recommended</strong>
+                                <span>@rec.DistanceKm.ToString("F1") km</span>
+                            </div>
+                        }
+                        <div class="card-body">
+                            <h5 class="card-title mb-1">@rec.Name</h5>
+                            <p class="card-text mb-2 small text-secondary">
+                                @string.Join(" · ", rec.Reasons)
+                            </p>
+                            <div class="progress mb-2" style="height: 6px;" role="progressbar"
+                                 aria-label="Occupancy" aria-valuenow="@rec.OccupancyPercent" aria-valuemin="0" aria-valuemax="100">
+                                <div class="progress-bar @(rec.OccupancyPercent >= 85 ? "bg-danger" : "bg-success")"
+                                     style="width: @(rec.OccupancyPercent)%"></div>
+                            </div>
+                            <p class="card-text mb-2 small">
+                                @rec.Occupancy / @rec.Capacity people · <strong>@rec.FreeSpaces free</strong>
+                                @if (rec.Facilities.Count > 0)
+                                {
+                                    <text> · @string.Join(", ", rec.Facilities)</text>
+                                }
+                            </p>
+                            <a href="https://www.google.com/maps/dir/?api=1&destination=@rec.Location.Latitude,@rec.Location.Longitude"
+                               target="_blank" rel="noopener" class="btn btn-sm @(i == 0 ? "btn-success" : "btn-outline-secondary")">
+                                Directions
+                            </a>
+                        </div>
                     </div>
-                    <div class="card-body">
-                        <h5 class="card-title">@_recommendedShelter.Name</h5>
-                        <p class="card-text mb-1">
-                            Occupancy: @_recommendedShelter.Occupancy / @_recommendedShelter.Capacity
-                        </p>
-                        <a href="https://www.google.com/maps/search/?api=1&query=@_recommendedShelter.Location.Latitude,@_recommendedShelter.Location.Longitude"
-                           target="_blank" class="btn btn-sm btn-success">
-                            Get Directions
-                        </a>
-                    </div>
-                </div>
+                }
             }
 
+            <h2 class="h6 text-uppercase text-secondary mb-2">All shelters</h2>
+            @if (_shelters.Count == 0)
+            {
+                <div class="rr-empty">
+                    <AppIcon Name="home" Size="28" />
+                    <strong>No shelters are listed yet.</strong>
+                    <span>Call <strong>999</strong> for guidance on where to go.</span>
+                </div>
+            }
+            else
+            {
             <ul class="list-group">
                 @foreach (var shelter in _shelters)
                 {
@@ -73,19 +112,25 @@
                                     <span class="text-danger">Closed</span>
                                 }
                                 • @shelter.Occupancy / @shelter.Capacity
+                                @if (shelter.Capacity > 0 && shelter.Occupancy >= shelter.Capacity)
+                                {
+                                    <span class="text-danger"> • full</span>
+                                }
                             </small>
                         </div>
-                        <a href="https://www.google.com/maps/search/?api=1&query=@shelter.Location.Latitude,@shelter.Location.Longitude"
-                           target="_blank" class="btn btn-sm btn-outline-primary">
+                        <a href="https://www.google.com/maps/dir/?api=1&destination=@shelter.Location.Latitude,@shelter.Location.Longitude"
+                           target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
                             Directions
                         </a>
                     </li>
                 }
             </ul>
+            }
         }
     </div>
     <div class="col-md-8">
-        <div style="height: 600px;">
+        @* Fixed 600px overflowed short phones; cap against the viewport instead. *@
+        <div style="height: min(600px, calc(100vh - 220px)); min-height: 320px;">
             @if (_shelters is not null)
             {
                 <ShelterMapLayer Shelters="_shelters" Center="_userLocation" UserLocation="_gpsFix"
@@ -104,7 +149,7 @@
     private double _gpsAccuracy;
     private string? _geoNote;
     private List<ShelterSummaryDto>? _shelters;
-    private ShelterSummaryDto? _recommendedShelter;
+    private List<ShelterRecommendationDto> _recommendations = new();
     private string? _error;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -162,12 +207,9 @@
                 _shelters = sheltersResult.Data.Items.ToList();
             }
 
-            // 2. Fetch AI recommendation
-            var recResult = await Client.RecommendShelterAsync(_userLocation.Latitude, _userLocation.Longitude);
-            if (recResult != null)
-            {
-                _recommendedShelter = recResult.Data;
-            }
+            // 2. Rank by suitability (distance + free capacity + facilities), not distance alone.
+            _recommendations = (await Client.GetRecommendationsAsync(
+                _userLocation.Latitude, _userLocation.Longitude, count: 3)).ToList();
         }
         catch (HttpRequestException)
         {

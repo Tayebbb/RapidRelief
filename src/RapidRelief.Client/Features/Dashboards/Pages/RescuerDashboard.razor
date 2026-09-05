@@ -1,244 +1,634 @@
 @page "/r"
 @layout MainLayout
 @namespace RapidRelief.Client.Features.Dashboards.Pages
+@using System.Globalization
 @using System.Security.Claims
+@using RapidRelief.Shared.Contracts.Common
 @using RapidRelief.Shared.Contracts.Enums
+@using RapidRelief.Shared.Contracts.Services
+@using RapidRelief.Client.Common.Geo
+@using RapidRelief.Client.Common.Realtime
 @using RapidRelief.Client.Common.Ui
+@using RapidRelief.Client.Features.Rescue
+@attribute [Authorize(Roles = "Rescuer,Government")]
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
+@inject RescueClient Rescue
+@inject GeolocationService Geo
+@inject NotificationState Notifications
+@inject LiveUpdateService Live
+@implements IDisposable
 
-<PageTitle>Rescuer Operational HUD — RapidRelief</PageTitle>
+<PageTitle>Rescue operations — RapidRelief</PageTitle>
 
 <div class="dash-layout">
-    <!-- Rescuer Tactical Header Banner -->
     <div class="dash-header-banner">
         <div class="dash-title-group">
             <div class="dash-role-badge rescuer">
-                <AppIcon Name="activity" Size="14" />
-                <span>Search & Rescue Unit Alpha-7</span>
+                <AppIcon Name="shield" Size="14" />
+                <span>Rescue operations</span>
             </div>
-            <h1 class="dash-title">Rescuer HUD — @(_userName ?? "Responder")</h1>
-            <p class="dash-subtitle">Field mission dispatch, tactical telemetry & real-time squad coordination.</p>
+            <h1 class="dash-title">@(_dashboard?.MyTeam?.TeamName ?? "Rescue unit")</h1>
+            <p class="dash-subtitle">@SituationLine()</p>
         </div>
 
-        <div class="dash-header-actions">
-            <!-- Duty Status Toggle -->
-            <div class="live-status-pill">
-                <div class="live-dot @(_dutyStatus == "On Duty" ? "" : "warning")"></div>
-                <span>Duty Status: <strong>@_dutyStatus</strong></span>
-            </div>
-            <select class="form-select form-select-sm w-auto rounded-pill" @bind="_dutyStatus">
-                <option value="On Duty">On Duty (Available)</option>
-                <option value="En Route">En Route to Mission</option>
-                <option value="On Scene">On Scene / Operating</option>
-                <option value="Standby">Standby / Rest Period</option>
+        <div class="dash-header-actions d-flex align-items-center gap-2">
+            <RealtimeIndicator />
+            <select class="form-select form-select-sm w-auto rounded-pill" value="@_teamStatus"
+                    aria-label="Team availability status" @onchange="OnTeamStatusChanged">
+                <option value="Available">Available</option>
+                <option value="Dispatched">Dispatched</option>
+                <option value="OffDuty">Off duty</option>
             </select>
+            <button type="button" class="btn-dash-outline" disabled="@_locating" @onclick="SharePositionAsync">
+                <AppIcon Name="navigation" Size="15" />
+                <span>@(_locating ? "Locating…" : "Update position")</span>
+            </button>
         </div>
     </div>
 
-    <!-- Active Mission HUD (If deployed) -->
-    <div class="tactical-mission-hud">
-        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-            <div>
-                <div class="d-flex align-items-center gap-2 mb-1">
-                    <span class="badge bg-danger text-white rounded-pill px-2 py-1 small fw-bold">ACTIVE DEPLOYMENT</span>
-                    <strong class="text-dark dark:text-white" style="font-size: 1.05rem;">Mission #RS-902: Evacuate Stranded Residents (4 Persons)</strong>
+    @if (_error is not null)
+    {
+        <div class="alert alert-danger d-flex align-items-center gap-2" role="alert">
+            <AppIcon Name="alert-circle" Size="18" />
+            <div>@_error</div>
+        </div>
+    }
+
+    <!-- Active mission HUD -->
+    @if (_activeMission is not null)
+    {
+        <div class="tactical-mission-hud is-active">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <div>
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <span class="rr-sev rr-sev-critical">Active deployment</span>
+                    </div>
+                    @* The most important block on the page belongs in the heading
+                       outline, not in a styled <strong>. *@
+                    <h2 class="dash-card-title">#RS-@ShortId(_activeMission.Id) · @_activeMission.MissionTitle</h2>
+                    <div class="rr-facts">
+                        <span class="rr-fact"><AppIcon Name="clock" Size="12" /> Dispatched <b>@Relative(_activeMission.AssignedAtUtc)</b></span>
+                        @if (_activeIncident is { } inc)
+                        {
+                            <span class="rr-fact"><AppIcon Name="map-pin" Size="12" /> <b>@Coordinates(inc.Location)</b></span>
+                            @if (inc.DistanceKm is { } km)
+                            {
+                                <span class="rr-fact"><b>@km.ToString("F1") km</b> away</span>
+                            }
+                        }
+                    </div>
                 </div>
-                <div class="text-secondary small d-flex align-items-center gap-3">
-                    <span><AppIcon Name="map-pin" Size="14" /> Sector 3, Block D, East Riverside (23.8103° N, 90.4125° E)</span>
-                    <span><AppIcon Name="clock" Size="14" /> Dispatched 18m ago</span>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <a href="@DirectionsUrl()" target="_blank" rel="noopener" class="btn-dash-primary">
+                        <AppIcon Name="navigation" Size="16" />
+                        <span>Navigate</span>
+                    </a>
+                    <a href="r/incidents/@_activeMission.IncidentId" class="btn-dash-outline">
+                        <AppIcon Name="layers" Size="16" />
+                        <span>Incident detail</span>
+                    </a>
+                    @if (_activeMission.Status == MissionStatus.Assigned)
+                    {
+                        <button type="button" class="btn-dash-outline" disabled="@_busy" @onclick="AcknowledgeAsync">
+                            <AppIcon Name="check" Size="16" /><span>Acknowledge</span>
+                        </button>
+                        <button type="button" class="btn btn-outline-danger btn-sm rounded-pill" disabled="@_busy" @onclick="() => _showReject = true">
+                            Reject
+                        </button>
+                    }
+                    @if (NextStatus(_activeMission.Status) is { } next)
+                    {
+                        <button type="button" class="btn-dash-outline" disabled="@_busy" @onclick="() => AdvanceAsync(next)">
+                            <AppIcon Name="arrow-right" Size="16" />
+                            <span>@(_busy ? "Updating…" : $"Mark {StatusLabel(next)}")</span>
+                        </button>
+                    }
                 </div>
             </div>
+
+            @* An ordered list with aria-current="step" and a status word per node:
+               the stage must not be conveyed by fill colour alone. *@
+            <ol class="tactical-stepper" aria-label="Mission progress">
+                @{
+                    var stage = Stage(_activeMission.Status);
+                }
+                @foreach (var node in MissionNodes(stage))
+                {
+                    <li class="stepper-node @node.State" aria-current="@(node.IsCurrent ? "step" : null)">
+                        @node.Index. @node.Label @node.Stamp
+                        <span class="stepper-state">@node.StateWord</span>
+                    </li>
+                }
+            </ol>
+
+            @if (_showReject)
+            {
+                <div class="d-flex align-items-center gap-2 mt-2">
+                    <input type="text" class="form-control form-control-sm" aria-label="Reason for rejecting this mission"
+                           placeholder="Why can this unit not take it?" @bind="_rejectReason" />
+                    <button type="button" class="btn btn-danger btn-sm" disabled="@_busy" @onclick="RejectAsync">Confirm reject</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="() => _showReject = false">Cancel</button>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="tactical-mission-hud">
             <div class="d-flex align-items-center gap-2">
-                <a href="sample" class="btn-dash-primary">
-                    <AppIcon Name="map" Size="16" />
-                    <span>Open Tactical Map</span>
-                </a>
-                <button type="button" class="btn-dash-outline" @onclick="AdvanceMissionStage">
-                    <AppIcon Name="arrow-right" Size="16" />
-                    <span>Advance Status</span>
-                </button>
+                <AppIcon Name="shield" Size="18" />
+                <strong>No active deployment.</strong>
+                <span class="text-secondary">Take a call from the queue below.</span>
             </div>
         </div>
+    }
 
-        <!-- Progress Stepper -->
-        <div class="tactical-stepper">
-            <div class="stepper-node @(_missionStage >= 1 ? (_missionStage == 1 ? "active" : "completed") : "")">
-                1. Dispatched
-            </div>
-            <div class="stepper-node @(_missionStage >= 2 ? (_missionStage == 2 ? "active" : "completed") : "")">
-                2. En Route
-            </div>
-            <div class="stepper-node @(_missionStage >= 3 ? (_missionStage == 3 ? "active" : "completed") : "")">
-                3. On Scene
-            </div>
-            <div class="stepper-node @(_missionStage >= 4 ? "completed active" : "")">
-                4. Extracted / Safe
-            </div>
-        </div>
-    </div>
-
-    <!-- Bento Grid Section -->
     <div class="dash-bento-grid">
-        <!-- KPI Metrics Row -->
-        <div class="dash-col-3 dash-kpi-card">
-            <div class="dash-kpi-info">
-                <span class="dash-kpi-label">Active Dispatches</span>
-                <span class="dash-kpi-value">14</span>
-                <span class="dash-kpi-delta danger"><AppIcon Name="alert-circle" Size="12" /> 4 Critical</span>
-            </div>
-            <div class="dash-kpi-icon-wrap red">
-                <AppIcon Name="activity" Size="24" />
-            </div>
-        </div>
-
-        <div class="dash-col-3 dash-kpi-card">
-            <div class="dash-kpi-info">
-                <span class="dash-kpi-label">Extracted Victims</span>
-                <span class="dash-kpi-value">38</span>
-                <span class="dash-kpi-delta good"><AppIcon Name="check" Size="12" /> Today</span>
-            </div>
-            <div class="dash-kpi-icon-wrap forest">
-                <AppIcon Name="user" Size="24" />
-            </div>
-        </div>
-
-        <div class="dash-col-3 dash-kpi-card">
-            <div class="dash-kpi-info">
-                <span class="dash-kpi-label">Team Readiness</span>
-                <span class="dash-kpi-value">100%</span>
-                <span class="dash-kpi-delta good"><AppIcon Name="shield" Size="12" /> Fully Equipped</span>
-            </div>
-            <div class="dash-kpi-icon-wrap blue">
-                <AppIcon Name="shield-plus" Size="24" />
+        <!-- Severity filter. Chips, not tiles: a dispatcher scans counts, they do not
+             need four saturated cards competing with the queue underneath. -->
+        <div class="dash-col-12">
+            <div class="rr-filterbar" role="group" aria-label="Filter queue by severity">
+                <span class="rr-eyebrow">Open calls</span>
+                @foreach (var band in Bands)
+                {
+                    <button type="button"
+                            class="rr-filter @(band == "Critical" ? "rr-filter-critical" : "")"
+                            aria-pressed="@((band == _bandFilter).ToString().ToLowerInvariant())"
+                            @onclick="() => FilterAsync(band)">
+                        <span class="rr-sev @SevClass(band)">@band</span>
+                        <span class="rr-filter-count">@BandCount(band)</span>
+                    </button>
+                }
+                @if (_bandFilter is not null)
+                {
+                    <button type="button" class="rr-btn rr-btn-ghost rr-btn-sm" @onclick="() => FilterAsync(null)">Clear filter</button>
+                }
             </div>
         </div>
 
-        <div class="dash-col-3 dash-kpi-card">
-            <div class="dash-kpi-info">
-                <span class="dash-kpi-label">VHF Comms Lock</span>
-                <span class="dash-kpi-value">CH-14</span>
-                <span class="dash-kpi-delta good"><AppIcon Name="refresh" Size="12" /> 98% Signal</span>
-            </div>
-            <div class="dash-kpi-icon-wrap orange">
-                <AppIcon Name="phone" Size="24" />
-            </div>
-        </div>
-
-        <!-- Left: Live Incident Dispatch Queue (7 cols) -->
+        <!-- Queue -->
         <div class="dash-col-7 dash-card">
             <div class="dash-card-header">
                 <div>
                     <h2 class="dash-card-title">
                         <AppIcon Name="activity" Size="18" />
-                        <span>Incoming Rescue Dispatch Queue</span>
+                        <span>@(_bandFilter is null ? "Dispatch queue" : $"{_bandFilter} calls")</span>
                     </h2>
-                    <p class="dash-card-subtitle">Triaged distress calls sorted by urgency and distance.</p>
+                    <p class="dash-card-subtitle">Sorted by SOS, then AI priority. Distance is from your last reported position.</p>
                 </div>
-                <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-2 py-1">@_dispatches.Count Pending</span>
+                <span class="rr-mono text-secondary small" role="status" aria-live="polite">@_queue.Count waiting</span>
             </div>
 
-            <div class="dash-item-list">
-                @foreach (var call in _dispatches)
+            <div class="rr-queue">
+                @if (_loading)
                 {
-                    <div class="dash-item-card">
-                        <div class="dash-item-meta">
-                            <div class="dash-item-header">
-                                <span class="dash-item-title">@call.Title</span>
-                                <span class="badge @call.UrgencyClass rounded-pill px-2 py-1 small">@call.Urgency</span>
-                            </div>
-                            <p class="dash-item-desc">@call.Details</p>
-                            <div class="dash-item-sub">
-                                <span><AppIcon Name="navigation" Size="13" /> @call.Distance away</span>
-                                <span>• Reported @call.TimeAgo</span>
-                                <span>• People: @call.PeopleCount</span>
-                            </div>
-                        </div>
-                        <div class="dash-item-actions">
-                            <button type="button" class="btn-dash-primary" @onclick="@(() => AcceptDispatch(call))">
-                                <span>Accept Mission</span>
-                            </button>
-                        </div>
+                    <div class="rr-queue-row" aria-busy="true"><span class="rr-skeleton" style="width:60%;height:1rem;"></span></div>
+                }
+                else if (_queue.Count == 0)
+                {
+                    <div class="rr-empty">
+                        <AppIcon Name="check-circle" Size="28" />
+                        <strong>Queue clear</strong>
+                        <p>No unassigned calls are waiting. New reports appear here automatically.</p>
                     </div>
+                }
+                else
+                {
+                    @foreach (var call in _queue)
+                    {
+                        var waited = DateTimeOffset.UtcNow - call.ReportedAtUtc;
+                        <div class="rr-queue-row @(call.Band == "Critical" || call.IsSos ? "is-critical" : "")">
+                            <div class="rr-queue-main">
+                                <div class="rr-row rr-wrap" style="gap: var(--space-2);">
+                                    <span class="rr-sev @SevClass(call.IsSos ? "SOS" : call.Band)">@(call.IsSos ? "SOS" : call.Band)</span>
+                                    <span class="rr-queue-title">@call.Summary</span>
+                                </div>
+                                <div class="rr-facts">
+                                    <span class="rr-fact">
+                                        <AppIcon Name="navigation" Size="12" />
+                                        <b>@(call.DistanceKm is { } km ? km.ToString("F1") + " km" : Coordinates(call.Location))</b>
+                                    </span>
+                                    <span class="rr-fact @(waited.TotalMinutes >= 30 ? "rr-fact-stale" : "")">
+                                        <AppIcon Name="clock" Size="12" />
+                                        waiting <b>@WaitLabel(waited)</b>
+                                    </span>
+                                    <span class="rr-fact">severity <b>@call.Severity</b></span>
+                                    <span class="rr-fact">status <b>@call.Status</b></span>
+                                    <span class="rr-fact">@call.Type</span>
+                                </div>
+                            </div>
+                            <div class="rr-queue-actions">
+                                <a href="r/incidents/@call.IncidentId" class="rr-btn rr-btn-outline rr-btn-sm">Details</a>
+                                <button type="button" class="rr-btn rr-btn-primary rr-btn-sm" disabled="@_busy" @onclick="() => TakeCallAsync(call)">
+                                    Take call
+                                </button>
+                            </div>
+                        </div>
+                    }
                 }
             </div>
         </div>
 
-        <!-- Right: Field Kit & Tactical Gear Readiness (5 cols) -->
+        <!-- Mission ledger + team -->
         <div class="dash-col-5 dash-card">
             <div class="dash-card-header">
                 <div>
                     <h2 class="dash-card-title">
-                        <AppIcon Name="shield" Size="18" />
-                        <span>Field Gear & Squad Readiness</span>
+                        <AppIcon Name="layers" Size="18" />
+                        <span>My missions</span>
                     </h2>
-                    <p class="dash-card-subtitle">Equipment verification for swift deployment.</p>
+                    <p class="dash-card-subtitle">Assigned, active and completed by this unit.</p>
                 </div>
             </div>
 
-            <div class="d-flex flex-column gap-2">
-                <label class="d-flex align-items-center gap-3 p-2 rounded-2 cursor-pointer" style="background: var(--rr-surface-2);">
-                    <input type="checkbox" checked class="form-check-input mt-0" />
-                    <span style="font-size: 0.88rem;">Rigid Inflatable Boat (RIB) with 40HP Outboard (Fueled)</span>
-                </label>
-                <label class="d-flex align-items-center gap-3 p-2 rounded-2 cursor-pointer" style="background: var(--rr-surface-2);">
-                    <input type="checkbox" checked class="form-check-input mt-0" />
-                    <span style="font-size: 0.88rem;">Trauma Medical Kit, Defibrillator & Oxygen Pack</span>
-                </label>
-                <label class="d-flex align-items-center gap-3 p-2 rounded-2 cursor-pointer" style="background: var(--rr-surface-2);">
-                    <input type="checkbox" checked class="form-check-input mt-0" />
-                    <span style="font-size: 0.88rem;">High-Tensile Dynamic Extraction Ropes & Carabiners (x8)</span>
-                </label>
-                <label class="d-flex align-items-center gap-3 p-2 rounded-2 cursor-pointer" style="background: var(--rr-surface-2);">
-                    <input type="checkbox" checked class="form-check-input mt-0" />
-                    <span style="font-size: 0.88rem;">Thermal Recon Drone with Spare Battery Bank</span>
-                </label>
-                <label class="d-flex align-items-center gap-3 p-2 rounded-2 cursor-pointer" style="background: var(--rr-surface-2);">
-                    <input type="checkbox" checked class="form-check-input mt-0" />
-                    <span style="font-size: 0.88rem;">Waterproof VHF Handheld Radios (Channels 14 & 16)</span>
-                </label>
+            <div class="rr-statstrip mb-3">
+                <div class="rr-stat">
+                    <span class="rr-stat-value">@(_dashboard?.AssignedMissions ?? 0)</span>
+                    <span class="rr-stat-label">Assigned</span>
+                </div>
+                <div class="rr-stat">
+                    <span class="rr-stat-value">@(_dashboard?.ActiveMissions ?? 0)</span>
+                    <span class="rr-stat-label">Active</span>
+                </div>
+                <div class="rr-stat">
+                    <span class="rr-stat-value">@(_dashboard?.CompletedMissions ?? 0)</span>
+                    <span class="rr-stat-label">Completed</span>
+                </div>
             </div>
+
+            @if (_missions.Count == 0)
+            {
+                <div class="rr-empty">
+                    <AppIcon Name="inbox" Size="24" />
+                    <strong>No missions yet</strong>
+                    <p>Take a call from the queue to start one.</p>
+                </div>
+            }
+            else
+            {
+                <div class="rr-stack-sm">
+                    @foreach (var mission in _missions.Take(6))
+                    {
+                        <div class="rr-row-between rr-queue-row" style="padding: var(--space-2) var(--space-3);">
+                            <div class="rr-grow">
+                                <div class="rr-queue-title rr-meta-strong">#RS-@ShortId(mission.Id) · @mission.MissionTitle</div>
+                                <div class="rr-facts">
+                                    <span class="rr-fact"><b>@mission.Status</b></span>
+                                    <span class="rr-fact">@Relative(mission.AssignedAtUtc)</span>
+                                    @if (mission.CompletedAtUtc is { } done)
+                                    {
+                                        <span class="rr-fact">closed @Relative(done)</span>
+                                    }
+                                </div>
+                            </div>
+                            <a href="r/incidents/@mission.IncidentId" class="rr-btn rr-btn-outline rr-btn-sm">Open</a>
+                        </div>
+                    }
+                </div>
+            }
+
+            @if (_dashboard?.Nearby.Count > 0)
+            {
+                <h3 class="rr-eyebrow mt-4 mb-2">Nearby calls</h3>
+                <div class="rr-stack-sm">
+                    @foreach (var near in _dashboard.Nearby)
+                    {
+                        <div class="rr-row-between small">
+                            <span class="rr-truncate">@near.Summary</span>
+                            <span class="rr-mono text-secondary">@near.DistanceKm?.ToString("F1") km</span>
+                        </div>
+                    }
+                </div>
+            }
         </div>
     </div>
 </div>
 
 @code {
-    private string? _userName;
-    private string _dutyStatus = "On Duty";
-    private int _missionStage = 2; // 1=Dispatched, 2=En Route, 3=On Scene, 4=Extracted
+    private static readonly string[] Bands = ["Critical", "High", "Medium", "Low"];
 
-    private readonly List<DispatchCall> _dispatches = new()
-    {
-        new DispatchCall("Roof Stranded Family (3 Adults, 2 Children)", "Water level reached ceiling height; trapped on second floor tin roof.", "Critical", "bg-danger-subtle text-danger border border-danger-subtle", "1.1 km", "6m ago", 5),
-        new DispatchCall("Elderly Patient with Oxygen Cylinder Needed", "Floodwaters cut off power supply; medical emergency in ward 4.", "Medical Priority", "bg-danger-subtle text-danger border border-danger-subtle", "2.3 km", "12m ago", 1),
-        new DispatchCall("Capsized Country Boat with 3 Passengers", "Boat overturned near bridge pillar; all 3 clinging to piling.", "High Priority", "bg-warning-subtle text-warning border border-warning-subtle", "2.9 km", "19m ago", 3),
-    };
+    private string? _userName;
+    private string _teamStatus = "Available";
+    private string? _bandFilter;
+
+    private RescueDashboardDto? _dashboard;
+    private readonly List<QueueItemDto> _queue = new();
+    private readonly List<RescueMissionDto> _missions = new();
+    private RescueMissionDto? _activeMission;
+    private QueueItemDto? _activeIncident;
+
+    private GeoPoint? _position;
+    private bool _loading = true;
+    private bool _busy;
+    private bool _locating;
+    private bool _showReject;
+    private string _rejectReason = "";
+    private string? _error;
+    private IDisposable? _live;
 
     protected override async Task OnInitializedAsync()
     {
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
-        var user = auth.User;
-        _userName = user.FindFirst("unique_name")?.Value ?? user.FindFirst(ClaimTypes.Name)?.Value ?? "Rescuer";
+        _userName = auth.User.FindFirst("unique_name")?.Value ?? auth.User.FindFirst(ClaimTypes.Name)?.Value ?? "Rescuer";
+
+        // A live push beats a poll: refresh the moment dispatch touches this unit.
+        Notifications.Pushed += OnPushed;
+
+        var fix = await Geo.GetCurrentAsync();
+        if (fix.Ok)
+        {
+            _position = fix.Point;
+            await Rescue.ReportPositionAsync(fix.Point!);
+        }
+
+        await RefreshAsync();
+        _loading = false;
+
+        // No timer: the unit's board reloads when a mission or incident actually changes.
+        _live = Live.Subscribe(() => InvokeAsync(RefreshAsync),
+            [.. RealtimeTopics.RescueFeed, RealtimeTopics.IncidentReported]);
     }
 
-    private void AdvanceMissionStage()
+    private void OnPushed(NotificationDto notification)
     {
-        if (_missionStage < 4)
+        if (notification.Topic.StartsWith("rescue.", StringComparison.Ordinal) ||
+            notification.Topic.StartsWith("incidents.", StringComparison.Ordinal) ||
+            notification.Topic.StartsWith("ai.incident", StringComparison.Ordinal))
         {
-            _missionStage++;
+            _ = InvokeAsync(RefreshAsync);
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        _dashboard = await Rescue.GetDashboardAsync(_position);
+        var queue = await Rescue.GetQueueAsync(_bandFilter, _position);
+        var missions = await Rescue.GetMissionsAsync(mine: true);
+
+        _queue.Clear();
+        _queue.AddRange(queue);
+        _missions.Clear();
+        _missions.AddRange(missions);
+
+        _activeMission = missions.FirstOrDefault(m => m.Status is MissionStatus.Assigned or MissionStatus.EnRoute or MissionStatus.OnScene);
+        _activeIncident = _activeMission is null
+            ? null
+            : queue.FirstOrDefault(q => q.IncidentId == _activeMission.IncidentId);
+
+        if (_dashboard?.MyTeam is { } team)
+        {
+            _teamStatus = team.Status;
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task FilterAsync(string? band)
+    {
+        _bandFilter = string.Equals(_bandFilter, band, StringComparison.Ordinal) ? null : band;
+        await RefreshAsync();
+    }
+
+    private async Task TakeCallAsync(QueueItemDto call)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        _error = null;
+        var result = await Rescue.AcceptIncidentAsync(call.IncidentId);
+        if (!result.Ok)
+        {
+            _error = result.Error;
+        }
+
+        await RefreshAsync();
+        _busy = false;
+    }
+
+    private async Task AcknowledgeAsync()
+    {
+        if (_busy || _activeMission is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        var result = await Rescue.AcknowledgeAsync(_activeMission.Id);
+        _error = result.Ok ? null : result.Error;
+        await RefreshAsync();
+        _busy = false;
+    }
+
+    private async Task RejectAsync()
+    {
+        if (_busy || _activeMission is null || string.IsNullOrWhiteSpace(_rejectReason))
+        {
+            _error = "Give a reason so dispatch can reassign quickly.";
+            return;
+        }
+
+        _busy = true;
+        var result = await Rescue.RejectAsync(_activeMission.Id, _rejectReason.Trim());
+        _error = result.Ok ? null : result.Error;
+        _showReject = false;
+        _rejectReason = "";
+        await RefreshAsync();
+        _busy = false;
+    }
+
+    private async Task AdvanceAsync(MissionStatus next)
+    {
+        if (_busy || _activeMission is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        var result = await Rescue.UpdateStatusAsync(_activeMission.Id, next,
+            next == MissionStatus.Completed ? "Casualties extracted and handed over." : null);
+        _error = result.Ok ? null : result.Error;
+        await RefreshAsync();
+        _busy = false;
+    }
+
+    private async Task OnTeamStatusChanged(ChangeEventArgs e)
+    {
+        var status = e.Value?.ToString() ?? "Available";
+        _busy = true;
+        var error = await Rescue.SetTeamStatusAsync(status);
+        if (error is null)
+        {
+            _teamStatus = status;
+            _error = null;
         }
         else
         {
-            _missionStage = 1; // loop or reset
+            _error = error;
+        }
+
+        await RefreshAsync();
+        _busy = false;
+    }
+
+    private async Task SharePositionAsync()
+    {
+        _locating = true;
+        var fix = await Geo.GetCurrentAsync(highAccuracy: true);
+        if (fix.Ok)
+        {
+            _position = fix.Point;
+            await Rescue.ReportPositionAsync(fix.Point!);
+            await RefreshAsync();
+        }
+        else
+        {
+            _error = fix.Message;
+        }
+
+        _locating = false;
+    }
+
+    public void Dispose()
+    {
+        Notifications.Pushed -= OnPushed;
+        _live?.Dispose();
+    }
+
+    private string SituationLine()
+    {
+        if (_activeMission is not null)
+        {
+            return _activeMission.Status switch
+            {
+                MissionStatus.Assigned => "You have a new dispatch — acknowledge it and move.",
+                MissionStatus.EnRoute => "En route. Mark “on site” when you arrive.",
+                MissionStatus.OnScene => "On site. Close the mission when everyone is safe.",
+                _ => "Mission in progress.",
+            };
+        }
+
+        var critical = BandCount("Critical");
+        return critical > 0
+            ? $"{critical} critical call{(critical == 1 ? "" : "s")} waiting for a unit."
+            : "No critical calls waiting. Queue is under control.";
+    }
+
+    private int BandCount(string band) =>
+        _dashboard?.QueueByBand.TryGetValue(band, out var count) == true ? count : 0;
+
+    private string DirectionsUrl()
+    {
+        var target = _activeIncident?.Location;
+        return target is null
+            ? "https://www.google.com/maps"
+            : $"https://www.google.com/maps/dir/?api=1&destination={Coord(target.Latitude)},{Coord(target.Longitude)}";
+    }
+
+    private static string Coord(double value) => value.ToString(CultureInfo.InvariantCulture);
+
+    private static string Coordinates(GeoPoint point) =>
+        $"{point.Latitude.ToString("F4", CultureInfo.InvariantCulture)}, {point.Longitude.ToString("F4", CultureInfo.InvariantCulture)}";
+
+    private static MissionStatus? NextStatus(MissionStatus current) => current switch
+    {
+        MissionStatus.Assigned => MissionStatus.EnRoute,
+        MissionStatus.EnRoute => MissionStatus.OnScene,
+        MissionStatus.OnScene => MissionStatus.Completed,
+        _ => null,
+    };
+
+    private static string StatusLabel(MissionStatus status) => status switch
+    {
+        MissionStatus.EnRoute => "en route",
+        MissionStatus.OnScene => "on site",
+        MissionStatus.Completed => "complete",
+        _ => status.ToString().ToLowerInvariant(),
+    };
+
+    private static int Stage(MissionStatus status) => status switch
+    {
+        MissionStatus.Assigned => 1,
+        MissionStatus.EnRoute => 2,
+        MissionStatus.OnScene => 3,
+        MissionStatus.Completed => 4,
+        _ => 1,
+    };
+
+    private sealed record MissionNode(int Index, string Label, string Stamp, string State, string StateWord, bool IsCurrent);
+
+    /// <summary>
+    /// Mission stages with an explicit state word per node. Fill colour alone is
+    /// not an accessible way to say "this is where the unit is right now".
+    /// </summary>
+    private IEnumerable<MissionNode> MissionNodes(int stage)
+    {
+        var mission = _activeMission!;
+        var labels = new (string Label, DateTimeOffset? At)[]
+        {
+            ("Assigned", mission.AssignedAtUtc),
+            ("En route", mission.StartedAtUtc),
+            ("On site", mission.OnSceneAtUtc),
+            ("Completed", mission.CompletedAtUtc),
+        };
+
+        for (var i = 0; i < labels.Length; i++)
+        {
+            var index = i + 1;
+            var isCurrent = stage == index;
+            var isDone = stage > index;
+            yield return new MissionNode(
+                index,
+                labels[i].Label,
+                Stamp(labels[i].At),
+                isCurrent ? "active" : isDone ? "completed" : string.Empty,
+                isCurrent ? "now" : isDone ? "done" : "pending",
+                isCurrent);
         }
     }
 
-    private void AcceptDispatch(DispatchCall call)
+    private static string Stamp(DateTimeOffset? moment) =>
+        moment is null ? "" : $"· {moment.Value.ToLocalTime():HH:mm}";
+
+    // One severity vocabulary across citizen, rescue and government surfaces.
+    private static string SevClass(string band) => band switch
     {
-        _dispatches.Remove(call);
-        _missionStage = 1;
-        _dutyStatus = "En Route";
+        "SOS" => "rr-sev-sos",
+        "Critical" => "rr-sev-critical",
+        "High" => "rr-sev-high",
+        "Medium" => "rr-sev-medium",
+        _ => "rr-sev-low",
+    };
+
+    // Waiting time is the number a dispatcher triages on, so it gets its own
+    // compact format rather than being buried in a sentence.
+    private static string WaitLabel(TimeSpan waited)
+    {
+        if (waited < TimeSpan.Zero)
+        {
+            return "0m";
+        }
+
+        return waited.TotalHours >= 1
+            ? $"{(int)waited.TotalHours}h {waited.Minutes}m"
+            : $"{(int)waited.TotalMinutes}m";
     }
 
-    private sealed record DispatchCall(string Title, string Details, string Urgency, string UrgencyClass, string Distance, string TimeAgo, int PeopleCount);
+    private static string Relative(DateTimeOffset moment)
+    {
+        var delta = DateTimeOffset.UtcNow - moment;
+        if (delta < TimeSpan.FromMinutes(1))
+        {
+            return "just now";
+        }
+
+        return delta < TimeSpan.FromHours(1)
+            ? $"{(int)delta.TotalMinutes}m ago"
+            : $"{(int)delta.TotalHours}h ago";
+    }
+
+    private static string ShortId(Guid id) => id.ToString("N")[..6].ToUpperInvariant();
 }

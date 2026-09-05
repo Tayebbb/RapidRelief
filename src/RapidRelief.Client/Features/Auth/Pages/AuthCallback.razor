@@ -45,10 +45,10 @@
     @if (_isProcessing)
     {
         <div class="text-center py-4">
-            <div class="spinner-border text-success mb-3" style="width: 3rem; height: 3rem;" role="status">
-                <span class="visually-hidden">Loading...</span>
+            <div class="rr-spinner mb-3" role="status">
+                <span class="rr-sr-only">Connecting…</span>
             </div>
-            <p class="text-muted">Connecting with RapidRelief secure system...</p>
+            <p class="text-muted">Connecting to RapidRelief…</p>
         </div>
     }
     else if (!_showRoleModal && !string.IsNullOrEmpty(_errorMessage))
@@ -75,7 +75,7 @@
                     <AppIcon Name="user-check" Size="14" />
                     <span>Choose Your Role</span>
                 </div>
-                <h2 id="modal-role-title" class="auth-card-title" style="font-size: 1.5rem;">One Last Step</h2>
+                <h2 id="modal-role-title" class="auth-card-title">One Last Step</h2>
                 <p class="auth-card-subtitle">
                     Signed in as <strong>@(_googleUser?.Name ?? _googleUser?.Email ?? "Google User")</strong>.
                     Choose how you'll use RapidRelief:
@@ -85,7 +85,9 @@
             <div class="auth-roles-grid mb-4" role="radiogroup" aria-label="Select role">
                 <div class="auth-role-card @(_selectedRole == Roles.Citizen ? "is-selected" : null)"
                      @onclick="@(() => _selectedRole = Roles.Citizen)"
-                     role="radio" aria-checked="@(_selectedRole == Roles.Citizen)" tabindex="0">
+                     @onkeydown="@(e => OnRoleKey(e, Roles.Citizen))"
+                     role="radio" aria-checked="@(_selectedRole == Roles.Citizen)"
+                     tabindex="@(_selectedRole == Roles.Citizen ? 0 : -1)">
                     <div class="auth-role-card-top">
                         <div class="auth-role-card-icon">
                             <AppIcon Name="shield" Size="18" />
@@ -98,7 +100,9 @@
 
                 <div class="auth-role-card @(_selectedRole == Roles.Rescuer ? "is-selected" : null)"
                      @onclick="@(() => _selectedRole = Roles.Rescuer)"
-                     role="radio" aria-checked="@(_selectedRole == Roles.Rescuer)" tabindex="0">
+                     @onkeydown="@(e => OnRoleKey(e, Roles.Rescuer))"
+                     role="radio" aria-checked="@(_selectedRole == Roles.Rescuer)"
+                     tabindex="@(_selectedRole == Roles.Rescuer ? 0 : -1)">
                     <div class="auth-role-card-top">
                         <div class="auth-role-card-icon">
                             <AppIcon Name="activity" Size="18" />
@@ -143,6 +147,27 @@
     protected override async Task OnInitializedAsync()
     {
         await ProcessCallbackAsync();
+    }
+
+    /// <summary>
+    /// A div with role="radio" is inert to the keyboard unless we wire it up: Space/Enter
+    /// select, and the arrow keys move between options the way a real radiogroup does.
+    /// </summary>
+    private void OnRoleKey(KeyboardEventArgs e, string role)
+    {
+        switch (e.Key)
+        {
+            case " ":
+            case "Enter":
+                _selectedRole = role;
+                break;
+            case "ArrowRight":
+            case "ArrowDown":
+            case "ArrowLeft":
+            case "ArrowUp":
+                _selectedRole = role == Roles.Citizen ? Roles.Rescuer : Roles.Citizen;
+                break;
+        }
     }
 
     private async Task ProcessCallbackAsync()

@@ -1,18 +1,27 @@
 @namespace RapidRelief.Client.Common.Ui
+@implements IAsyncDisposable
+@inject IJSRuntime Js
 
 @if (IsOpen)
 {
-    <div class="rr-modal-backdrop" @onclick="HandleBackdropClick" aria-hidden="true"></div>
-    <div class="rr-modal-container" role="dialog" aria-modal="true" aria-labelledby="@TitleId" tabindex="-1" @onkeydown="HandleKeyDown">
+    <div class="rr-modal-backdrop" aria-hidden="true"></div>
+    @* The click handler lives here, not on the backdrop: the container is
+       inset:0 and stacked above the backdrop, so it is what a tap outside the
+       dialog actually hits. *@
+    <div id="@ContainerId" class="rr-modal-container" role="dialog" aria-modal="true"
+         aria-labelledby="@TitleId" tabindex="-1"
+         @onclick="HandleBackdropClick" @onkeydown="HandleKeyDown">
         <div class="@ComputedDialogClass" @onclick:stopPropagation="true">
             <div class="rr-modal-head">
                 @if (Header is not null)
                 {
-                    @Header
+                    @* The slot still has to carry the id, or aria-labelledby dangles
+                       and the dialog is announced as a bare "dialog". *@
+                    <div id="@TitleId">@Header</div>
                 }
                 else
                 {
-                    <h3 id="@TitleId" class="rr-modal-title">@Title</h3>
+                    <h2 id="@TitleId" class="rr-modal-title">@Title</h2>
                 }
                 <button type="button" class="rr-modal-close" aria-label="Close dialog" @onclick="HandleClose">
                     <AppIcon Name="close" Size="18" />
@@ -48,6 +57,49 @@
     [Parameter] public EventCallback OnClose { get; set; }
 
     private string TitleId = $"modal-title-{Guid.NewGuid():N}";
+    private string ContainerId = $"modal-{Guid.NewGuid():N}";
+    private bool _trapped;
+
+    // A dialog that does not hold focus is a keyboard trap in reverse: the user tabs
+    // straight out into the page behind it. Attach the trap after the DOM exists.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (IsOpen && !_trapped)
+        {
+            _trapped = true;
+            await SafeInvokeAsync("rrDialog.open", "#" + ContainerId);
+        }
+        else if (!IsOpen && _trapped)
+        {
+            _trapped = false;
+            await SafeInvokeAsync("rrDialog.close", "#" + ContainerId);
+        }
+    }
+
+    private async ValueTask SafeInvokeAsync(string identifier, params object?[] args)
+    {
+        try
+        {
+            await Js.InvokeVoidAsync(identifier, args);
+        }
+        catch (JSDisconnectedException)
+        {
+            // Circuit/renderer is gone — nothing to release.
+        }
+        catch (InvalidOperationException)
+        {
+            // Prerender or disposal race; the dialog is not on screen anyway.
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_trapped)
+        {
+            _trapped = false;
+            await SafeInvokeAsync("rrDialog.close", "#" + ContainerId);
+        }
+    }
 
     private async Task HandleClose()
     {

@@ -1,7 +1,7 @@
 <div class="nav-shell">
     <div class="nav-head">
         <a class="brand" href="" @onclick="Navigated">
-            <img src="logo.png" alt="RapidRelief Logo" class="brand-logo-img" style="width: 32px; height: 32px; object-fit: contain;" />
+            <AppLogo Size="32" CssClass="brand-logo-img" />
             <span class="brand-text">RapidRelief</span>
         </a>
         <button class="rr-icon-btn nav-close" type="button" @onclick="Navigated" aria-label="Close navigation">
@@ -31,9 +31,6 @@
         <NavLink class="nav-link" href="assistant">
             <AppIcon Name="chat" Size="19" /><span>AI Assistant</span>
         </NavLink>
-        <NavLink class="nav-link" href="sample">
-            <AppIcon Name="map" Size="19" /><span>Live Disaster Map</span>
-        </NavLink>
 
         <span class="nav-section">Personal & Alerts</span>
         <NavLink class="nav-link" href="notifications">
@@ -46,16 +43,43 @@
         <AuthorizeView Roles="Government">
             <Authorized>
                 <span class="nav-section">Government Command</span>
-                <NavLink class="nav-link" href="g">
+                <NavLink class="nav-link" href="g" Match="NavLinkMatch.All">
                     <AppIcon Name="shield" Size="19" /><span>Command Center</span>
+                </NavLink>
+                <NavLink class="nav-link" href="g/incidents">
+                    <AppIcon Name="layers" Size="19" /><span>Incident Management</span>
+                </NavLink>
+                <NavLink class="nav-link" href="g/duplicates">
+                    <AppIcon Name="copy" Size="19" /><span>Duplicate Review</span>
+                    <span class="nav-tag">AI</span>
+                </NavLink>
+                <NavLink class="nav-link" href="g/map">
+                    <AppIcon Name="map" Size="19" /><span>Operational Map</span>
+                </NavLink>
+                <NavLink class="nav-link" href="g/analytics">
+                    <AppIcon Name="activity" Size="19" /><span>Response Analytics</span>
+                </NavLink>
+                <NavLink class="nav-link" href="g/relief">
+                    <AppIcon Name="shield-plus" Size="19" /><span>Relief &amp; Resources</span>
+                </NavLink>
+                <NavLink class="nav-link" href="g/teams">
+                    <AppIcon Name="navigation" Size="19" /><span>Rescue Teams</span>
                 </NavLink>
                 <NavLink class="nav-link" href="admin/shelters">
                     <AppIcon Name="home" Size="19" /><span>Manage Shelters</span>
-                    <span class="nav-tag">Admin</span>
                 </NavLink>
                 <NavLink class="nav-link" href="alerts/compose">
                     <AppIcon Name="alert-circle" Size="19" /><span>Broadcast Alerts</span>
-                    <span class="nav-tag">Admin</span>
+                </NavLink>
+                <NavLink class="nav-link" href="g/users">
+                    <AppIcon Name="user" Size="19" /><span>User Management</span>
+                </NavLink>
+                <NavLink class="nav-link" href="g/audit">
+                    <AppIcon Name="clock" Size="19" /><span>Audit Trail</span>
+                </NavLink>
+                <NavLink class="nav-link" href="sample">
+                    <AppIcon Name="map" Size="19" /><span>Live Disaster Map</span>
+                    <span class="nav-tag">Dev</span>
                 </NavLink>
                 <NavLink class="nav-link" href="ui-showcase">
                     <AppIcon Name="layers" Size="19" /><span>UI Showcase</span>

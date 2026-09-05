@@ -6,7 +6,7 @@
 <header class="landing-nav-container" aria-label="Main landing navigation">
     <nav class="landing-nav">
         <a class="nav-brand-group" href="">
-            <img src="logo.png" alt="RapidRelief Logo" class="brand-logo-img" style="width: 32px; height: 32px; object-fit: contain;" />
+            <AppLogo Size="32" CssClass="brand-logo-img" />
             <span class="nav-brand-text">RapidRelief</span>
         </a>
 
@@ -121,12 +121,12 @@
             <AuthorizeView>
                 <Authorized>
                     <div class="d-flex align-items-center gap-2 px-2 py-1 mb-1">
-                        <div class="nav-profile-dropdown-avatar" style="width: 30px; height: 30px;">
+                        <div class="nav-profile-dropdown-avatar rr-avatar-sm">
                             <AppIcon Name="user" Size="16" />
                         </div>
                         <div class="d-flex flex-column">
                             <span class="small fw-bold">@context.User.Identity?.Name</span>
-                            <span class="badge bg-success-subtle text-success small" style="width: fit-content; font-size: 0.7rem;">@UserRole</span>
+                            <span class="rr-chip rr-chip-success rr-chip-sm">@UserRole</span>
                         </div>
                     </div>
                     <a class="btn btn-outline-secondary btn-sm w-100" href="profile" @onclick="CloseMobileMenu">Profile</a>

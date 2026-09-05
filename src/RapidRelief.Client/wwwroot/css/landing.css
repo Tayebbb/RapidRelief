@@ -4,68 +4,57 @@
    docs/RapidRelief-Website-Theme.md.
    ============================================================================ */
 
+/* Landing palette, expressed entirely through the §2 tokens in app.css so the
+   public page and the product cannot drift apart. */
 :root {
   /* Brand Palette */
-  --rr-forest: #1e7a5a;
-  --rr-forest-hover: #176448;
-  --rr-forest-light: #e8f2eb;
-  --rr-forest-glow: rgba(30, 122, 90, 0.18);
+  --rr-forest: var(--rr-accent);
+  --rr-forest-hover: var(--rr-accent-hover);
+  --rr-forest-light: var(--rr-accent-soft);
+  --rr-forest-glow: rgba(6, 182, 212, 0.18);
 
-  --rr-rescue-red: #e53935;
-  --rr-rescue-red-hover: #c62828;
-  --rr-rescue-red-soft: #ffebee;
-  --rr-rescue-red-glow: rgba(229, 57, 53, 0.22);
+  --rr-rescue-red: var(--rr-danger);
+  --rr-rescue-red-hover: var(--rr-danger-hover);
+  --rr-rescue-red-soft: var(--rr-danger-soft);
+  --rr-rescue-red-glow: rgba(220, 38, 38, 0.22);
 
-  --rr-sunrise-orange: #fb8c00;
-  --rr-sunrise-orange-soft: #fff3e0;
+  --rr-sunrise-orange: var(--rr-warning);
+  --rr-sunrise-orange-soft: var(--rr-warning-soft);
 
-  --rr-mint-green: #2cb67d;
-  --rr-mint-green-soft: #e8f8f2;
+  --rr-mint-green: var(--rr-success);
+  --rr-mint-green-soft: var(--rr-success-soft);
 
   /* Theme Surfaces & Layout Backgrounds */
-  --rr-sage-mist: #e8f2eb;
-  --rr-warm-ivory: #faf7f2;
-  --rr-stone-gray: #6b7280;
-  --rr-moss-charcoal: #2f3431;
+  --rr-sage-mist: var(--rr-surface-2);
+  --rr-warm-ivory: var(--rr-bg);
+  --rr-stone-gray: var(--rr-text-3);
+  --rr-moss-charcoal: var(--rr-text);
 
-  --rr-landing-bg: #faf7f2;
-  --rr-landing-surface: #ffffff;
-  --rr-landing-surface-alt: #faf7f2;
-  --rr-landing-surface-sage: #e8f2eb;
-  --rr-landing-text: #2f3431;
-  --rr-landing-text-muted: #6b7280;
-  --rr-landing-border: #d9e0db;
-  --rr-landing-border-light: #e8ede9;
+  --rr-landing-bg: var(--rr-bg);
+  --rr-landing-surface: var(--rr-surface);
+  --rr-landing-surface-alt: var(--rr-bg);
+  --rr-landing-surface-sage: var(--rr-surface-2);
+  --rr-landing-text: var(--rr-text);
+  --rr-landing-text-muted: var(--rr-text-3);
+  --rr-landing-border: var(--rr-border);
+  --rr-landing-border-light: var(--rr-border);
 
-  --rr-nav-bg: rgba(250, 247, 242, 0.88);
+  --rr-nav-bg: rgba(248, 250, 252, 0.88);
   --rr-nav-scrolled: rgba(255, 255, 255, 0.94);
-  --rr-nav-shadow: 0 4px 20px rgba(47, 52, 49, 0.08);
+  --rr-nav-shadow: 0 4px 20px rgba(15, 23, 42, 0.08);
 
-  --rr-card-shadow: 0 4px 16px rgba(47, 52, 49, 0.04);
-  --rr-card-shadow-hover: 0 12px 32px rgba(30, 122, 90, 0.12);
+  --rr-card-shadow: var(--rr-shadow-xs);
+  --rr-card-shadow-hover: var(--rr-shadow-md);
 }
 
 [data-theme="dark"] {
-  --rr-sage-mist: #1c2621;
-  --rr-warm-ivory: #151917;
-  --rr-moss-charcoal: #0e1210;
-  --rr-stone-gray: #9ba3af;
-
-  --rr-landing-bg: #111513;
-  --rr-landing-surface: #181d1a;
-  --rr-landing-surface-alt: #151917;
-  --rr-landing-surface-sage: #1c2621;
-  --rr-landing-text: #f3f5f4;
-  --rr-landing-text-muted: #9ba3af;
-  --rr-landing-border: #2c3631;
-  --rr-landing-border-light: #222b26;
-
-  --rr-nav-bg: rgba(17, 21, 19, 0.88);
-  --rr-nav-scrolled: rgba(24, 29, 26, 0.94);
+  --rr-nav-bg: rgba(11, 17, 32, 0.88);
+  --rr-nav-scrolled: rgba(17, 26, 43, 0.94);
+  --rr-landing-text: var(--rr-text);
+  --rr-landing-border-light: var(--rr-border);
   --rr-nav-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-
-  --rr-card-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
-  --rr-card-shadow-hover: 0 12px 32px rgba(44, 182, 125, 0.16);
+  --rr-card-shadow: var(--rr-shadow-xs);
+  --rr-card-shadow-hover: var(--rr-shadow-md);
 }
 
 /* Base Wrapper */
@@ -130,7 +119,7 @@
 .landing-nav {
   max-width: 1280px;
   margin: 0 auto;
-  background: rgba(14, 20, 17, 0.75);
+  background: rgba(15, 23, 42, 0.78);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border: 1px solid rgba(255, 255, 255, 0.16);
@@ -139,8 +128,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--space-3);
   transition: all 0.3s cubic-bezier(0.2, 0.7, 0.3, 1);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 4px 20px rgba(2, 6, 23, 0.35);
 }
 
 .landing-nav:not(.is-scrolled) .nav-brand-text {
@@ -152,7 +142,7 @@
 }
 
 .landing-nav:not(.is-scrolled) .nav-link-item:hover {
-  color: #38d39f;
+  color: var(--rr-mint-green);
   background-color: rgba(255, 255, 255, 0.12);
 }
 
@@ -162,9 +152,9 @@
 }
 
 .landing-nav:not(.is-scrolled) .btn-nav-signin:hover {
-  border-color: #2cb67d;
-  color: #2cb67d;
-  background: rgba(44, 182, 125, 0.15);
+  border-color: var(--rr-success);
+  color: var(--rr-success);
+  background: rgba(4, 120, 87, 0.15);
 }
 
 .landing-nav:not(.is-scrolled) .mobile-menu-btn {
@@ -218,6 +208,8 @@
   font-weight: 500;
   padding: 0.4rem 0.6rem;
   border-radius: var(--rr-radius-s);
+  /* Two-word labels were breaking onto a second line and doubling the nav height. */
+  white-space: nowrap;
   transition:
     color 0.18s ease,
     background-color 0.18s ease;
@@ -229,7 +221,7 @@
 }
 
 [data-theme="dark"] .nav-link-item:hover {
-  background-color: rgba(30, 122, 90, 0.25);
+  background-color: rgba(14, 116, 144, 0.25);
 }
 
 .nav-actions {
@@ -398,17 +390,17 @@
 }
 
 .nav-profile-item:hover {
-  background: rgba(44, 182, 125, 0.15);
+  background: rgba(4, 120, 87, 0.15);
   color: var(--rr-mint);
 }
 
 .nav-profile-item.text-danger {
-  color: #ff6b6b;
+  color: var(--rr-rescue-red);
 }
 
 .nav-profile-item.text-danger:hover {
-  background: rgba(229, 57, 53, 0.15);
-  color: #ff5252;
+  background: var(--rr-danger-soft);
+  color: var(--rr-rescue-red-hover);
 }
 
 .btn-nav-signin {
@@ -422,6 +414,7 @@
   color: var(--rr-landing-text);
   font-size: 0.88rem;
   font-weight: 600;
+  white-space: nowrap;
   text-decoration: none;
   transition: all 0.2s ease;
 }
@@ -442,15 +435,15 @@
   color: #ffffff;
   font-size: 0.88rem;
   font-weight: 600;
+  white-space: nowrap;
   text-decoration: none;
   box-shadow: 0 2px 8px var(--rr-forest-glow);
-  transition: all 0.2s cubic-bezier(0.2, 0.7, 0.3, 1);
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .btn-nav-signup:hover {
   background: var(--rr-forest-hover);
   color: #ffffff;
-  transform: translateY(-1px);
   box-shadow: 0 4px 14px var(--rr-forest-glow);
 }
 
@@ -534,7 +527,7 @@
 
 .section-moss-charcoal {
   background-color: var(--rr-moss-charcoal);
-  color: #faf7f2;
+  color: var(--rr-bg);
 }
 
 .landing-section {
@@ -569,7 +562,7 @@
 }
 
 [data-theme="dark"] .section-tag {
-  background: rgba(30, 122, 90, 0.25);
+  background: rgba(14, 116, 144, 0.25);
   color: var(--rr-mint-green);
 }
 
@@ -606,7 +599,7 @@
   align-items: center;
   padding: 0;
   margin: 0;
-  background-color: #0b0f0d;
+  background-color: var(--rr-bg);
 }
 
 /* Slideshow Container & Layers */
@@ -665,16 +658,18 @@
   object-position: center 42%;
 }
 
-/* Multi-Layer Cinematic Dark Overlays for Readability */
+/* The hero sits over rotating disaster photography, so the scrim has to guarantee
+   contrast for white text on the BRIGHTEST frame, not the average one. Combined
+   with the vignette below this holds ~4.5:1 even over a blown-out sky. */
 .hero-overlay-dark {
   position: absolute;
   inset: 0;
   background: linear-gradient(
     180deg,
-    rgba(11, 15, 13, 0.52) 0%,
-    rgba(11, 15, 13, 0.38) 40%,
-    rgba(11, 15, 13, 0.48) 80%,
-    rgba(11, 15, 13, 0.58) 100%
+    rgba(9, 13, 20, 0.72) 0%,
+    rgba(9, 13, 20, 0.62) 40%,
+    rgba(9, 13, 20, 0.70) 80%,
+    rgba(9, 13, 20, 0.82) 100%
   );
   z-index: 3;
   pointer-events: none;
@@ -685,8 +680,8 @@
   inset: 0;
   background: radial-gradient(
     circle at 50% 50%,
-    rgba(11, 15, 13, 0.1) 0%,
-    rgba(11, 15, 13, 0.5) 100%
+    rgba(9, 13, 20, 0.2) 0%,
+    rgba(9, 13, 20, 0.6) 100%
   );
   z-index: 3;
   pointer-events: none;
@@ -748,9 +743,9 @@
   gap: 0.45rem;
   padding: 0.35rem 0.85rem;
   border-radius: var(--rr-radius-pill);
-  background: rgba(30, 122, 90, 0.4);
-  border: 1px solid rgba(44, 182, 125, 0.5);
-  color: #b9f6ca;
+  background: rgba(14, 116, 144, 0.4);
+  border: 1px solid var(--rr-success);
+  color: var(--rr-success-soft-text);
   font-size: 0.82rem;
   font-weight: 700;
   backdrop-filter: blur(8px);
@@ -769,8 +764,8 @@
 }
 
 .hero-headline-accent {
-  color: #2cb67d;
-  background: linear-gradient(135deg, #2cb67d 0%, #6ee7b7 100%);
+  color: var(--rr-accent);
+  background: linear-gradient(135deg, var(--rr-accent) 0%, var(--rr-success) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   display: inline-block;
@@ -779,7 +774,10 @@
 .hero-lede {
   font-size: clamp(1.05rem, 1.35vw, 1.22rem);
   line-height: 1.65;
-  color: #e2e8e5;
+  /* The hero is always dark regardless of theme, so this is a fixed light value
+     rather than a theme token. It previously used --rr-border, which on the navy
+     palette is almost the same colour as the scrim. */
+  color: rgba(255, 255, 255, 0.92);
   margin-bottom: 2rem;
   max-width: 660px;
   margin-left: auto;
@@ -806,22 +804,22 @@
   align-items: center;
   gap: 0.65rem;
   padding: 0.9rem 1.85rem;
-  background: #1e7a5a !important;
-  color: #ffffff !important;
+  background: var(--rr-forest) !important;
+  color: var(--rr-landing-surface) !important;
   font-size: 1rem;
   font-weight: 700;
   border-radius: var(--rr-radius);
   text-decoration: none !important;
-  box-shadow: 0 6px 20px rgba(30, 122, 90, 0.45);
+  box-shadow: 0 6px 20px rgba(14, 116, 144, 0.45);
   transition: all 0.24s cubic-bezier(0.2, 0.7, 0.3, 1);
 }
 
 .btn-hero-primary:hover {
-  background: #176448 !important;
+  background: var(--rr-accent-hover) !important;
   color: #ffffff !important;
   text-decoration: none !important;
   transform: translateY(-2px);
-  box-shadow: 0 10px 28px rgba(30, 122, 90, 0.55);
+  box-shadow: 0 10px 28px rgba(14, 116, 144, 0.55);
 }
 
 .btn-hero-primary svg {
@@ -868,7 +866,7 @@
   justify-content: center;
   font-size: 0.86rem;
   font-weight: 600;
-  color: #cfd8d3;
+  color: var(--rr-text-2);
   margin-bottom: 0;
 }
 
@@ -883,7 +881,7 @@
   height: 7px;
   border-radius: 50%;
   background: var(--rr-mint-green);
-  box-shadow: 0 0 8px rgba(44, 182, 125, 0.8);
+  box-shadow: 0 0 8px rgba(4, 120, 87, 0.8);
 }
 
 /* Prefers-Reduced-Motion */
@@ -960,7 +958,7 @@
 .quick-card-icon {
   width: 48px;
   height: 48px;
-  border-radius: 12px;
+  border-radius: var(--rr-radius-l);
   background: var(--rr-forest-light);
   color: var(--rr-forest);
   display: flex;
@@ -978,12 +976,12 @@
 }
 
 [data-theme="dark"] .quick-card-icon {
-  background: rgba(30, 122, 90, 0.25);
+  background: rgba(14, 116, 144, 0.25);
   color: var(--rr-mint-green);
 }
 
 [data-theme="dark"] .quick-card.card-emergency .quick-card-icon {
-  background: rgba(229, 57, 53, 0.22);
+  background: rgba(220, 38, 38, 0.22);
   color: var(--rr-rescue-red);
 }
 
@@ -1109,7 +1107,7 @@
 .bento-icon-wrapper {
   width: 44px;
   height: 44px;
-  border-radius: 10px;
+  border-radius: var(--rr-radius);
   background: var(--rr-forest-light);
   color: var(--rr-forest);
   display: flex;
@@ -1119,7 +1117,7 @@
 }
 
 [data-theme="dark"] .bento-icon-wrapper {
-  background: rgba(30, 122, 90, 0.25);
+  background: rgba(14, 116, 144, 0.25);
   color: var(--rr-mint-green);
 }
 
@@ -1160,7 +1158,7 @@
   width: 100%;
   height: 360px;
   border-radius: var(--rr-radius);
-  background: #e5ebe6;
+  background: var(--rr-border);
   position: relative;
   display: flex;
   align-items: center;
@@ -1169,7 +1167,7 @@
 }
 
 [data-theme="dark"] .map-mock-canvas {
-  background: #1c2621;
+  background: var(--rr-surface-2);
 }
 
 .map-radar-pulse {
@@ -1249,8 +1247,8 @@
 }
 
 [data-theme="dark"] .chat-bubble-user {
-  background: rgba(30, 122, 90, 0.35);
-  color: #e8f2eb;
+  background: rgba(14, 116, 144, 0.35);
+  color: var(--rr-text);
 }
 
 .chat-bubble-ai {
@@ -1266,7 +1264,7 @@
 }
 
 [data-theme="dark"] .chat-bubble-ai {
-  background: #181d1a;
+  background: var(--rr-surface);
 }
 
 .assistant-disclaimer-box {
@@ -1310,7 +1308,7 @@
 }
 
 [data-theme="dark"] .human-pillar-icon {
-  background: rgba(30, 122, 90, 0.3);
+  background: var(--rr-accent-soft-border);
   color: var(--rr-mint-green);
 }
 
@@ -1335,6 +1333,31 @@
   text-align: center;
   gap: 0.5rem;
 }
+
+/* The four flow icons were unstyled and tinted inline; these give them one shape
+   and let a node opt into the emergency or intelligence tint semantically. */
+.telemetry-icon-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: var(--radius-md);
+  background: var(--rr-forest-light);
+  color: var(--rr-forest);
+}
+
+.telemetry-icon-box.is-emergency {
+  background: var(--rr-rescue-red-soft);
+  color: var(--rr-rescue-red);
+}
+
+.telemetry-icon-box.is-intelligence {
+  background: var(--rr-accent-soft);
+  color: var(--rr-accent-soft-text);
+}
+
+.rr-loose-list { line-height: var(--leading-normal); }
 
 .impact-flow-arrow {
   color: var(--rr-forest);
@@ -1395,7 +1418,7 @@
 }
 
 .btn-cta-white:hover {
-  background: #faf7f2;
+  background: var(--rr-bg);
   color: var(--rr-forest-hover);
   transform: translateY(-2px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
@@ -1427,7 +1450,7 @@
    ============================================================================ */
 .landing-footer {
   background: var(--rr-moss-charcoal);
-  color: #faf7f2;
+  color: var(--rr-bg);
   padding-top: 5rem;
   padding-bottom: 2.5rem;
   overflow: hidden;
@@ -1512,7 +1535,7 @@
 }
 
 .footer-giant-brand-container:hover .footer-giant-brand-text {
-  color: rgba(44, 182, 125, 0.14);
+  color: rgba(4, 120, 87, 0.14);
 }
 
 .footer-bottom-bar {

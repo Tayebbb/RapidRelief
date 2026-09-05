@@ -1,0 +1,240 @@
+/* ============================================================================
+   Citizen surfaces — the emergency path.
+
+   Ordered by what a frightened person needs first: SOS, report, what is
+   happening to me, then everything else. Nothing here competes with the SOS.
+   ============================================================================ */
+
+.citizen-home {
+    display: grid;
+    gap: var(--space-5);
+}
+
+.citizen-hero {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+}
+
+/* ── SOS ─────────────────────────────────────────────────────────────────── */
+.citizen-sos {
+    border: 1px solid var(--rr-danger-soft-border);
+    border-radius: var(--rr-radius-l);
+    background: var(--rr-danger-soft);
+    padding: var(--space-5);
+}
+
+.sos-idle,
+.sos-confirm {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: var(--space-5);
+}
+
+.sos-copy h2 {
+    margin: 0;
+    font-size: var(--text-lg);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-tight);
+    color: var(--rr-danger-soft-text);
+}
+
+.sos-copy p {
+    margin: var(--space-1) 0 0;
+    color: var(--rr-text-2);
+    font-size: var(--text-base);
+    line-height: var(--leading-snug);
+}
+
+.sos-actions {
+    display: grid;
+    gap: var(--space-2);
+    min-width: 15rem;
+}
+
+/* The confirm step is visually louder than the arm step, never quieter. */
+.sos-confirm {
+    animation: rr-fade-in var(--rr-base) var(--rr-ease);
+}
+
+/* ── SOS receipt ─────────────────────────────────────────────────────────── */
+.sos-sent {
+    display: grid;
+    gap: var(--space-4);
+}
+
+.sos-sent-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--rr-danger-soft-text);
+}
+
+    .sos-sent-head h2 {
+        margin: 0;
+        font-size: var(--text-lg);
+        font-weight: var(--weight-semibold);
+        letter-spacing: var(--tracking-tight);
+    }
+
+.sos-receipt {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: var(--space-3);
+    margin: 0;
+    padding: var(--space-4);
+    background: var(--rr-surface);
+    border: 1px solid var(--rr-border);
+    border-radius: var(--rr-radius);
+}
+
+    .sos-receipt dt {
+        color: var(--rr-text-3);
+        font-size: var(--text-xs);
+        font-weight: var(--weight-medium);
+        letter-spacing: var(--tracking-caps);
+        text-transform: uppercase;
+    }
+
+    .sos-receipt dd {
+        margin: 0.15rem 0 0;
+        color: var(--rr-text);
+        font-size: var(--text-base);
+        font-weight: var(--weight-medium);
+    }
+
+.sos-sent-advice {
+    margin: 0;
+    color: var(--rr-text-2);
+    font-size: var(--text-base);
+}
+
+/* ── Report ──────────────────────────────────────────────────────────────── */
+.citizen-report {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-5);
+    flex-wrap: wrap;
+    padding: var(--space-5);
+    background: var(--rr-surface);
+    border: 1px solid var(--rr-border);
+    border-radius: var(--rr-radius-l);
+    box-shadow: var(--rr-shadow-xs);
+}
+
+.citizen-section-title {
+    margin: 0;
+    font-size: var(--text-md);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-tight);
+}
+
+.citizen-section-sub {
+    margin: var(--space-1) 0 0;
+    color: var(--rr-text-3);
+    font-size: var(--text-sm);
+}
+
+.citizen-incident-title {
+    font-size: var(--text-base);
+    font-weight: var(--weight-semibold);
+}
+
+.citizen-incident-meta {
+    margin-top: 0.1rem;
+    color: var(--rr-text-3);
+    font-size: var(--text-xs);
+}
+
+/* ── Secondary actions ───────────────────────────────────────────────────── */
+.citizen-secondary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    gap: var(--space-3);
+}
+
+.citizen-link-card {
+    display: grid;
+    gap: 0.15rem;
+    padding: var(--space-4);
+    background: var(--rr-surface);
+    border: 1px solid var(--rr-border);
+    border-radius: var(--rr-radius);
+    color: var(--rr-text);
+    text-decoration: none;
+    transition: border-color var(--rr-fast) var(--rr-ease),
+                background-color var(--rr-fast) var(--rr-ease);
+}
+
+    .citizen-link-card:hover {
+        border-color: var(--rr-text-3);
+        background: var(--rr-surface-2);
+        color: var(--rr-text);
+    }
+
+    .citizen-link-card svg {
+        color: var(--rr-text-3);
+        margin-bottom: var(--space-2);
+    }
+
+.citizen-link-title {
+    font-size: var(--text-base);
+    font-weight: var(--weight-medium);
+}
+
+.citizen-link-sub {
+    color: var(--rr-text-3);
+    font-size: var(--text-xs);
+}
+
+/* Calling an operator is the fallback that always works — mark it, quietly. */
+.citizen-link-urgent {
+    border-color: var(--rr-danger-soft-border);
+    background: var(--rr-danger-soft);
+}
+
+    .citizen-link-urgent svg,
+    .citizen-link-urgent .citizen-link-title {
+        color: var(--rr-danger-soft-text);
+    }
+
+    .citizen-link-urgent:hover {
+        border-color: var(--rr-danger);
+        background: var(--rr-danger-soft);
+    }
+
+/* ── Phone. The SOS goes full width and the copy stacks above it. ────────── */
+@media (max-width: 768px) {
+    .sos-idle,
+    .sos-confirm {
+        grid-template-columns: 1fr;
+        gap: var(--space-4);
+    }
+
+    .sos-actions {
+        min-width: 0;
+    }
+
+    .citizen-report {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+        .citizen-report .rr-btn {
+            width: 100%;
+        }
+
+    .citizen-secondary {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    .citizen-secondary {
+        grid-template-columns: 1fr;
+    }
+}
