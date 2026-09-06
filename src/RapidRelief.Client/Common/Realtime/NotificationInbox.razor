@@ -1,82 +1,363 @@
 @page "/notifications"
 @namespace RapidRelief.Client.Common.Realtime
 @attribute [Authorize]
+@using System.Security.Claims
+@using RapidRelief.Client.Common.Auth
+@using RapidRelief.Client.Common.Ui
+@using RapidRelief.Shared.Contracts.Enums
 @implements IDisposable
 @inject NotificationState State
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
 
-<PageTitle>Notifications — RapidRelief</PageTitle>
+<PageTitle>Notifications & Alerts — RapidRelief</PageTitle>
 
 <div class="rr-page-narrow">
     <header class="rr-page-head rr-reveal">
-        <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
-            <h1 class="mb-0">Notifications</h1>
-            <span class="rr-chip @(State.HubConnected ? "rr-chip-success" : "")"
-                  title="@(State.HubConnected ? "Connected to the live hub" : "Checking for new notifications on a timer")">
-                <span class="rr-dot @(State.HubConnected ? "rr-dot-success" : "")" aria-hidden="true"></span>
-                @(State.HubConnected ? "Live" : "Polling")
-            </span>
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
+            <div class="d-flex align-items-center gap-2">
+                <h1 class="mb-0">Emergency Notifications</h1>
+                <span class="rr-chip @(State.HubConnected ? "rr-chip-success" : "")"
+                      title="@(State.HubConnected ? "Connected to the live hub" : "Checking for new notifications on a timer")">
+                    <span class="rr-dot @(State.HubConnected ? "rr-dot-success" : "")" aria-hidden="true"></span>
+                    @(State.HubConnected ? "Live" : "Polling")
+                </span>
+            </div>
+
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-outline-secondary btn-sm rounded-pill" type="button" disabled="@_busy" @onclick="RefreshAsync">
+                    <AppIcon Name="refresh" Size="14" />
+                    <span>Refresh</span>
+                </button>
+                <button class="btn btn-primary btn-sm rounded-pill" type="button" disabled="@(_busy || State.UnreadCount == 0)"
+                        @onclick="MarkAllAsync">
+                    <AppIcon Name="check" Size="14" />
+                    <span>Mark all read</span>
+                </button>
+            </div>
         </div>
         <p class="rr-page-lede">
-            Alerts and AI assessments for your role.
+            Real-time disaster dispatches, AI incident assessments, and command alerts for <strong>@_userRole</strong>.
             @if (State.UnreadCount > 0)
             {
-                <span>@State.UnreadCount unread.</span>
+                <span class="badge bg-danger rounded-pill ms-1">@State.UnreadCount unread</span>
             }
         </p>
     </header>
 
-    <div class="inbox-toolbar rr-reveal rr-reveal-1">
-        <button class="btn btn-outline-secondary btn-sm" type="button" disabled="@_busy" @onclick="RefreshAsync">
-            <AppIcon Name="refresh" Size="15" />
-            Refresh
-        </button>
-        <button class="btn btn-outline-secondary btn-sm" type="button" disabled="@(_busy || State.UnreadCount == 0)"
-                @onclick="MarkAllAsync">
-            <AppIcon Name="check" Size="15" />
-            Mark all read
-        </button>
+    <!-- Filter Toolbar -->
+    <div class="inbox-toolbar rr-reveal rr-reveal-1 d-flex flex-wrap align-items-center justify-content-between gap-2 p-2 rounded-3 mb-3" style="background: var(--rr-surface-2); border: 1px solid var(--rr-border);">
+        <div class="d-flex align-items-center gap-1 flex-wrap">
+            <button type="button" class="btn btn-sm rounded-pill @(_activeTab == "all" ? "btn-primary" : "btn-outline-secondary")" @onclick='() => _activeTab = "all"'>
+                All (@State.Items.Count)
+            </button>
+            <button type="button" class="btn btn-sm rounded-pill @(_activeTab == "unread" ? "btn-primary" : "btn-outline-secondary")" @onclick='() => _activeTab = "unread"'>
+                Unread (@State.UnreadCount)
+            </button>
+            <button type="button" class="btn btn-sm rounded-pill @(_activeTab == "incidents" ? "btn-primary" : "btn-outline-secondary")" @onclick='() => _activeTab = "incidents"'>
+                Incidents & SOS
+            </button>
+            <button type="button" class="btn btn-sm rounded-pill @(_activeTab == "missions" ? "btn-primary" : "btn-outline-secondary")" @onclick='() => _activeTab = "missions"'>
+                Missions
+            </button>
+            <button type="button" class="btn btn-sm rounded-pill @(_activeTab == "ai" ? "btn-primary" : "btn-outline-secondary")" @onclick='() => _activeTab = "ai"'>
+                AI Triage
+            </button>
+            <button type="button" class="btn btn-sm rounded-pill @(_activeTab == "alerts" ? "btn-primary" : "btn-outline-secondary")" @onclick='() => _activeTab = "alerts"'>
+                Broadcasts
+            </button>
+        </div>
+
+        <div class="d-flex align-items-center gap-2">
+            <input type="text" class="form-control form-control-sm rounded-pill" placeholder="Filter text..." @bind="_filterText" @bind:event="oninput" style="max-width: 180px;" />
+        </div>
     </div>
 
     @* Plain @-interpolation only — notification text can come from AI output or user content. *@
-    @if (State.Items.Count == 0)
+    @if (FilteredItems.Count == 0)
     {
-        <div class="rr-empty rr-reveal rr-reveal-2">
-            <AppIcon Name="inbox" Size="28" />
-            <strong>No notifications yet</strong>
-            <p>New alerts and AI assessments will appear here — live when connected, on a timer otherwise.</p>
+        <div class="rr-empty rr-reveal rr-reveal-2 p-5 text-center">
+            <AppIcon Name="inbox" Size="32" />
+            <strong class="d-block mt-2">No notifications match your selection</strong>
+            <p class="text-secondary small">New emergency alerts, rescue updates, and AI assessments will appear here.</p>
         </div>
     }
     else
     {
-        <ul class="inbox-list rr-reveal rr-reveal-2">
-            @foreach (var item in State.Items)
+        <div class="d-flex flex-column gap-3 rr-reveal rr-reveal-2">
+            @foreach (var item in FilteredItems)
             {
-                <li class="inbox-item @(item.IsRead ? "read" : "unread")">
-                    <div class="inbox-item-body">
-                        <div class="inbox-summary">@item.Summary</div>
-                        <div class="inbox-meta">@item.Topic · @item.CreatedAtUtc.ToLocalTime().ToString("g")</div>
+                var details = NotificationActionHelper.Parse(item, _userRole);
+                <div class="dash-card p-3 @(item.IsRead ? "" : "border-primary") @(details.IsSos ? "border-danger" : "")" style="@(item.IsRead ? "" : "background: rgba(59, 130, 246, 0.02);")">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge @details.CategoryBadgeClass rounded-pill px-2 py-1 small d-inline-flex align-items-center gap-1">
+                                <AppIcon Name="@details.CategoryIcon" Size="13" />
+                                <span>@details.Category</span>
+                            </span>
+                            @if (details.BadgeText is not null)
+                            {
+                                <span class="badge @details.BadgeClass rounded-pill px-2 py-1 small">@details.BadgeText</span>
+                            }
+                            @if (!item.IsRead)
+                            {
+                                <span class="badge bg-primary rounded-pill small">NEW</span>
+                            }
+                        </div>
+                        <span class="text-secondary small">@item.CreatedAtUtc.ToLocalTime().ToString("g")</span>
                     </div>
-                    @if (!item.IsRead)
+
+                    <h3 class="h6 fw-bold mb-1" style="color: var(--rr-text);">@item.Summary</h3>
+                    <div class="text-secondary small font-monospace mb-3">@item.Topic</div>
+
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 pt-2 border-top">
+                        <div class="d-flex align-items-center gap-2">
+                            @if (!string.IsNullOrEmpty(details.TargetUrl))
+                            {
+                                <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 d-inline-flex align-items-center gap-1" @onclick="() => NavigateFromNotification(item, details.TargetUrl)">
+                                    <span>@details.ActionLabel</span>
+                                    <AppIcon Name="arrow-right" Size="13" />
+                                </button>
+                            }
+                            <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-2 d-inline-flex align-items-center gap-1" @onclick="() => InspectNotification(item, details)">
+                                <AppIcon Name="info" Size="13" />
+                                <span>Inspect Details</span>
+                            </button>
+                        </div>
+
+                        @if (!item.IsRead)
+                        {
+                            <button class="btn btn-link btn-sm text-decoration-none" type="button" disabled="@_busy"
+                                    @onclick="() => MarkReadAsync(item.Id)">
+                                <AppIcon Name="check" Size="14" />
+                                <span>Mark read</span>
+                            </button>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    <!-- Inspection Modal -->
+    @if (_inspectItem is not null && _inspectDetails is not null)
+    {
+        <div class="notif-inspect-modal-backdrop" @onclick="CloseInspect"></div>
+        <div class="notif-inspect-modal" @onclick:stopPropagation="true">
+            <div class="modal-head">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge @_inspectDetails.CategoryBadgeClass rounded-pill px-2 py-1">
+                        <AppIcon Name="@_inspectDetails.CategoryIcon" Size="14" />
+                        <span>@_inspectDetails.Category</span>
+                    </span>
+                    <strong class="modal-title">Notification Inspection</strong>
+                </div>
+                <button type="button" class="btn-panel-close" @onclick="CloseInspect">
+                    <AppIcon Name="close" Size="16" />
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <div class="detail-summary-card">
+                    <span class="detail-label">Summary</span>
+                    <p class="detail-summary-val">@_inspectItem.Summary</p>
+                    <span class="detail-meta-text">Topic: @_inspectItem.Topic • Received: @_inspectItem.CreatedAtUtc.ToLocalTime().ToString("f")</span>
+                </div>
+
+                <div class="detail-grid">
+                    @if (!string.IsNullOrEmpty(_inspectDetails.IncidentId))
                     {
-                        <button class="btn btn-link btn-sm inbox-mark" type="button" disabled="@_busy"
-                                @onclick="() => MarkReadAsync(item.Id)">
-                            Mark read
+                        <div class="detail-field">
+                            <span class="field-label">Incident ID</span>
+                            <div class="field-val-copy">
+                                <code>@_inspectDetails.IncidentId</code>
+                            </div>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(_inspectDetails.MissionId))
+                    {
+                        <div class="detail-field">
+                            <span class="field-label">Mission ID</span>
+                            <div class="field-val-copy">
+                                <code>@_inspectDetails.MissionId</code>
+                            </div>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(_inspectDetails.Status))
+                    {
+                        <div class="detail-field">
+                            <span class="field-label">Operational Status</span>
+                            <span class="badge bg-secondary-subtle text-dark border">@_inspectDetails.Status</span>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(_inspectDetails.Severity))
+                    {
+                        <div class="detail-field">
+                            <span class="field-label">Severity Level</span>
+                            <span class="badge bg-warning-subtle text-dark border">@_inspectDetails.Severity</span>
+                        </div>
+                    }
+
+                    @if (_inspectDetails.PriorityScore.HasValue)
+                    {
+                        <div class="detail-field">
+                            <span class="field-label">AI Priority Score</span>
+                            <span class="badge bg-purple-subtle text-purple border">@_inspectDetails.PriorityScore.Value.ToString("0.#") / 100</span>
+                        </div>
+                    }
+
+                    @if (_inspectDetails.Latitude.HasValue && _inspectDetails.Longitude.HasValue)
+                    {
+                        <div class="detail-field">
+                            <span class="field-label">Coordinates</span>
+                            <div class="d-flex align-items-center gap-2">
+                                <span>@_inspectDetails.Latitude.Value.ToString("F4")°, @_inspectDetails.Longitude.Value.ToString("F4")°</span>
+                                <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2" @onclick='() => Navigation.NavigateTo("sample")'>
+                                    <AppIcon Name="map" Size="12" />
+                                    <span>Map</span>
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                @if (_showRawJson)
+                {
+                    <div class="mt-3">
+                        <span class="field-label">Raw Payload JSON</span>
+                        <pre class="raw-json-block">@_inspectItem.PayloadJson</pre>
+                    </div>
+                }
+            </div>
+
+            <div class="modal-foot">
+                <button type="button" class="btn-ghost-sm" @onclick="@(() => _showRawJson = !_showRawJson)">
+                    <AppIcon Name="layers" Size="14" />
+                    <span>@(_showRawJson ? "Hide Raw JSON" : "Inspect Raw JSON")</span>
+                </button>
+
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn-dash-outline" @onclick="CloseInspect">Close</button>
+                    @if (!string.IsNullOrEmpty(_inspectDetails.TargetUrl))
+                    {
+                        <button type="button" class="btn-dash-primary" @onclick="() => NavigateFromNotification(_inspectItem, _inspectDetails.TargetUrl)">
+                            <span>@_inspectDetails.ActionLabel</span>
+                            <AppIcon Name="arrow-right" Size="14" />
                         </button>
                     }
-                </li>
-            }
-        </ul>
+                </div>
+            </div>
+        </div>
     }
 </div>
 
 @code {
     private bool _busy;
+    private string _activeTab = "all";
+    private string _filterText = "";
+    private string _userRole = Roles.Citizen;
+
+    private NotificationDto? _inspectItem;
+    private NotificationParsedDetails? _inspectDetails;
+    private bool _showRawJson;
 
     protected override void OnInitialized() => State.Changed += OnStateChanged;
 
-    protected override Task OnInitializedAsync() => State.LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUserRoleAsync();
+        await State.LoadAsync();
+    }
+
+    private async Task LoadUserRoleAsync()
+    {
+        try
+        {
+            var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = auth.User;
+            if (user?.Identity?.IsAuthenticated == true)
+            {
+                if (user.IsInRole(Roles.Government))
+                {
+                    _userRole = Roles.Government;
+                }
+                else if (user.IsInRole(Roles.Rescuer))
+                {
+                    _userRole = Roles.Rescuer;
+                }
+                else
+                {
+                    _userRole = Roles.Citizen;
+                }
+            }
+        }
+        catch
+        {
+            _userRole = Roles.Citizen;
+        }
+    }
 
     private void OnStateChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private IReadOnlyList<NotificationDto> FilteredItems
+    {
+        get
+        {
+            var query = State.Items.AsEnumerable();
+
+            query = _activeTab switch
+            {
+                "unread" => query.Where(i => !i.IsRead),
+                "incidents" => query.Where(i => i.Topic.StartsWith("incidents.", StringComparison.OrdinalIgnoreCase) ||
+                                                i.Summary.Contains("SOS", StringComparison.OrdinalIgnoreCase) ||
+                                                i.PayloadJson.Contains("incidentId", StringComparison.OrdinalIgnoreCase)),
+                "missions" => query.Where(i => i.Topic.StartsWith("rescue.", StringComparison.OrdinalIgnoreCase) ||
+                                               i.PayloadJson.Contains("missionId", StringComparison.OrdinalIgnoreCase)),
+                "ai" => query.Where(i => i.Topic.StartsWith("ai.", StringComparison.OrdinalIgnoreCase) ||
+                                         i.Summary.Contains("priority", StringComparison.OrdinalIgnoreCase) ||
+                                         i.Summary.Contains("assessed", StringComparison.OrdinalIgnoreCase)),
+                "alerts" => query.Where(i => i.Topic.StartsWith("alerts.", StringComparison.OrdinalIgnoreCase) ||
+                                             i.Topic.StartsWith("alert.", StringComparison.OrdinalIgnoreCase)),
+                _ => query
+            };
+
+            if (!string.IsNullOrWhiteSpace(_filterText))
+            {
+                var term = _filterText.Trim();
+                query = query.Where(i => i.Summary.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                                         i.Topic.Contains(term, StringComparison.OrdinalIgnoreCase));
+            }
+
+            return query.ToList();
+        }
+    }
+
+    private async Task NavigateFromNotification(NotificationDto item, string url)
+    {
+        CloseInspect();
+        if (!item.IsRead)
+        {
+            await State.MarkReadAsync(item.Id);
+        }
+        Navigation.NavigateTo(url);
+    }
+
+    private void InspectNotification(NotificationDto item, NotificationParsedDetails details)
+    {
+        _inspectItem = item;
+        _inspectDetails = details;
+        _showRawJson = false;
+    }
+
+    private void CloseInspect()
+    {
+        _inspectItem = null;
+        _inspectDetails = null;
+        _showRawJson = false;
+    }
 
     private Task RefreshAsync() => RunAsync(() => State.LoadAsync());
 
