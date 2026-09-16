@@ -1,19 +1,25 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
 @using RapidRelief.Client.Common.Offline
+@inject NavigationManager Navigation
+@implements IDisposable
+
 <a class="skip-link" href="#rr-main">Skip to main content</a>
 
-<div class="page @(_navOpen ? "nav-open" : null)">
-    <aside class="sidebar" aria-label="Primary navigation">
-        <NavMenu OnNavigated="CloseNav" />
-    </aside>
-    <div class="backdrop" @onclick="CloseNav" aria-hidden="true"></div>
+<div class="page @(HideSidebar ? "no-sidebar" : null) @(_navOpen && !HideSidebar ? "nav-open" : null)">
+    @if (!HideSidebar)
+    {
+        <aside class="sidebar" aria-label="Primary navigation">
+            <NavMenu OnNavigated="CloseNav" />
+        </aside>
+        <div class="backdrop" @onclick="CloseNav" aria-hidden="true"></div>
+    }
 
     <div class="main-col">
         @* DevRolePicker stays in the header in every environment — harmless in prod because the
            server only honors X-Dev-Role where FakeAuth is registered (Development/Testing). *@
-        <AppHeader MenuOpen="_navOpen" OnMenuToggle="ToggleNav" />
+        <AppHeader MenuOpen="_navOpen" OnMenuToggle="ToggleNav" ShowMenuButton="@(!HideSidebar)" AlwaysShowBrand="@HideSidebar" />
 
-        <main id="rr-main" class="content">
+        <main id="rr-main" class="content @(HideSidebar ? "content-fluid" : null)">
             @Body
         </main>
     </div>
@@ -30,9 +36,59 @@
 <ToastHost />
 
 @code {
+    [CascadingParameter] private Task<AuthenticationState>? AuthStateTask { get; set; }
+
     private bool _navOpen;
+    private bool _isAuthenticated;
+
+    protected override void OnInitialized()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await CheckAuthStateAsync();
+    }
+
+    private async Task CheckAuthStateAsync()
+    {
+        if (AuthStateTask is not null)
+        {
+            var auth = await AuthStateTask;
+            _isAuthenticated = auth.User.Identity?.IsAuthenticated == true;
+        }
+        else
+        {
+            _isAuthenticated = false;
+        }
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        _navOpen = false;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private bool IsPublicMapOrShelterRoute()
+    {
+        var relative = Navigation.ToBaseRelativePath(Navigation.Uri);
+        var path = relative.Split('?')[0].Split('#')[0].Trim('/').ToLowerInvariant();
+        return path is "shelters/finder"
+            or "shelters"
+            or "sample"
+            or "livemap"
+            or "map";
+    }
+
+    private bool HideSidebar => !_isAuthenticated && IsPublicMapOrShelterRoute();
 
     private void ToggleNav() => _navOpen = !_navOpen;
 
     private void CloseNav() => _navOpen = false;
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+    }
 }

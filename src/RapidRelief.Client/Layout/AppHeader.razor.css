@@ -42,6 +42,10 @@
     text-decoration: none;
 }
 
+.mobile-brand.always-show {
+    display: inline-flex !important;
+}
+
     .mobile-brand:hover {
         text-decoration: none;
         color: var(--rr-text);
