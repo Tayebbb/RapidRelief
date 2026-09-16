@@ -85,6 +85,13 @@ public static class ReliefResourceEndpoints
             return Results.ValidationProblem(validation.ToDictionary());
         }
 
+        if (request.AllocatedQuantity > request.TotalQuantity)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status400BadRequest,
+                title: "Allocation exceeds stock",
+                detail: "Allocated quantity cannot be greater than the total held in the warehouse.");
+        }
+
         var now = clock.GetUtcNow();
         var resource = new ReliefResource
         {
@@ -203,7 +210,9 @@ public sealed class ReliefResourceValidator : AbstractValidator<ReliefResourceRe
         RuleFor(x => x.Name).NotEmpty().MaximumLength(150);
         RuleFor(x => x.Category).IsInEnum();
         RuleFor(x => x.TotalQuantity).GreaterThanOrEqualTo(0).LessThanOrEqualTo(10_000_000);
-        RuleFor(x => x.AllocatedQuantity).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.AllocatedQuantity).GreaterThanOrEqualTo(0)
+            .LessThanOrEqualTo(x => x.TotalQuantity)
+            .WithMessage("Allocated quantity cannot be greater than the total held in the warehouse.");
         RuleFor(x => x.Unit).MaximumLength(30);
         RuleFor(x => x.WarehouseLocation).MaximumLength(200);
     }

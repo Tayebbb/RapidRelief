@@ -26,6 +26,7 @@ public sealed class CreateShelterValidator : AbstractValidator<CreateShelterRequ
             .GreaterThanOrEqualTo(0)
             .LessThanOrEqualTo(x => x.Capacity)
             .WithMessage("CurrentOccupancy cannot be greater than Capacity.");
+        RuleFor(x => x.Status).IsInEnum();
     }
 }
 
@@ -50,6 +51,7 @@ public sealed class UpdateShelterValidator : AbstractValidator<UpdateShelterRequ
             .GreaterThanOrEqualTo(0)
             .LessThanOrEqualTo(x => x.Capacity)
             .WithMessage("CurrentOccupancy cannot be greater than Capacity.");
+        RuleFor(x => x.Status).IsInEnum();
     }
 }
 

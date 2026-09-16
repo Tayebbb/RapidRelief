@@ -19,6 +19,8 @@ public sealed class CreateAlertValidator : AbstractValidator<CreateAlertRequest>
     {
         RuleFor(x => x.Title).NotEmpty().MaximumLength(160);
         RuleFor(x => x.Body).NotEmpty().MaximumLength(500);
+        RuleFor(x => x.Severity).IsInEnum();
+        RuleFor(x => x.DisasterType).IsInEnum().When(x => x.DisasterType.HasValue);
         RuleFor(x => x.TargetArea).NotEmpty().MaximumLength(150);
         RuleFor(x => x.RadiusKm).InclusiveBetween(0.1, 500).When(x => x.RadiusKm.HasValue);
         RuleFor(x => x.ExpiresAtUtc).Must(value => value > DateTimeOffset.UtcNow)

@@ -76,6 +76,8 @@ public sealed class CreateIncidentValidator : AbstractValidator<CreateIncidentRe
         RuleFor(x => x.IdempotencyKey).MaximumLength(80);
         RuleFor(x => x.PhotoPaths).Must(p => p is null || p.Count <= 5)
             .WithMessage("At most 5 photos may be attached to one report.");
+        RuleForEach(x => x.PhotoPaths).NotEmpty().MaximumLength(500)
+            .When(x => x.PhotoPaths is not null);
     }
 }
 

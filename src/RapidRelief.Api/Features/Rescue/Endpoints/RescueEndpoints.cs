@@ -766,6 +766,7 @@ public static class RescueEndpoints
         TeamPositionRequest request,
         IValidator<TeamPositionRequest> validator,
         RescueDbContext db,
+        IRealtimeNotifier notifier,
         DatabaseHealth health,
         HttpContext context,
         TimeProvider clock,
@@ -795,13 +796,35 @@ public static class RescueEndpoints
 
         team.CurrentLatitude = request.Latitude;
         team.CurrentLongitude = request.Longitude;
+        var statusChanged = false;
         if (!string.IsNullOrWhiteSpace(request.Status) && TeamStatus.IsKnown(request.Status!))
         {
-            team.Status = request.Status!;
+            var wanted = request.Status!.Trim();
+            if (wanted != team.Status)
+            {
+                if (!string.Equals(wanted, TeamStatus.Dispatched, StringComparison.OrdinalIgnoreCase) &&
+                    await TeamHasActiveMissionAsync(db, team.Id, ct))
+                {
+                    return Conflict("Mission in progress", "Close or hand over the active mission before changing status.");
+                }
+
+                team.Status = wanted;
+                statusChanged = true;
+            }
         }
 
         team.UpdatedAtUtc = clock.GetUtcNow();
         await db.SaveChangesAsync(ct);
+
+        if (statusChanged)
+        {
+            await notifier.NotifyRoleAsync(Roles.Government, TeamTopic, new
+            {
+                title = $"{team.TeamName} is now {team.Status}",
+                teamId = team.Id,
+                status = team.Status,
+            }, ct);
+        }
 
         return Results.NoContent();
     }

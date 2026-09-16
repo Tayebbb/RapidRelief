@@ -234,6 +234,79 @@ public sealed record AuthResult(
 {
     public bool Success => Succeeded;
 
+    public string? FormattedError
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(Error))
+            {
+                return Error;
+            }
+
+            if (FieldErrors is { Count: > 0 })
+            {
+                var messages = new List<string>();
+                foreach (var (key, errs) in FieldErrors)
+                {
+                    foreach (var err in errs)
+                    {
+                        if (string.IsNullOrWhiteSpace(err)) continue;
+
+                        if (key.StartsWith("Duplicate", StringComparison.OrdinalIgnoreCase))
+                        {
+                            messages.Add("An account with this email address already exists. Please sign in instead.");
+                        }
+                        else if (string.Equals(key, "PasswordRequiresUpper", StringComparison.OrdinalIgnoreCase))
+                        {
+                            messages.Add("Password must contain at least one uppercase letter ('A'-'Z').");
+                        }
+                        else if (string.Equals(key, "PasswordRequiresLower", StringComparison.OrdinalIgnoreCase))
+                        {
+                            messages.Add("Password must contain at least one lowercase letter ('a'-'z').");
+                        }
+                        else if (string.Equals(key, "PasswordRequiresDigit", StringComparison.OrdinalIgnoreCase))
+                        {
+                            messages.Add("Password must contain at least one number ('0'-'9').");
+                        }
+                        else if (string.Equals(key, "PasswordRequiresNonAlphanumeric", StringComparison.OrdinalIgnoreCase))
+                        {
+                            messages.Add("Password must contain at least one special character (e.g. !@#$%).");
+                        }
+                        else if (string.Equals(key, "PasswordTooShort", StringComparison.OrdinalIgnoreCase))
+                        {
+                            messages.Add("Password must be at least 8 characters long.");
+                        }
+                        else
+                        {
+                            messages.Add(err);
+                        }
+                    }
+                }
+
+                if (messages.Count > 0)
+                {
+                    return string.Join(" ", messages.Distinct());
+                }
+            }
+
+            return null;
+        }
+    }
+
+    public string? GetFieldError(string fieldName)
+    {
+        if (FieldErrors is null) return null;
+
+        foreach (var (key, errors) in FieldErrors)
+        {
+            if (string.Equals(key, fieldName, StringComparison.OrdinalIgnoreCase) && errors.Length > 0)
+            {
+                return errors[0];
+            }
+        }
+        return null;
+    }
+
     public static AuthResult Ok() => new(true, null, null);
 
     public static AuthResult Fail(string error) => new(false, error, null);

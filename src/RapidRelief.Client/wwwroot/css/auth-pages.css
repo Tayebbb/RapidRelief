@@ -618,6 +618,62 @@
     }
 }
 
+/* Password Requirements Checklist */
+.auth-password-hints {
+    margin-top: 0.6rem;
+    padding: 0.75rem 0.9rem;
+    background-color: var(--rr-surface-2, rgba(0, 0, 0, 0.02));
+    border: 1px solid var(--rr-border, rgba(0, 0, 0, 0.08));
+    border-radius: var(--rr-radius);
+    font-size: 0.775rem;
+}
+
+[data-theme="dark"] .auth-password-hints {
+    background-color: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+.auth-password-hints-title {
+    font-weight: 600;
+    color: var(--rr-text-2);
+    margin-bottom: 0.45rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.auth-password-checklist {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 0.35rem 0.75rem;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.auth-password-rule {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: var(--rr-text-3);
+    font-size: 0.775rem;
+    transition: all 0.2s ease;
+}
+
+.auth-password-rule.is-met {
+    color: var(--rr-success, #059669);
+    font-weight: 600;
+}
+
+.auth-password-rule-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+}
+
 /* Responsiveness */
 @media (max-width: 640px) {
     .auth-card {

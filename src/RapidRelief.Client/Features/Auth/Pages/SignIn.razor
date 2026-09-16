@@ -2,6 +2,7 @@
 @page "/login"
 @layout AuthLayout
 @namespace RapidRelief.Client.Features.Auth.Pages
+@using System.Text.RegularExpressions
 @inject AuthApi AuthApi
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
@@ -58,9 +59,17 @@
                 <span class="auth-input-icon">
                     <AppIcon Name="mail" Size="18" />
                 </span>
-                <input id="signin-email" type="email" class="auth-input" placeholder="you@example.com"
-                       @bind="_loginModel.Email" required autocomplete="username" />
+                <input id="signin-email" type="email" class="auth-input @(!string.IsNullOrEmpty(_emailError) ? "is-invalid" : null)"
+                       placeholder="you@gmail.com, you@example.org..." maxlength="256"
+                       @bind="_loginModel.Email" @bind:event="oninput" autocomplete="username" />
             </div>
+            @if (!string.IsNullOrEmpty(_emailError))
+            {
+                <div class="auth-field-error">
+                    <AppIcon Name="alert-circle" Size="14" />
+                    <span>@_emailError</span>
+                </div>
+            }
         </div>
 
         <div class="auth-form-group">
@@ -69,13 +78,21 @@
                 <span class="auth-input-icon">
                     <AppIcon Name="lock" Size="18" />
                 </span>
-                <input id="signin-password" type="@(_showPassword ? "text" : "password")" class="auth-input"
-                       placeholder="Enter your password" @bind="_loginModel.Password" required autocomplete="current-password" />
+                <input id="signin-password" type="@(_showPassword ? "text" : "password")" class="auth-input @(!string.IsNullOrEmpty(_passwordError) ? "is-invalid" : null)"
+                       placeholder="Enter your password" maxlength="128"
+                       @bind="_loginModel.Password" @bind:event="oninput" autocomplete="current-password" />
                 <button type="button" class="auth-toggle-pwd" @onclick="TogglePasswordVisibility"
                         aria-label="@(_showPassword ? "Hide password" : "Show password")">
                     <AppIcon Name="@(_showPassword ? "eye-off" : "eye")" Size="16" />
                 </button>
             </div>
+            @if (!string.IsNullOrEmpty(_passwordError))
+            {
+                <div class="auth-field-error">
+                    <AppIcon Name="alert-circle" Size="14" />
+                    <span>@_passwordError</span>
+                </div>
+            }
         </div>
 
         <div class="auth-form-row">
@@ -117,18 +134,83 @@
     private bool _isGoogleBusy;
     private string? _errorMessage;
 
+    private string? _emailError;
+    private string? _passwordError;
+
+    private static readonly Regex EmailRegex = new(
+        @"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
     private void TogglePasswordVisibility() => _showPassword = !_showPassword;
+
+    private bool ValidateLoginForm()
+    {
+        _emailError = null;
+        _passwordError = null;
+        var isValid = true;
+
+        var trimmedEmail = _loginModel.Email?.Trim();
+        if (string.IsNullOrWhiteSpace(trimmedEmail))
+        {
+            _emailError = "Please enter your email address.";
+            isValid = false;
+        }
+        else if (trimmedEmail.Length > 256)
+        {
+            _emailError = "Email address cannot exceed 256 characters.";
+            isValid = false;
+        }
+        else if (trimmedEmail.Contains(' '))
+        {
+            _emailError = "Email address cannot contain spaces.";
+            isValid = false;
+        }
+        else
+        {
+            var atIndex = trimmedEmail.IndexOf('@');
+            if (atIndex == -1 || atIndex == 0 || !trimmedEmail.Substring(atIndex + 1).Contains('.'))
+            {
+                _emailError = "Please enter a valid email address (e.g. you@gmail.com).";
+                isValid = false;
+            }
+            else if (!EmailRegex.IsMatch(trimmedEmail))
+            {
+                _emailError = "Please enter a valid email address (e.g. you@gmail.com).";
+                isValid = false;
+            }
+        }
+
+        var pwd = _loginModel.Password ?? string.Empty;
+        if (string.IsNullOrEmpty(pwd))
+        {
+            _passwordError = "Please enter your password.";
+            isValid = false;
+        }
+        else if (pwd.Length > 128)
+        {
+            _passwordError = "Password cannot exceed 128 characters.";
+            isValid = false;
+        }
+
+        return isValid;
+    }
 
     private async Task HandleEmailLoginAsync()
     {
         if (_isSubmitting) return;
 
         _errorMessage = null;
+
+        if (!ValidateLoginForm())
+        {
+            return;
+        }
+
         _isSubmitting = true;
 
         try
         {
-            var req = new LoginRequest(_loginModel.Email?.Trim(), _loginModel.Password);
+            var req = new LoginRequest(_loginModel.Email!.Trim(), _loginModel.Password);
             var result = await AuthApi.LoginAsync(req);
 
             if (result.Success)
@@ -139,12 +221,15 @@
             }
             else
             {
-                _errorMessage = result.Error ?? "Invalid email or password. Please try again.";
+                _emailError = result.GetFieldError("Email");
+                _passwordError = result.GetFieldError("Password");
+
+                _errorMessage = result.FormattedError ?? "Invalid email or password. Please try again.";
             }
         }
         catch (Exception)
         {
-            _errorMessage = "An unexpected error occurred. Please try again.";
+            _errorMessage = "An unexpected error occurred. Please check your connection and try again.";
         }
         finally
         {
