@@ -437,16 +437,12 @@ public static class AuthEndpoints
 
     /// <summary>
     /// Rescuer is an operational role: it unlocks the dispatch queue, the team registry and every
-    /// reporter's precise location. Letting an anonymous registration body choose it is
-    /// self-service privilege escalation, so only Development and Testing honour the request —
-    /// they need self-registered responders for the demo. Everywhere else an administrator
-    /// promotes the account through PUT /api/auth/users/{id}/roles.
+    /// reporter's precise location. A user can only become a rescuer if granted access by an
+    /// administrator/government (promoted through PUT /api/auth/users/{id}/roles).
+    /// All normal registrations default to Citizen.
     /// </summary>
     private static string ResolveRegistrationRole(string? requestedRole, IHostEnvironment env)
-        => string.Equals(requestedRole, Roles.Rescuer, StringComparison.OrdinalIgnoreCase)
-           && (env.IsDevelopment() || env.IsEnvironment("Testing"))
-            ? Roles.Rescuer
-            : Roles.Citizen;
+        => Roles.Citizen;
 
     /// <summary>
     /// Accepts a requested OAuth callback only when it stays on this deployment's own origin;

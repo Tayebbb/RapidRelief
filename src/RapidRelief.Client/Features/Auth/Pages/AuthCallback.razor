@@ -17,13 +17,9 @@
             <AppIcon Name="shield" Size="14" />
             <span>Google Authentication</span>
         </div>
-        <h1 class="auth-card-title">@(_showRoleModal ? "Almost Done!" : "Signing You In")</h1>
+        <h1 class="auth-card-title">Signing You In</h1>
         <p class="auth-card-subtitle">
-            @if (_showRoleModal)
-            {
-                <span>Please select your account type to finalize your profile.</span>
-            }
-            else if (_isProcessing)
+            @if (_isProcessing)
             {
                 <span>Verifying your credentials and establishing a secure session...</span>
             }
@@ -51,7 +47,7 @@
             <p class="text-muted">Connecting to RapidRelief…</p>
         </div>
     }
-    else if (!_showRoleModal && !string.IsNullOrEmpty(_errorMessage))
+    else if (!string.IsNullOrEmpty(_errorMessage))
     {
         <div class="d-flex flex-column gap-2 mt-3">
             <a href="auth/signin" class="btn-auth-primary text-center text-decoration-none">
@@ -65,109 +61,17 @@
     }
 </div>
 
-@* Role Selection Pop-up Modal for Google Sign Up *@
-@if (_showRoleModal)
-{
-    <div class="auth-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-role-title">
-        <div class="auth-modal-content">
-            <div class="auth-card-header mb-3">
-                <div class="auth-card-badge">
-                    <AppIcon Name="user-check" Size="14" />
-                    <span>Choose Your Role</span>
-                </div>
-                <h2 id="modal-role-title" class="auth-card-title">One Last Step</h2>
-                <p class="auth-card-subtitle">
-                    Signed in as <strong>@(_googleUser?.Name ?? _googleUser?.Email ?? "Google User")</strong>.
-                    Choose how you'll use RapidRelief:
-                </p>
-            </div>
-
-            <div class="auth-roles-grid mb-4" role="radiogroup" aria-label="Select role">
-                <div class="auth-role-card @(_selectedRole == Roles.Citizen ? "is-selected" : null)"
-                     @onclick="@(() => _selectedRole = Roles.Citizen)"
-                     @onkeydown="@(e => OnRoleKey(e, Roles.Citizen))"
-                     role="radio" aria-checked="@(_selectedRole == Roles.Citizen)"
-                     tabindex="@(_selectedRole == Roles.Citizen ? 0 : -1)">
-                    <div class="auth-role-card-top">
-                        <div class="auth-role-card-icon">
-                            <AppIcon Name="shield" Size="18" />
-                        </div>
-                        <div class="auth-role-radio-dot"></div>
-                    </div>
-                    <h3 class="auth-role-title">I am Citizen</h3>
-                    <p class="auth-role-desc">Report incidents, request emergency aid & find shelters.</p>
-                </div>
-
-                <div class="auth-role-card @(_selectedRole == Roles.Rescuer ? "is-selected" : null)"
-                     @onclick="@(() => _selectedRole = Roles.Rescuer)"
-                     @onkeydown="@(e => OnRoleKey(e, Roles.Rescuer))"
-                     role="radio" aria-checked="@(_selectedRole == Roles.Rescuer)"
-                     tabindex="@(_selectedRole == Roles.Rescuer ? 0 : -1)">
-                    <div class="auth-role-card-top">
-                        <div class="auth-role-card-icon">
-                            <AppIcon Name="activity" Size="18" />
-                        </div>
-                        <div class="auth-role-radio-dot"></div>
-                    </div>
-                    <h3 class="auth-role-title">I am Rescuer</h3>
-                    <p class="auth-role-desc">First responder, tactical rescue missions & disaster relief.</p>
-                </div>
-            </div>
-
-            <button type="button" class="btn-auth-primary" @onclick="ConfirmGoogleRoleAsync" disabled="@_isSubmittingRole">
-                @if (_isSubmittingRole)
-                {
-                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                    <span>Finalizing Account...</span>
-                }
-                else
-                {
-                    <span>Confirm & Continue</span>
-                    <AppIcon Name="arrow-right" Size="16" />
-                }
-            </button>
-        </div>
-    </div>
-}
-
 @code {
-    [SupplyParameterFromQuery]
-    private string? Intent { get; set; }
-
     [SupplyParameterFromQuery]
     private string? ReturnUrl { get; set; }
 
     private bool _isProcessing = true;
-    private bool _showRoleModal;
-    private bool _isSubmittingRole;
-    private string _selectedRole = Roles.Citizen;
     private string? _errorMessage;
     private GoogleUserData? _googleUser;
 
     protected override async Task OnInitializedAsync()
     {
         await ProcessCallbackAsync();
-    }
-
-    /// <summary>
-    /// A div with role="radio" is inert to the keyboard unless we wire it up: Space/Enter
-    /// select, and the arrow keys move between options the way a real radiogroup does.
-    /// </summary>
-    private void OnRoleKey(KeyboardEventArgs e, string role)
-    {
-        switch (e.Key)
-        {
-            case " ":
-            case "Enter":
-                _selectedRole = role;
-                break;
-            case "ArrowRight":
-            case "ArrowDown":
-            case "ArrowLeft":
-            case "ArrowUp":
-                _selectedRole = role == Roles.Citizen ? Roles.Rescuer : Roles.Citizen;
-                break;
-        }
     }
 
     private async Task ProcessCallbackAsync()
@@ -193,16 +97,8 @@
                 };
             }
 
-            // If user came from signup OR no user info was in cookies, prompt role selection pop-up
-            if (string.Equals(Intent, "signup", StringComparison.OrdinalIgnoreCase) || _googleUser == null)
-            {
-                _isProcessing = false;
-                _showRoleModal = true;
-                return;
-            }
-
-            // Normal sign-in: sync immediately with existing account
-            await CompleteSyncAsync(null);
+            // Sync with account (all public sign-ups default to Citizen role)
+            await CompleteSyncAsync();
         }
         catch (Exception)
         {
@@ -211,29 +107,14 @@
         }
     }
 
-    private async Task ConfirmGoogleRoleAsync()
-    {
-        if (_isSubmittingRole) return;
-        _isSubmittingRole = true;
-
-        try
-        {
-            await CompleteSyncAsync(_selectedRole);
-        }
-        finally
-        {
-            _isSubmittingRole = false;
-        }
-    }
-
-    private async Task CompleteSyncAsync(string? role)
+    private async Task CompleteSyncAsync()
     {
         var email = _googleUser?.Email ?? "google-user@rr.dev";
         var displayName = _googleUser?.Name ?? (!string.IsNullOrEmpty(_googleUser?.Email) ? _googleUser.Email.Split('@')[0] : "Google User");
         var photoUrl = _googleUser?.Image;
         var providerId = _googleUser?.Id ?? Guid.NewGuid().ToString();
 
-        var req = new GoogleSessionRequest(email, displayName, providerId, photoUrl, role ?? _selectedRole);
+        var req = new GoogleSessionRequest(email, displayName, providerId, photoUrl, Roles.Citizen);
         var result = await AuthApi.SyncGoogleSessionAsync(req);
 
         if (result.Success)
@@ -246,7 +127,6 @@
         {
             _errorMessage = result.Error ?? "Could not establish session. Please try again.";
             _isProcessing = false;
-            _showRoleModal = false;
         }
     }
 
