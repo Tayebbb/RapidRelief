@@ -184,6 +184,26 @@
             return;
         }
 
+        _notice = null;
+
+        if (string.IsNullOrWhiteSpace(_displayName) || _displayName.Trim().Length < 2 || _displayName.Trim().Length > 100)
+        {
+            _notice = "Display name must be between 2 and 100 characters.";
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_phoneNumber) && _phoneNumber.Trim().Length > 30)
+        {
+            _notice = "Phone number cannot exceed 30 characters.";
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_emergencyContact) && _emergencyContact.Trim().Length > 100)
+        {
+            _notice = "Emergency contact cannot exceed 100 characters.";
+            return;
+        }
+
         _saving = true;
         _saved = false;
         _fieldErrors = null;

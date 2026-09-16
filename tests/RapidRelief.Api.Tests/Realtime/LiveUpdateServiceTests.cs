@@ -163,7 +163,9 @@ public sealed class LiveUpdateServiceTests
     public async Task A_handler_that_throws_does_not_stop_the_other_subscribers()
     {
         var state = State();
-        using var live = Live(state);
+        // Fallback disabled: this test is about exception isolation on push, not the fallback poll tick.
+        using var live = new LiveUpdateService(state, logger: null,
+            fallbackInterval: TimeSpan.FromMinutes(5), coalesceWindow: Immediate);
         var survived = 0;
         using var _ = live.Subscribe(() => throw new InvalidOperationException("page blew up"),
             RealtimeTopics.IncidentReported);

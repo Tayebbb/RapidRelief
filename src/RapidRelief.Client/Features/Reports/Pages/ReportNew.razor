@@ -227,7 +227,7 @@
             </div>
 
             <div class="d-flex justify-content-end gap-3">
-                <a href="c" class="btn-dash-outline">Cancel</a>
+                <a href="reports/my" class="btn-dash-outline">Cancel</a>
                 <button type="button" class="btn-dash-primary" disabled="@_submitting" @onclick="SubmitAsync">
                     <AppIcon Name="send" Size="16" />
                     <span>@(_submitting ? "Sending…" : "Submit report")</span>
@@ -349,26 +349,62 @@
 
         // 1. Validate here, on the device. A report that cannot be accepted must not be queued
         //    for hours only to be rejected on reconnect.
-        if (string.IsNullOrWhiteSpace(_description))
+        if (string.IsNullOrWhiteSpace(_description) || _description.Trim().Length < 10)
         {
-            _error = "Please describe what is happening so responders arrive prepared.";
+            _error = "Please describe what is happening in at least 10 characters so responders arrive prepared.";
+            return;
+        }
+
+        if (_description.Trim().Length > 4000)
+        {
+            _error = "Description cannot exceed 4,000 characters.";
+            return;
+        }
+
+        if (_peopleCount < 0 || _peopleCount > 1000000)
+        {
+            _error = "Please enter a valid number of affected people (0 to 1,000,000).";
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_contactPhone) && _contactPhone.Trim().Length > 30)
+        {
+            _error = "Contact phone number cannot exceed 30 characters.";
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_locationText) && _locationText.Trim().Length > 250)
+        {
+            _error = "Location text cannot exceed 250 characters.";
             return;
         }
 
         if (_pin is null)
         {
             var fix = await Geo.GetCurrentAsync(highAccuracy: true, timeoutMs: 8000);
-            if (fix.Ok)
+            if (fix.Ok && fix.Point is not null)
             {
                 _gpsFix = fix.Point;
                 _gpsAccuracy = fix.AccuracyMeters;
-                SetPin(fix.Point!, adjusted: false);
+                SetPin(fix.Point, adjusted: false);
             }
             else
             {
                 _error = "We need a location to dispatch a team. Tap “Use my location”, or tap the map to place the pin.";
                 return;
             }
+        }
+
+        if (_pin is null)
+        {
+            _error = "We need a location to dispatch a team. Tap “Use my location”, or tap the map to place the pin.";
+            return;
+        }
+
+        if (_pin.Latitude < -90 || _pin.Latitude > 90 || _pin.Longitude < -180 || _pin.Longitude > 180)
+        {
+            _error = "Invalid coordinates selected. Please pick a valid point on the map.";
+            return;
         }
 
         _submitting = true;

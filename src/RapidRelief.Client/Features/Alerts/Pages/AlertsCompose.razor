@@ -136,6 +136,32 @@
 
     private async Task PublishAsync()
     {
+        if (string.IsNullOrWhiteSpace(_title) || _title.Trim().Length > 160)
+        {
+            SetError("Title is required and cannot exceed 160 characters.");
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(_body) || _body.Trim().Length > 500)
+        {
+            SetError("Message is required and cannot exceed 500 characters.");
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(_targetArea) || _targetArea.Trim().Length > 150)
+        {
+            SetError("Target area is required and cannot exceed 150 characters.");
+            return;
+        }
+        if (_expiryLocal <= DateTime.Now)
+        {
+            SetError("Expiry date must be in the future.");
+            return;
+        }
+        if (_radiusKm.HasValue && (_radiusKm.Value < 0.1 || _radiusKm.Value > 500))
+        {
+            SetError("Radius must be between 0.1 and 500 km.");
+            return;
+        }
+
         _saving = true;
         _notice = null;
         try

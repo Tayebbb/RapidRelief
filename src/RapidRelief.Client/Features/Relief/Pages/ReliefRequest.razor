@@ -273,6 +273,30 @@
         _error = null;
         _confirmation = null;
 
+        if (_quantity < 1 || _quantity > 1000)
+        {
+            _error = "Quantity requested must be between 1 and 1,000.";
+            return;
+        }
+
+        if (_recipients < 1 || _recipients > 500)
+        {
+            _error = "Recipient count must be between 1 and 500 people.";
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_address) && _address.Trim().Length > 250)
+        {
+            _error = "Delivery address cannot exceed 250 characters.";
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_notes) && _notes.Trim().Length > 1000)
+        {
+            _error = "Notes cannot exceed 1,000 characters.";
+            return;
+        }
+
         if (_latitude is null || _longitude is null)
         {
             var fix = await Geo.GetCurrentAsync(highAccuracy: true, timeoutMs: 8000);
