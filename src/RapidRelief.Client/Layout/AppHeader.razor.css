@@ -65,12 +65,6 @@
     }
 }
 
-@media (max-width: 767.98px) {
-    /* Dev-only tool yields space to primary actions until there is real room for it. */
-    .role-picker-slot {
-        display: none;
-    }
-}
 
 @media (max-width: 479.98px) {
     .mobile-brand-text {

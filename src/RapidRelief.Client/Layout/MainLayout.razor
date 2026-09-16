@@ -15,8 +15,7 @@
     }
 
     <div class="main-col">
-        @* DevRolePicker stays in the header in every environment — harmless in prod because the
-           server only honors X-Dev-Role where FakeAuth is registered (Development/Testing). *@
+
         <AppHeader MenuOpen="_navOpen" OnMenuToggle="ToggleNav" ShowMenuButton="@(!HideSidebar)" AlwaysShowBrand="@HideSidebar" />
 
         <main id="rr-main" class="content @(HideSidebar ? "content-fluid" : null)">
@@ -74,10 +73,11 @@
     {
         var relative = Navigation.ToBaseRelativePath(Navigation.Uri);
         var path = relative.Split('?')[0].Split('#')[0].Trim('/').ToLowerInvariant();
-        return path is "shelters/finder"
+        return path is "shelter"
             or "shelters"
-            or "sample"
+            or "shelters/finder"
             or "livemap"
+            or "sample"
             or "map";
     }
 
