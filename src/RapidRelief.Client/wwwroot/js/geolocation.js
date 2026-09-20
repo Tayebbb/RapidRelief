@@ -18,41 +18,59 @@ export function getCurrentPosition(timeoutMs, highAccuracy) {
             return;
         }
 
-        let settled = false;
-        const finish = (value) => {
-            if (!settled) {
-                settled = true;
-                resolve(value);
+        const tryPosition = (useHighAcc, isFallback) => {
+            let settled = false;
+            const finish = (value) => {
+                if (!settled) {
+                    settled = true;
+                    resolve(value);
+                }
+            };
+
+            const guard = setTimeout(() => {
+                if (!settled) {
+                    settled = true;
+                    if (useHighAcc && !isFallback) {
+                        // Fallback to low accuracy on timeout
+                        tryPosition(false, true);
+                    } else {
+                        resolve({ ok: false, reason: REASON.timeout });
+                    }
+                }
+            }, (isFallback ? Math.min(timeoutMs, 5000) : timeoutMs) + 500);
+
+            try {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        clearTimeout(guard);
+                        finish({
+                            ok: true,
+                            lat: position.coords.latitude,
+                            lng: position.coords.longitude,
+                            accuracyMeters: position.coords.accuracy ?? 0,
+                        });
+                    },
+                    (error) => {
+                        clearTimeout(guard);
+                        if (useHighAcc && !isFallback && error?.code !== 1) {
+                            // High accuracy failed (e.g. position unavailable), try low accuracy fallback
+                            tryPosition(false, true);
+                        } else {
+                            finish({ ok: false, reason: mapError(error) });
+                        }
+                    },
+                    {
+                        enableHighAccuracy: useHighAcc === true,
+                        timeout: isFallback ? Math.min(timeoutMs, 5000) : timeoutMs,
+                        maximumAge: 60000,
+                    });
+            } catch {
+                clearTimeout(guard);
+                finish({ ok: false, reason: REASON.unavailable });
             }
         };
 
-        // Some browsers never invoke either callback when the permission prompt is dismissed.
-        const guard = setTimeout(() => finish({ ok: false, reason: REASON.timeout }), timeoutMs + 500);
-
-        try {
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    clearTimeout(guard);
-                    finish({
-                        ok: true,
-                        lat: position.coords.latitude,
-                        lng: position.coords.longitude,
-                        accuracyMeters: position.coords.accuracy ?? 0,
-                    });
-                },
-                (error) => {
-                    clearTimeout(guard);
-                    finish({ ok: false, reason: mapError(error) });
-                },
-                {
-                    enableHighAccuracy: highAccuracy === true,
-                    timeout: timeoutMs,
-                    maximumAge: 60000,
-                });
-        } catch {
-            clearTimeout(guard);
-            finish({ ok: false, reason: REASON.unavailable });
-        }
+        tryPosition(highAccuracy, false);
     });
 }
 
