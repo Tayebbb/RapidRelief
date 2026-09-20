@@ -476,6 +476,20 @@ public static class IncidentsEndpoints
 
         await NotifyReporterAsync(notifier, incident,
             "Your report has been closed by the command centre.", ct);
+            
+        await notifier.NotifyRoleAsync(Roles.Rescuer, Topics.IncidentStatus, new
+        {
+            title = "Incident resolved",
+            incidentId = incident.Id,
+            status = incident.Status.ToString(),
+        }, ct);
+        await notifier.NotifyRoleAsync(Roles.Government, Topics.IncidentStatus, new
+        {
+            title = "Incident resolved",
+            incidentId = incident.Id,
+            status = incident.Status.ToString(),
+        }, ct);
+
         await audit.RecordAsync(new AuditRecord(officerId, string.Empty, Roles.Government,
             "Incident.Resolve", "Incident", incident.Id.ToString(),
             $"Closed without a mission: {request.Notes}", "Resolved"), ct);

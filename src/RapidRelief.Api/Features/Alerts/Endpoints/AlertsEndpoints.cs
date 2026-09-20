@@ -133,7 +133,7 @@ public static class AlertsEndpoints
         return alert is null ? Results.NotFound() : Json(new ApiEnvelope<AlertDto>(ToDto(alert)));
     }
 
-    private static async Task<IResult> RevokeAsync(Guid id, AlertsDbContext db, IAuditTrail audit, DatabaseHealth health, TimeProvider clock, CancellationToken ct)
+    private static async Task<IResult> RevokeAsync(Guid id, AlertsDbContext db, IAuditTrail audit, IRealtimeNotifier notifier, DatabaseHealth health, TimeProvider clock, CancellationToken ct)
     {
         if (health.PostgresAvailable != true)
         {
@@ -153,6 +153,13 @@ public static class AlertsEndpoints
             await audit.RecordAsync(new AuditRecord(null, string.Empty, string.Empty,
                 "Alert.Revoke", "Alert", alert.Id.ToString(),
                 $"Stood down broadcast \"{alert.Title}\"", "Revoked"), ct);
+            
+            await notifier.NotifyAllAsync(RealtimeTopics.AlertPublished, new
+            {
+                title = "Alert revoked",
+                alertId = alert.Id,
+                status = "Revoked"
+            }, ct);
         }
 
         return Results.NoContent();

@@ -826,12 +826,14 @@ public static class RescueEndpoints
 
         if (statusChanged)
         {
-            await notifier.NotifyRoleAsync(Roles.Government, TeamTopic, new
+            var payload = new
             {
                 title = $"{team.TeamName} is now {team.Status}",
                 teamId = team.Id,
                 status = team.Status,
-            }, ct);
+            };
+            await notifier.NotifyRoleAsync(Roles.Government, TeamTopic, payload, ct);
+            await notifier.NotifyRoleAsync(Roles.Rescue, TeamTopic, payload, ct);
         }
 
         return Results.NoContent();
@@ -880,12 +882,14 @@ public static class RescueEndpoints
         team.UpdatedAtUtc = clock.GetUtcNow();
         await db.SaveChangesAsync(ct);
 
-        await notifier.NotifyRoleAsync(Roles.Government, TeamTopic, new
+        var payload = new
         {
             title = $"{team.TeamName} is now {team.Status}",
             teamId = team.Id,
             status = team.Status,
-        }, ct);
+        };
+        await notifier.NotifyRoleAsync(Roles.Government, TeamTopic, payload, ct);
+        await notifier.NotifyRoleAsync(Roles.Rescue, TeamTopic, payload, ct);
 
         return Results.Ok(new ApiEnvelope<RescueTeamDto>(ToTeamDto(team, 0)));
     }
