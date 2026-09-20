@@ -268,6 +268,7 @@ public static class ReliefEndpoints
         Guid id,
         ReliefDbContext db,
         IEventBus eventBus,
+        IRealtimeNotifier notifier,
         DatabaseHealth health,
         HttpContext context,
         TimeProvider clock,
@@ -301,6 +302,13 @@ public static class ReliefEndpoints
         entity.UpdatedAtUtc = clock.GetUtcNow();
         await db.SaveChangesAsync(ct);
         await eventBus.PublishAsync(new ReliefStatusChanged(entity.Id, entity.Status), ct);
+        await NotifyRequesterAsync(notifier, entity, ct);
+        await notifier.NotifyRoleAsync(Roles.Government, StatusTopic, new
+        {
+            title = $"Relief request cancelled by requester",
+            requestId = entity.Id,
+            status = entity.Status.ToString(),
+        }, ct);
 
         return Results.Ok(new ApiEnvelope<ReliefRequestDto>(ToDto(entity)));
     }

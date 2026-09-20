@@ -654,6 +654,7 @@ public static class RescueEndpoints
         IValidator<CreateTeamRequest> validator,
         RescueDbContext db,
         IAuditTrail audit,
+        IRealtimeNotifier notifier,
         DatabaseHealth health,
         TimeProvider clock,
         CancellationToken ct)
@@ -694,6 +695,9 @@ public static class RescueEndpoints
             "Team.Create", "RescueTeam", team.Id.ToString(),
             $"Created team \"{team.TeamName}\" ({team.Specialization})", "Created"), ct);
 
+        await notifier.NotifyRoleAsync(Roles.Government, TeamTopic, new { title = $"New team created: {team.TeamName}", teamId = team.Id, status = team.Status }, ct);
+        await notifier.NotifyRoleAsync(Roles.Rescue, TeamTopic, new { title = $"New team created: {team.TeamName}", teamId = team.Id, status = team.Status }, ct);
+
         return Results.Created($"{BasePath}/teams/{team.Id}", new ApiEnvelope<RescueTeamDto>(ToTeamDto(team, 0)));
     }
 
@@ -704,6 +708,7 @@ public static class RescueEndpoints
         IValidator<UpdateTeamRequest> validator,
         RescueDbContext db,
         IAuditTrail audit,
+        IRealtimeNotifier notifier,
         DatabaseHealth health,
         TimeProvider clock,
         CancellationToken ct)
@@ -756,6 +761,9 @@ public static class RescueEndpoints
         await audit.RecordAsync(new AuditRecord(null, string.Empty, string.Empty,
             "Team.Update", "RescueTeam", team.Id.ToString(),
             $"{before} → {team.TeamName} · {team.Specialization} · {team.Status}", "Updated"), ct);
+
+        await notifier.NotifyRoleAsync(Roles.Government, TeamTopic, new { title = $"{team.TeamName} status: {team.Status}", teamId = team.Id, status = team.Status }, ct);
+        await notifier.NotifyRoleAsync(Roles.Rescue, TeamTopic, new { title = $"{team.TeamName} status: {team.Status}", teamId = team.Id, status = team.Status }, ct);
 
         var active = await ActiveMissionCountsAsync(db, ct);
         return Results.Ok(new ApiEnvelope<RescueTeamDto>(
@@ -1097,19 +1105,23 @@ public static class RescueEndpoints
         }
     }
 
-    private static Task NotifyOperationsAsync(
+    private static async Task NotifyOperationsAsync(
         IRealtimeNotifier notifier,
         string title,
         RescueMission mission,
         CancellationToken ct,
         string topic = OperationsTopic)
-        => notifier.NotifyRoleAsync(Roles.Government, topic, new
+    {
+        var payload = new
         {
             title,
             missionId = mission.Id,
             incidentId = mission.IncidentId,
             status = mission.Status.ToString(),
-        }, ct);
+        };
+        await notifier.NotifyRoleAsync(Roles.Government, topic, payload, ct);
+        await notifier.NotifyRoleAsync(Roles.Rescue, topic, payload, ct);
+    }
 
     private static bool TryGetUserId(HttpContext context, out Guid userId)
         => Guid.TryParse(context.User.FindFirstValue(ClaimTypes.NameIdentifier), out userId);

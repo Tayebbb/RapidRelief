@@ -398,6 +398,21 @@ public static class IncidentsEndpoints
                 : $"Your report was closed by the command centre: {request.Reason}",
             ct);
 
+        // Push a live board refresh to all rescuers and government officers so IncidentsBoard /
+        // RescuerDashboard pick up the status change immediately (no polling lag).
+        await notifier.NotifyRoleAsync(Roles.Rescuer, Topics.IncidentStatus, new
+        {
+            title = request.Approved ? "Incident verified — ready for assignment" : "Incident rejected by command",
+            incidentId = incident.Id,
+            status = incident.Status.ToString(),
+        }, ct);
+        await notifier.NotifyRoleAsync(Roles.Government, Topics.IncidentStatus, new
+        {
+            title = request.Approved ? "Incident verified — ready for assignment" : "Incident rejected by command",
+            incidentId = incident.Id,
+            status = incident.Status.ToString(),
+        }, ct);
+
         return Results.Ok(new ApiEnvelope<IncidentDto>(ToDto(incident)));
     }
 
