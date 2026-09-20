@@ -37,7 +37,8 @@ public sealed class LiveUpdateServiceTests
     public async Task A_push_on_a_subscribed_topic_refreshes_the_page()
     {
         var state = State();
-        using var live = Live(state);
+        using var live = new LiveUpdateService(state, logger: null,
+            fallbackInterval: TimeSpan.FromMinutes(5), coalesceWindow: Immediate);
         var refreshes = 0;
         using var _ = live.Subscribe(() => { refreshes++; return Task.CompletedTask; },
             RealtimeTopics.IncidentReported);
@@ -68,7 +69,8 @@ public sealed class LiveUpdateServiceTests
     public async Task A_prefix_subscription_covers_topics_added_later()
     {
         var state = State();
-        using var live = Live(state);
+        using var live = new LiveUpdateService(state, logger: null,
+            fallbackInterval: TimeSpan.FromMinutes(5), coalesceWindow: Immediate);
         var refreshes = 0;
         using var _ = live.Subscribe(() => { refreshes++; return Task.CompletedTask; }, "rescue");
 

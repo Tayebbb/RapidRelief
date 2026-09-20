@@ -7,6 +7,7 @@ using RapidRelief.Api.Features.Shelters.Services;
 using RapidRelief.Api.Infrastructure.Auth;
 using RapidRelief.Api.Infrastructure.Persistence;
 using RapidRelief.Shared.Contracts.Common;
+using RapidRelief.Shared.Contracts.Enums;
 using RapidRelief.Shared.Contracts.ReadModels;
 using RapidRelief.Shared.Contracts.Services;
 namespace RapidRelief.Api.Features.Shelters.Endpoints;
@@ -32,6 +33,7 @@ public static class SheltersEndpoints
         IValidator<CreateShelterRequest> validator,
         OpsDbContext db,
         IAuditTrail audit,
+        IRealtimeNotifier notifier,
         DatabaseHealth databaseHealth,
         CancellationToken ct)
     {
@@ -63,6 +65,13 @@ public static class SheltersEndpoints
         await audit.RecordAsync(new AuditRecord(null, string.Empty, string.Empty,
             "Shelter.Create", "Shelter", shelter.Id.ToString(),
             $"Opened \"{shelter.Name}\" with capacity {shelter.Capacity}", "Created"), ct);
+
+        await notifier.NotifyRoleAsync(Roles.Government, RealtimeTopics.RescueOperations, new
+        {
+            title = $"Shelter opened: {shelter.Name}",
+            shelterId = shelter.Id,
+            capacity = shelter.Capacity
+        }, ct);
 
         return Results.Created($"/api/shelters/{shelter.Id}", new ApiEnvelope<ShelterDto>(ShelterDto.FromEntity(shelter)));
     }
@@ -133,6 +142,7 @@ public static class SheltersEndpoints
         IValidator<UpdateShelterRequest> validator,
         OpsDbContext db,
         IAuditTrail audit,
+        IRealtimeNotifier notifier,
         DatabaseHealth databaseHealth,
         CancellationToken ct)
     {
@@ -167,6 +177,12 @@ public static class SheltersEndpoints
             "Shelter.Update", "Shelter", shelter.Id.ToString(),
             $"{before} \u2192 {shelter.Name}: {shelter.CurrentOccupancy}/{shelter.Capacity} \u00b7 {shelter.Status}", "Updated"), ct);
 
+        await notifier.NotifyRoleAsync(Roles.Government, RealtimeTopics.RescueOperations, new
+        {
+            title = $"Shelter updated: {shelter.Name}",
+            shelterId = shelter.Id
+        }, ct);
+
         return Results.Ok(new ApiEnvelope<ShelterDto>(ShelterDto.FromEntity(shelter)));
     }
 
@@ -176,6 +192,7 @@ public static class SheltersEndpoints
         IValidator<UpdateOccupancyRequest> validator,
         OpsDbContext db,
         IAuditTrail audit,
+        IRealtimeNotifier notifier,
         DatabaseHealth databaseHealth,
         CancellationToken ct)
     {
@@ -222,6 +239,14 @@ public static class SheltersEndpoints
         await audit.RecordAsync(new AuditRecord(null, string.Empty, string.Empty,
             "Shelter.Occupancy", "Shelter", shelter.Id.ToString(),
             $"{shelter.Name} occupancy set to {shelter.CurrentOccupancy}/{shelter.Capacity} ({shelter.Status})", "Updated"), ct);
+
+        await notifier.NotifyRoleAsync(Roles.Government, RealtimeTopics.RescueOperations, new
+        {
+            title = $"Shelter occupancy updated: {shelter.Name}",
+            shelterId = shelter.Id,
+            occupancy = shelter.CurrentOccupancy,
+            capacity = shelter.Capacity
+        }, ct);
 
         return Results.Ok(new ApiEnvelope<ShelterDto>(ShelterDto.FromEntity(shelter)));
     }
