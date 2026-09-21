@@ -288,12 +288,22 @@
 
 
 /* 3 ─ Base */
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
 html {
     -webkit-text-size-adjust: 100%;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
 }
 
 html, body {
     font-family: var(--rr-font);
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
 }
 
 body {
@@ -301,7 +311,15 @@ body {
     color: var(--rr-text);
     font-size: 1rem;
     line-height: 1.6;
+    overflow-x: hidden;
+    margin: 0;
+    padding: 0;
     transition: background-color var(--rr-base) var(--rr-ease), color var(--rr-base) var(--rr-ease);
+}
+
+img, svg, video, canvas, audio, iframe, embed, object {
+    max-width: 100%;
+    height: auto;
 }
 
 h1, h2, h3, h4, h5, h6 {

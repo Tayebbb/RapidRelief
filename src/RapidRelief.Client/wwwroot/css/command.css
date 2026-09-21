@@ -103,6 +103,7 @@
     display: flex;
     gap: 0.25rem;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     border-bottom: 1px solid var(--rr-border);
     padding-bottom: 1px;
     scrollbar-width: thin;
@@ -149,7 +150,7 @@
 
 .cmd-kpi-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
     gap: var(--space-3);
 }
 
@@ -538,7 +539,7 @@ a.cmd-kpi:hover {
 .cmd-search {
     position: relative;
     flex: 1 1 240px;
-    min-width: 200px;
+    min-width: 180px;
 }
 
 .cmd-search input {
@@ -592,6 +593,26 @@ a.cmd-kpi:hover {
     white-space: nowrap;
 }
 
+@media (max-width: 768px) {
+    .cmd-filters {
+        gap: var(--space-2);
+        padding: var(--space-2);
+    }
+    .cmd-search {
+        flex: 1 1 100%;
+        min-width: 0;
+        width: 100%;
+    }
+    .cmd-select {
+        flex: 1 1 calc(50% - var(--space-2));
+        min-width: 120px;
+    }
+    .cmd-result-count {
+        width: 100%;
+        margin-left: 0;
+    }
+}
+
 /* Button sizes live in components.css. `.rr-btn-xs` used to be redeclared here
    and immediately lost to the later sheet — dead weight, removed. */
 
@@ -619,6 +640,16 @@ a.cmd-kpi:hover {
 .cmd-map-frame .rapid-map {
     height: 60vh;
     min-height: 520px;
+}
+
+@media (max-width: 768px) {
+    .cmd-map-frame {
+        min-height: 340px;
+    }
+    .cmd-map-frame .rapid-map {
+        height: 50vh;
+        min-height: 340px;
+    }
 }
 
 .cmd-legend {
@@ -762,6 +793,14 @@ a.cmd-kpi:hover {
     text-align: right;
 }
 
+@media (max-width: 480px) {
+    .cmd-dist-row {
+        grid-template-columns: minmax(70px, 28%) 1fr auto;
+        gap: var(--space-2);
+        font-size: 0.8rem;
+    }
+}
+
 /* ── Forms in drawers / inline editors ──────────────────────────────────── */
 
 .cmd-form {
@@ -833,6 +872,8 @@ a.cmd-kpi:hover {
 .cmd-modal {
     width: 100%;
     max-width: 520px;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
@@ -848,4 +889,14 @@ a.cmd-kpi:hover {
     font-size: 1.1rem;
     font-weight: 650;
     color: var(--rr-text);
+}
+
+@media (max-width: 480px) {
+    .cmd-modal-backdrop {
+        padding: var(--space-2);
+    }
+    .cmd-modal {
+        padding: var(--space-3);
+        max-height: calc(100vh - 1rem);
+    }
 }

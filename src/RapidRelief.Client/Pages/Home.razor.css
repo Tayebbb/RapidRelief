@@ -92,7 +92,7 @@
 
 .action-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
     gap: var(--space-4);
     margin-top: var(--space-4);
 }
@@ -159,7 +159,7 @@
 
 .how-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
     gap: var(--space-4);
     list-style: none;
     margin: var(--space-4) 0 0;
@@ -208,5 +208,15 @@
     .hero-actions .btn {
         flex: 1 1 auto;
         justify-content: center;
+    }
+
+    .emergency-strip {
+        padding: var(--space-3) var(--space-4);
+        margin-bottom: var(--space-6);
+    }
+
+    .action-card,
+    .how-step {
+        padding: var(--space-4);
     }
 }

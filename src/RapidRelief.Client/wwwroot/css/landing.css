@@ -753,7 +753,7 @@
 
 /* Typography */
 .hero-headline {
-  font-size: clamp(2.5rem, 5vw, 4.25rem);
+  font-size: clamp(1.85rem, 5.5vw, 4.25rem);
   font-weight: 800;
   line-height: 1.12;
   letter-spacing: -0.035em;
@@ -1521,16 +1521,20 @@
   user-select: none;
   padding: 1rem 0;
   margin-bottom: 2rem;
+  overflow: hidden;
+  max-width: 100%;
 }
 
 .footer-giant-brand-text {
-  font-size: clamp(3rem, 11vw, 9.5rem);
+  font-size: clamp(1.85rem, 9.5vw, 9.5rem);
   font-weight: 900;
   letter-spacing: -0.04em;
-  line-height: 0.9;
+  line-height: 0.95;
   color: rgba(250, 247, 242, 0.08);
   text-transform: uppercase;
   white-space: nowrap;
+  max-width: 100%;
+  display: block;
   transition: color 0.3s ease;
 }
 
@@ -1644,20 +1648,27 @@
 
 @media (max-width: 768px) {
   .nav-links-desktop,
-  .nav-actions {
-    display: none;
+  .btn-nav-signin,
+  .btn-nav-signup {
+    display: none !important;
   }
 
   .mobile-menu-btn {
-    display: block;
+    display: inline-flex !important;
+  }
+
+  .nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
   }
 
   .hero-content-wrap {
-    padding: 6.5rem 1.5rem 4.5rem;
+    padding: 6.5rem 1.25rem 4rem;
   }
 
   .hero-headline {
-    font-size: 2.45rem;
+    font-size: clamp(1.85rem, 6vw, 2.45rem);
   }
 
   .quick-actions-grid,
@@ -1681,24 +1692,60 @@
   }
 }
 
+@media (max-width: 640px) {
+  .trust-indicators-row {
+    gap: 0.75rem 1.25rem;
+  }
+
+  .landing-section {
+    padding: 4rem 1.25rem;
+  }
+
+  .impact-flow-track {
+    padding: 1.5rem 1.25rem;
+  }
+}
+
 @media (max-width: 480px) {
+  .landing-nav-container {
+    padding: 0.65rem 0.75rem;
+  }
+
+  .landing-nav {
+    padding: 0.45rem 0.85rem;
+  }
+
+  .mobile-nav-drawer {
+    left: 0.75rem;
+    right: 0.75rem;
+    top: 65px;
+  }
+
   .hero-content-wrap {
-    padding: 6rem 1.15rem 3.5rem;
+    padding: 5.5rem 1rem 3rem;
   }
 
   .hero-headline {
-    font-size: 2.05rem;
+    font-size: clamp(1.75rem, 6.5vw, 2.15rem);
+  }
+
+  .hero-lede {
+    font-size: 0.98rem;
+    line-height: 1.55;
+    margin-bottom: 1.5rem;
   }
 
   .hero-actions-group {
     flex-direction: column;
     align-items: stretch;
+    gap: 0.75rem;
   }
 
   .btn-hero-primary,
   .btn-hero-secondary {
     justify-content: center;
     width: 100%;
+    padding: 0.8rem 1.25rem;
   }
 
   .hero-indicator-dot .indicator-bar {
@@ -1710,6 +1757,37 @@
   }
 
   .landing-section {
-    padding: 3.75rem 1.25rem;
+    padding: 3.25rem 1rem;
+  }
+
+  .section-title {
+    font-size: 1.85rem;
+  }
+
+  .bento-card,
+  .quick-card,
+  .step-card,
+  .human-pillar-card,
+  .assistant-dialog-mock {
+    padding: 1.35rem 1.15rem;
+  }
+
+  .final-cta-section {
+    padding: 4rem 1rem;
+  }
+
+  .final-cta-title {
+    font-size: 1.85rem;
+  }
+
+  .final-cta-btns {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .btn-cta-white,
+  .btn-cta-outline-white {
+    width: 100%;
+    justify-content: center;
   }
 }

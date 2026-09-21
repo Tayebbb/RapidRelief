@@ -101,7 +101,7 @@
             <ul class="list-group">
                 @foreach (var shelter in _shelters)
                 {
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
                         <div>
                             <h6 class="mb-0">@shelter.Name</h6>
                             <small class="text-muted">
@@ -130,7 +130,7 @@
             }
         }
     </div>
-    <div class="col-md-8">
+    <div class="col-md-8 mt-3 mt-md-0">
         @* Fixed 600px overflowed short phones; cap against the viewport instead. *@
         <div style="height: min(600px, calc(100vh - 220px)); min-height: 320px;">
             @if (_shelters is not null)

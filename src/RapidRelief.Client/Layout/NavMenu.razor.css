@@ -148,7 +148,7 @@
         margin-top: 0.15rem;
     }
 
-@media (max-width: 899.98px) {
+@media (max-width: 1024px) {
     .nav-close {
         display: inline-flex;
     }

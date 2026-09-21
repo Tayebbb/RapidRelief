@@ -558,6 +558,8 @@ h2[tabindex="-1"]:focus-visible {
 /* ── 8 · Data table. Dense, scannable, scrollable on small screens. ──────── */
 .rr-table-wrap {
     overflow-x: auto;
+    max-width: 100%;
+    width: 100%;
     border: 1px solid var(--rr-border);
     border-radius: var(--rr-radius-l);
     background: var(--rr-surface);
@@ -935,13 +937,17 @@ h2[tabindex="-1"]:focus-visible {
 
 .rr-page {
     max-width: 76rem;
+    width: 100%;
     margin: 0 auto;
     padding: var(--space-6) var(--space-5) var(--space-12);
 }
 
 @media (max-width: 640px) {
     .rr-page {
-        padding: var(--space-4) var(--space-4) var(--space-16);
+        padding: var(--space-4) var(--space-3) var(--space-16);
+    }
+    .rr-row-between {
+        flex-wrap: wrap;
     }
 }
 

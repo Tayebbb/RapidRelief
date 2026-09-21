@@ -267,3 +267,11 @@
 .notification-all:hover {
     text-decoration: underline;
 }
+
+@media (max-width: 480px) {
+    .notification-panel {
+        right: -3.5rem;
+        width: calc(100vw - 1.5rem);
+        max-width: 22rem;
+    }
+}

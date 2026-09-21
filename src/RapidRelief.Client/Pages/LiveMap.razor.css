@@ -71,7 +71,7 @@
 /* Stats Grid */
 .livemap-stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
     gap: var(--space-4);
     margin-bottom: var(--space-6);
 }
@@ -187,7 +187,7 @@
 }
 
 .map-viewport-wrapper {
-    height: clamp(380px, 60vh, 650px);
+    height: clamp(320px, 55vh, 650px);
     width: 100%;
 }
 
@@ -198,7 +198,7 @@
 
 .shelters-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
     gap: var(--space-4);
 }
 

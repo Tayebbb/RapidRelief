@@ -65,8 +65,26 @@
     }
 }
 
+@media (max-width: 640px) {
+    .header-tools {
+        gap: var(--space-1);
+    }
+
+    ::deep .rr-user-name {
+        display: none;
+    }
+
+    ::deep .rr-user-chip {
+        padding: 0 var(--space-1);
+    }
+}
 
 @media (max-width: 479.98px) {
+    .app-header {
+        padding: 0 var(--space-2);
+        gap: var(--space-1);
+    }
+
     .mobile-brand-text {
         display: none;
     }

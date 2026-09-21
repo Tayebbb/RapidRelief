@@ -21,11 +21,19 @@
 .dash-layout {
   padding: var(--space-6) var(--space-4) var(--space-12);
   max-width: 82.5rem;
+  width: 100%;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
   animation: fadeInDash var(--rr-slow) var(--rr-ease);
+}
+
+@media (max-width: 640px) {
+  .dash-layout {
+    padding: var(--space-4) var(--space-3) var(--space-12);
+    gap: var(--space-4);
+  }
 }
 
 @keyframes fadeInDash {
@@ -48,6 +56,13 @@
   box-shadow: var(--rr-shadow);
   position: relative;
   overflow: hidden;
+}
+
+@media (max-width: 640px) {
+  .dash-header-banner {
+    padding: var(--space-4) var(--space-4);
+    gap: var(--space-3);
+  }
 }
 
 [data-theme='dark'] .dash-header-banner {
@@ -108,7 +123,7 @@
 }
 
 .dash-title {
-  font-size: 1.75rem;
+  font-size: clamp(1.35rem, 3.5vw, 1.75rem);
   font-weight: 800;
   letter-spacing: -0.02em;
   color: var(--rr-text);
@@ -196,7 +211,14 @@
   box-shadow: var(--rr-shadow);
   display: flex;
   flex-direction: column;
+  min-width: 0;
   transition: transform var(--rr-fast) var(--rr-ease), box-shadow var(--rr-fast) var(--rr-ease);
+}
+
+@media (max-width: 640px) {
+  .dash-card {
+    padding: var(--space-4) var(--space-3);
+  }
 }
 
 .dash-card:hover {
@@ -207,6 +229,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   margin-bottom: var(--space-4);
   gap: var(--space-2);
 }
@@ -218,6 +241,7 @@
   margin: 0;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-2);
 }
 
