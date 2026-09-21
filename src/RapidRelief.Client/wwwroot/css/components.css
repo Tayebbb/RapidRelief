@@ -1,0 +1,1187 @@
+/* ============================================================================
+   RapidRelief — component layer (loaded after app.css).
+
+   One button system. One focus ring. One elevation ladder. Everything here
+   consumes §2 tokens from app.css and nothing here invents a colour.
+
+   The legacy class names (.btn-dash-*, .btn-auth-*, Bootstrap .btn-*) are
+   aliased onto .rr-btn rather than rewritten across forty pages: the markup
+   keeps working, the design becomes one.
+   ============================================================================ */
+
+/* ── 1 · Focus. One ring, everywhere, keyboard-only. ─────────────────────────
+   NOT written with :where(): that contributes zero specificity, so any page
+   sheet with a single class selector (e.g. `.auth-input:focus`) silently won
+   and the ring disappeared exactly where it mattered. The !important is the
+   point of this layer — there is one ring and page sheets do not get a vote. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+    outline: 2px solid var(--rr-accent-bright) !important;
+    outline-offset: 2px;
+    border-radius: var(--rr-radius-s);
+}
+
+/* Mouse users never see the ring; keyboard users always do. */
+a:focus:not(:focus-visible),
+button:focus:not(:focus-visible),
+input:focus:not(:focus-visible),
+select:focus:not(:focus-visible),
+textarea:focus:not(:focus-visible),
+summary:focus:not(:focus-visible),
+[tabindex]:focus:not(:focus-visible) {
+    outline: none;
+}
+
+/* <FocusOnNavigate Selector="h1"> gives every page heading tabindex="-1" and
+   focuses it so a screen reader announces the new page. That target is never
+   reached by Tab, so painting a ring around the heading on every navigation is
+   pure visual noise. The announcement still happens; only the ring goes. */
+h1[tabindex="-1"]:focus,
+h1[tabindex="-1"]:focus-visible,
+h2[tabindex="-1"]:focus,
+h2[tabindex="-1"]:focus-visible {
+    outline: none !important;
+}
+
+/* ── 2 · Buttons ─────────────────────────────────────────────────────────── */
+.rr-btn,
+.btn-dash-primary,
+.btn-dash-outline,
+.btn-auth-primary,
+.btn-google-auth,
+.btn-hero-primary,
+.btn-hero-secondary,
+.btn-cta-white,
+.btn-cta-outline-white {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    font-family: var(--rr-font);
+    font-weight: var(--weight-medium);
+    font-size: var(--text-base);
+    line-height: 1.2;
+    /* 44px min target — the accessibility floor, not a suggestion. */
+    min-height: 2.75rem;
+    padding: 0.625rem 1.125rem;
+    border-radius: var(--rr-radius);
+    border: 1px solid transparent;
+    cursor: pointer;
+    text-decoration: none;
+    white-space: nowrap;
+    user-select: none;
+    transition: background-color var(--rr-fast) var(--rr-ease),
+                border-color var(--rr-fast) var(--rr-ease),
+                color var(--rr-fast) var(--rr-ease),
+                box-shadow var(--rr-fast) var(--rr-ease);
+}
+
+    /* Opacity, not transform: a moving button under a stressed thumb reads as a miss. */
+    .rr-btn:active:not(:disabled),
+    .btn-dash-primary:active:not(:disabled),
+    .btn-dash-outline:active:not(:disabled),
+    .btn-auth-primary:active:not(:disabled),
+    .btn-google-auth:active:not(:disabled),
+    .btn-hero-primary:active:not(:disabled),
+    .btn-hero-secondary:active:not(:disabled),
+    .btn-cta-white:active:not(:disabled),
+    .btn-cta-outline-white:active:not(:disabled) {
+        transform: none;
+        filter: brightness(0.94);
+    }
+
+    .rr-btn:disabled,
+    .rr-btn[aria-disabled='true'],
+    .btn-dash-primary:disabled,
+    .btn-dash-outline:disabled,
+    .btn-auth-primary:disabled,
+    .btn-google-auth:disabled,
+    .btn-hero-primary:disabled,
+    .btn-hero-secondary:disabled,
+    .btn-cta-white:disabled,
+    .btn-cta-outline-white:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        filter: none;
+    }
+
+/* Primary = the accent. Exactly one per screen region. */
+.rr-btn-primary,
+.btn-dash-primary,
+.btn-auth-primary {
+    background: var(--rr-accent);
+    color: var(--rr-on-accent);
+    border-color: transparent;
+    box-shadow: var(--rr-shadow-xs);
+}
+
+    .rr-btn-primary:hover:not(:disabled),
+    .btn-dash-primary:hover:not(:disabled),
+    .btn-auth-primary:hover:not(:disabled) {
+        background: var(--rr-accent-hover);
+        color: var(--rr-on-accent);
+    }
+
+/* Neutral = everything else. */
+.rr-btn-secondary,
+.rr-btn-outline,
+.btn-dash-outline,
+.btn-google-auth {
+    background: var(--rr-surface);
+    color: var(--rr-text);
+    border-color: var(--rr-border-strong);
+}
+
+    .rr-btn-secondary:hover:not(:disabled),
+    .rr-btn-outline:hover:not(:disabled),
+    .btn-dash-outline:hover:not(:disabled),
+    .btn-google-auth:hover:not(:disabled) {
+        background: var(--rr-surface-2);
+        border-color: var(--rr-text-3);
+        color: var(--rr-text);
+    }
+
+.rr-btn-ghost {
+    background: transparent;
+    color: var(--rr-text-2);
+    border-color: transparent;
+}
+
+    .rr-btn-ghost:hover:not(:disabled) {
+        background: var(--rr-surface-2);
+        color: var(--rr-text);
+    }
+
+/* The link variant is not a button shape — it must undo the base. */
+.rr-btn.rr-btn-link {
+    background: transparent;
+    color: var(--rr-link);
+    min-height: 0;
+    padding: 0;
+    border: none;
+}
+
+    .rr-btn.rr-btn-link:hover:not(:disabled) {
+        color: var(--rr-accent-hover);
+        text-decoration: underline;
+    }
+
+.rr-btn-danger {
+    background: var(--rr-danger);
+    color: var(--rr-on-danger);
+    border-color: transparent;
+}
+
+    .rr-btn-danger:hover:not(:disabled) {
+        background: var(--rr-danger-hover);
+        color: var(--rr-on-danger);
+    }
+
+.rr-btn-sm,
+.rr-btn-xs {
+    min-height: 2.25rem;
+    padding: 0.375rem 0.75rem;
+    font-size: var(--text-sm);
+    border-radius: var(--rr-radius-s);
+}
+
+.rr-btn-lg {
+    min-height: 3.25rem;
+    padding: 0.875rem 1.75rem;
+    font-size: var(--text-md);
+}
+
+.rr-btn-block {
+    display: flex;
+    width: 100%;
+}
+
+/* Loading: the label stays put so the button never resizes mid-press. */
+.rr-btn-loading {
+    position: relative;
+    color: transparent !important;
+    pointer-events: none;
+}
+
+    .rr-btn-loading::after {
+        content: '';
+        position: absolute;
+        width: 1rem;
+        height: 1rem;
+        border-radius: 50%;
+        border: 2px solid currentcolor;
+        border-top-color: transparent;
+        color: var(--rr-on-accent);
+        animation: rr-spin 700ms linear infinite;
+    }
+
+.rr-btn-secondary.rr-btn-loading::after,
+.rr-btn-outline.rr-btn-loading::after,
+.rr-btn-ghost.rr-btn-loading::after {
+    color: var(--rr-text);
+}
+
+@keyframes rr-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ── 3 · SOS. The one deliberately loud thing in the product. ────────────── */
+.rr-sos {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    width: 100%;
+    min-height: 4.5rem;
+    padding: var(--space-4) var(--space-6);
+    border: 0;
+    border-radius: var(--rr-radius-l);
+    background: var(--rr-danger);
+    color: var(--rr-on-danger);
+    font-size: var(--text-lg);
+    font-weight: var(--weight-bold);
+    letter-spacing: var(--tracking-wide);
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(220, 38, 38, 0.3), 0 8px 24px rgba(220, 38, 38, 0.28);
+    transition: background-color var(--rr-fast) var(--rr-ease), box-shadow var(--rr-base) var(--rr-ease);
+}
+
+    .rr-sos:hover:not(:disabled) {
+        background: var(--rr-danger-hover);
+        box-shadow: 0 1px 2px rgba(220, 38, 38, 0.35), 0 12px 32px rgba(220, 38, 38, 0.36);
+    }
+
+    /* The ring must contrast with the button it surrounds — a red ring on a red
+       button is 1:1 and invisible. */
+    .rr-sos:focus-visible {
+        outline: 3px solid var(--rr-accent-bright) !important;
+        outline-offset: 3px;
+    }
+
+    .rr-sos:active:not(:disabled) {
+        filter: brightness(0.92);
+    }
+
+    /* A distinct fill, not opacity: 0.65 opacity put the label at ~3.05:1. */
+    .rr-sos:disabled {
+        background: var(--rr-danger-hover);
+        filter: saturate(0.7);
+        cursor: progress;
+    }
+
+/* The base spinner is tinted for the accent button; on red it needs its own colour. */
+.rr-sos.rr-btn-loading::after {
+    color: var(--rr-on-danger);
+}
+
+/* Inputs: disabled has to look disabled, not merely refuse to type. */
+.rr-input-control:disabled,
+.rr-input-control[readonly] {
+    background: var(--rr-surface-2);
+    color: var(--rr-text-2);
+    cursor: not-allowed;
+}
+
+/* A slow, shallow pulse reads as "armed and waiting", not as an alarm going off. */
+.rr-sos-armed {
+    animation: rr-sos-breathe 2.4s var(--rr-ease) infinite;
+}
+
+@keyframes rr-sos-breathe {
+    0%, 100% { box-shadow: 0 1px 2px rgba(220, 38, 38, 0.3), 0 8px 24px rgba(220, 38, 38, 0.26); }
+    50%      { box-shadow: 0 1px 2px rgba(220, 38, 38, 0.3), 0 8px 30px rgba(220, 38, 38, 0.42); }
+}
+
+/* These two sentences are what make the two-step SOS understandable, so they get
+   body-text contrast and size — not the tertiary ink they started with. */
+.rr-sos-hint {
+    display: block;
+    margin-top: var(--space-2);
+    color: var(--rr-text-2);
+    font-size: var(--text-sm);
+    text-align: center;
+}
+
+/* ── 4 · Surfaces ────────────────────────────────────────────────────────── */
+.rr-panel {
+    background: var(--rr-surface);
+    border: 1px solid var(--rr-border);
+    border-radius: var(--rr-radius-l);
+    box-shadow: var(--rr-shadow-xs);
+}
+
+.rr-panel-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-4) var(--space-5);
+    border-bottom: 1px solid var(--rr-border);
+}
+
+    .rr-panel-head h2,
+    .rr-panel-head h3 {
+        margin: 0;
+        font-size: var(--text-base);
+        font-weight: var(--weight-semibold);
+        letter-spacing: var(--tracking-tight);
+    }
+
+    .rr-panel-head p {
+        margin: 0.15rem 0 0;
+        color: var(--rr-text-3);
+        font-size: var(--text-sm);
+    }
+
+.rr-panel-body {
+    padding: var(--space-5);
+}
+
+/* Section label — the small caps line that orients an operator. */
+.rr-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--rr-text-3);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+}
+
+/* ── 5 · Timeline. The citizen's answer to "what is happening to me?" ────── */
+.rr-timeline {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.rr-timeline-step {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1.5rem 1fr;
+    gap: var(--space-3);
+    padding-bottom: var(--space-5);
+}
+
+    .rr-timeline-step:last-child {
+        padding-bottom: 0;
+    }
+
+    /* The connector stops at the last node instead of trailing into nothing. */
+    .rr-timeline-step:not(:last-child)::before {
+        content: '';
+        position: absolute;
+        left: 0.6875rem;
+        top: 1.35rem;
+        bottom: -0.35rem;
+        width: 2px;
+        background: var(--rr-border);
+    }
+
+    .rr-timeline-step.is-done:not(:last-child)::before {
+        background: var(--rr-success);
+    }
+
+.rr-timeline-node {
+    position: relative;
+    z-index: var(--z-base);
+    width: 1.375rem;
+    height: 1.375rem;
+    margin-top: 0.1rem;
+    border-radius: 50%;
+    border: 2px solid var(--rr-border-strong);
+    background: var(--rr-surface);
+    display: grid;
+    place-items: center;
+    flex: none;
+}
+
+.is-done .rr-timeline-node {
+    border-color: var(--rr-success);
+    background: var(--rr-success);
+    color: var(--rr-on-success);
+}
+
+.is-current .rr-timeline-node {
+    border-color: var(--rr-accent);
+    background: var(--rr-surface);
+    box-shadow: 0 0 0 4px var(--rr-accent-soft);
+}
+
+    .is-current .rr-timeline-node::after {
+        content: '';
+        width: 0.5rem;
+        height: 0.5rem;
+        border-radius: 50%;
+        background: var(--rr-accent);
+        animation: rr-pulse 1.8s var(--rr-ease) infinite;
+    }
+
+@keyframes rr-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+}
+
+.rr-timeline-label {
+    font-size: var(--text-base);
+    font-weight: var(--weight-medium);
+    color: var(--rr-text-3);
+    line-height: var(--leading-snug);
+}
+
+.is-done .rr-timeline-label { color: var(--rr-text-2); }
+
+.is-current .rr-timeline-label {
+    color: var(--rr-text);
+    font-weight: var(--weight-semibold);
+}
+
+.rr-timeline-meta {
+    display: block;
+    margin-top: 0.1rem;
+    color: var(--rr-text-3);
+    font-size: var(--text-xs);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── 6 · Metric. Operational numbers, never decorative. ──────────────────── */
+.rr-metric {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: var(--space-4);
+    background: var(--rr-surface);
+    border: 1px solid var(--rr-border);
+    border-radius: var(--rr-radius);
+}
+
+.rr-metric-label {
+    color: var(--rr-text-3);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+}
+
+.rr-metric-value {
+    font-size: var(--text-xl);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-tight);
+    font-variant-numeric: tabular-nums;
+    line-height: var(--leading-tight);
+}
+
+.rr-metric-critical .rr-metric-value { color: var(--rr-danger); }
+.rr-metric-warning .rr-metric-value { color: var(--rr-warning); }
+.rr-metric-good .rr-metric-value { color: var(--rr-success); }
+
+/* ── 7 · Drawer. Detail without losing the map behind it. ────────────────── */
+.rr-drawer-backdrop {
+    position: fixed;
+    inset: 0;
+    background: var(--rr-backdrop);
+    z-index: var(--z-backdrop);
+    animation: rr-fade-in var(--rr-base) var(--rr-ease);
+}
+
+.rr-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(30rem, 100vw);
+    background: var(--rr-surface);
+    border-left: 1px solid var(--rr-border);
+    box-shadow: var(--rr-shadow-pop);
+    z-index: var(--z-drawer);
+    display: flex;
+    flex-direction: column;
+    animation: rr-slide-in var(--rr-slow) var(--rr-ease-out);
+}
+
+@keyframes rr-fade-in {
+    from { opacity: 0; }
+}
+
+@keyframes rr-slide-in {
+    from { transform: translateX(1.5rem); opacity: 0; }
+}
+
+/* On phones the drawer becomes a sheet — a side panel on a 375px screen is a modal. */
+@media (max-width: 640px) {
+    .rr-drawer {
+        top: auto;
+        left: 0;
+        width: 100%;
+        max-height: 88vh;
+        border-left: 0;
+        border-top: 1px solid var(--rr-border);
+        border-radius: var(--rr-radius-xl) var(--rr-radius-xl) 0 0;
+        animation-name: rr-slide-up;
+    }
+
+    @keyframes rr-slide-up {
+        from { transform: translateY(1.5rem); opacity: 0; }
+    }
+}
+
+.rr-drawer-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-5);
+    border-bottom: 1px solid var(--rr-border);
+}
+
+.rr-drawer-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-5);
+}
+
+.rr-drawer-foot {
+    display: flex;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5);
+    border-top: 1px solid var(--rr-border);
+    /* Sheets sit on the gesture bar otherwise. */
+    padding-bottom: max(var(--space-4), env(safe-area-inset-bottom));
+}
+
+/* ── 8 · Data table. Dense, scannable, scrollable on small screens. ──────── */
+.rr-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--rr-border);
+    border-radius: var(--rr-radius-l);
+    background: var(--rr-surface);
+    -webkit-overflow-scrolling: touch;
+}
+
+.rr-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+}
+
+    .rr-table th {
+        position: sticky;
+        top: 0;
+        z-index: var(--z-sticky);
+        background: var(--rr-surface-2);
+        color: var(--rr-text-3);
+        font-size: var(--text-xs);
+        font-weight: var(--weight-semibold);
+        letter-spacing: var(--tracking-caps);
+        text-transform: uppercase;
+        text-align: left;
+        padding: var(--space-3) var(--space-4);
+        border-bottom: 1px solid var(--rr-border);
+        white-space: nowrap;
+    }
+
+    .rr-table td {
+        padding: var(--space-3) var(--space-4);
+        border-bottom: 1px solid var(--rr-border);
+        vertical-align: middle;
+    }
+
+    .rr-table tbody tr:last-child td {
+        border-bottom: 0;
+    }
+
+    .rr-table tbody tr:hover {
+        background: var(--rr-surface-2);
+    }
+
+    /* Numbers line up so a column can be read as a column. */
+    .rr-table .rr-num {
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+    }
+
+/* A row that matters gets an edge, not a fill — fills fight the text. */
+.rr-row-critical { box-shadow: inset 3px 0 0 var(--rr-danger); }
+.rr-row-warning { box-shadow: inset 3px 0 0 var(--rr-warning); }
+
+/* ── 9 · Severity. One vocabulary, used by every surface. ────────────────── */
+.rr-sev {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--rr-radius-s);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    border: 1px solid transparent;
+    white-space: nowrap;
+}
+
+    /* Shape as well as colour, so severity survives colour-blindness and greyscale. */
+    .rr-sev::before {
+        content: '';
+        width: 0.5rem;
+        height: 0.5rem;
+        flex: none;
+        background: currentcolor;
+    }
+
+.rr-sev-sos,
+.rr-sev-critical {
+    color: var(--rr-danger-soft-text);
+    background: var(--rr-danger-soft);
+    border-color: var(--rr-danger-soft-border);
+}
+
+    .rr-sev-sos::before,
+    .rr-sev-critical::before {
+        clip-path: polygon(50% 0, 100% 100%, 0 100%);
+    }
+
+.rr-sev-high {
+    color: var(--rr-warning-soft-text);
+    background: var(--rr-warning-soft);
+    border-color: var(--rr-warning-soft-border);
+}
+
+    .rr-sev-high::before {
+        border-radius: 2px;
+        transform: rotate(45deg);
+    }
+
+.rr-sev-medium {
+    color: var(--rr-accent-soft-text);
+    background: var(--rr-accent-soft);
+    border-color: var(--rr-accent-soft-border);
+}
+
+    .rr-sev-medium::before { border-radius: 50%; }
+
+.rr-sev-low {
+    color: var(--rr-text-2);
+    background: var(--rr-surface-2);
+    border-color: var(--rr-border);
+}
+
+    .rr-sev-low::before { border-radius: 1px; height: 0.2rem; }
+
+/* ── 10 · AI. Attributed, never authoritative. ───────────────────────────── */
+.rr-ai {
+    border: 1px solid var(--rr-border);
+    border-radius: var(--rr-radius-l);
+    background: var(--rr-surface);
+    overflow: hidden;
+}
+
+.rr-ai-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: var(--rr-surface-2);
+    border-bottom: 1px solid var(--rr-border);
+}
+
+.rr-ai-body {
+    padding: var(--space-4);
+    display: grid;
+    gap: var(--space-3);
+}
+
+.rr-ai-verdict {
+    font-size: var(--text-md);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-tight);
+}
+
+.rr-ai-quote {
+    margin: 0;
+    color: var(--rr-text-2);
+    font-size: var(--text-base);
+    line-height: var(--leading-normal);
+    padding-left: var(--space-3);
+    border-left: 2px solid var(--rr-border-strong);
+}
+
+.rr-ai-because {
+    display: grid;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+    .rr-ai-because li {
+        display: flex;
+        gap: var(--space-2);
+        color: var(--rr-text-2);
+        font-size: var(--text-sm);
+    }
+
+    .rr-ai-because li::before {
+        content: '';
+        margin-top: 0.5rem;
+        width: 0.25rem;
+        height: 0.25rem;
+        flex: none;
+        border-radius: 50%;
+        background: var(--rr-text-3);
+    }
+
+.rr-ai-confidence {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-xs);
+    color: var(--rr-text-3);
+    font-variant-numeric: tabular-nums;
+}
+
+.rr-ai-meter {
+    width: 4rem;
+    height: 0.25rem;
+    border-radius: var(--rr-radius-pill);
+    background: var(--rr-surface-3);
+    overflow: hidden;
+}
+
+    .rr-ai-meter > span {
+        display: block;
+        height: 100%;
+        background: var(--rr-accent);
+    }
+
+.rr-ai-foot {
+    padding: var(--space-2) var(--space-4) var(--space-3);
+    color: var(--rr-text-3);
+    font-size: var(--text-xs);
+    border-top: 1px dashed var(--rr-border);
+}
+
+/* ── 10b · Operations. Dense command surfaces for rescue and government. ──
+   Rule for this layer: colour is reserved for severity and status. Structure
+   comes from spacing, rules and weight — never from decorative fills.        */
+
+/* Filter chips replace four large coloured KPI tiles: same information,
+   a quarter of the space, and the count stays legible while scanning. */
+.rr-filterbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+}
+
+.rr-filter {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 2.75rem;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--rr-radius-pill);
+    border: 1px solid var(--rr-border);
+    background: var(--rr-surface);
+    color: var(--rr-text-2);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    cursor: pointer;
+    transition: border-color var(--rr-fast) var(--rr-ease), color var(--rr-fast) var(--rr-ease);
+}
+
+    .rr-filter:hover { border-color: var(--rr-border-strong); color: var(--rr-text-1); }
+
+    .rr-filter[aria-pressed='true'] {
+        border-color: var(--rr-accent);
+        color: var(--rr-text-1);
+        background: var(--rr-accent-soft);
+    }
+
+    .rr-filter .rr-filter-count {
+        font-variant-numeric: tabular-nums;
+        font-weight: var(--weight-bold);
+        color: var(--rr-text-1);
+    }
+
+    /* Only the band that can kill someone gets colour. */
+    .rr-filter-critical .rr-filter-count { color: var(--rr-danger); }
+
+/* A queue row. Left rail carries severity, the grid carries the six facts a
+   rescuer actually decides on: what, where, how far, how long, status, action. */
+.rr-queue {
+    display: grid;
+    gap: var(--space-2);
+}
+
+.rr-queue-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-3);
+    align-items: center;
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--rr-border);
+    border-radius: var(--rr-radius-l);
+    background: var(--rr-surface);
+}
+
+    .rr-queue-row:hover { border-color: var(--rr-border-strong); }
+
+    .rr-queue-row.is-critical {
+        box-shadow: inset 3px 0 0 var(--rr-danger);
+        border-color: var(--rr-danger-soft-border);
+    }
+
+.rr-queue-main { min-width: 0; }
+
+.rr-queue-title {
+    display: block;
+    font-size: var(--text-base);
+    font-weight: var(--weight-semibold);
+    color: var(--rr-text-1);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The facts line: tabular numbers so distance and wait time scan vertically. */
+.rr-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-4);
+    margin-top: var(--space-1);
+    font-size: var(--text-xs);
+    color: var(--rr-text-3);
+}
+
+.rr-fact {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.3rem;
+}
+
+    .rr-fact b {
+        font-weight: var(--weight-semibold);
+        color: var(--rr-text-2);
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* A call that has been waiting too long is the one exception to "no colour". */
+    .rr-fact-stale b { color: var(--rr-warning); }
+
+.rr-queue-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex: none;
+}
+
+@media (max-width: 640px) {
+    .rr-queue-row { grid-template-columns: 1fr; }
+    .rr-queue-actions { justify-content: flex-start; flex-wrap: wrap; }
+}
+
+/* Compact stat strip — used where three or four numbers summarise a unit. */
+.rr-statstrip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr));
+    gap: 1px;
+    background: var(--rr-border);
+    border: 1px solid var(--rr-border);
+    border-radius: var(--rr-radius-l);
+    overflow: hidden;
+}
+
+.rr-stat {
+    background: var(--rr-surface);
+    padding: var(--space-3);
+    text-align: center;
+}
+
+.rr-stat-value {
+    display: block;
+    font-size: var(--text-xl);
+    font-weight: var(--weight-bold);
+    color: var(--rr-text-1);
+    font-variant-numeric: tabular-nums;
+    line-height: var(--leading-tight);
+}
+
+.rr-stat-label {
+    display: block;
+    margin-top: 0.125rem;
+    font-size: var(--text-xs);
+    color: var(--rr-text-3);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+}
+
+/* ── 11 · Utilities used by the redesigned pages ─────────────────────────── */
+.rr-stack { display: grid; gap: var(--space-4); }
+.rr-stack-sm { display: grid; gap: var(--space-2); }
+.rr-stack-lg { display: grid; gap: var(--space-6); }
+.rr-row { display: flex; align-items: center; gap: var(--space-3); }
+.rr-row-between { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.rr-wrap { flex-wrap: wrap; }
+.rr-grow { flex: 1; min-width: 0; }
+.rr-mono { font-variant-numeric: tabular-nums; font-family: var(--rr-font-mono); }
+.rr-truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.rr-page {
+    max-width: 76rem;
+    margin: 0 auto;
+    padding: var(--space-6) var(--space-5) var(--space-12);
+}
+
+@media (max-width: 640px) {
+    .rr-page {
+        padding: var(--space-4) var(--space-4) var(--space-16);
+    }
+}
+
+.rr-page-title {
+    margin: 0;
+    font-size: var(--text-xl);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-tight);
+    line-height: var(--leading-tight);
+}
+
+.rr-page-sub {
+    margin: var(--space-1) 0 0;
+    color: var(--rr-text-3);
+    font-size: var(--text-base);
+}
+
+/* Screen-reader-only, but focusable when it needs to be (skip links). */
+.rr-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* ── 12 · Brand mark ─────────────────────────────────────────────────────── */
+.rr-logo-mark {
+    display: block;
+    flex: none;
+}
+
+.rr-logo-plate { fill: var(--rr-primary); }
+.rr-logo-pin { fill: var(--rr-on-primary); }
+.rr-logo-core { fill: var(--rr-accent-bright); }
+.rr-logo-wave { stroke: var(--rr-accent-bright); opacity: 0.7; }
+
+/* On the navy sidebar and the dark hero the plate would vanish into the surface. */
+.sidebar .rr-logo-plate,
+.landing-nav .rr-logo-plate,
+[data-theme='dark'] .rr-logo-plate {
+    fill: rgba(255, 255, 255, 0.1);
+}
+
+.sidebar .rr-logo-pin,
+.landing-nav .rr-logo-pin,
+[data-theme='dark'] .rr-logo-pin {
+    fill: #ffffff;
+}
+
+/* ── 13 · Connectivity badge placement ───────────────────────────────────── */
+/* Bottom-left is the sidebar's emergency footer. The badge sits opposite it. */
+.rr-conn-anchor {
+    left: auto;
+    right: var(--space-4);
+    bottom: var(--space-4);
+}
+
+/* On a phone a floating chip covers the content underneath it, so it docks to a
+   full-width strip that the page reserves room for (see .rr-page padding). */
+@media (max-width: 768px) {
+    .rr-conn-anchor {
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        justify-content: center;
+        padding: var(--space-2);
+        padding-bottom: max(var(--space-2), env(safe-area-inset-bottom));
+        background: linear-gradient(to top, var(--rr-bg) 55%, transparent);
+    }
+}
+
+/* ── 14 · Small shared utilities ─────────────────────────────────────────── */
+/* These exist so screens stop reaching for inline style attributes, which was the
+   main way ad-hoc values crept back into the system. */
+
+.rr-meta {
+    font-size: var(--text-xs);
+    color: var(--rr-text-3);
+}
+
+.rr-meta-strong {
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    color: var(--rr-text-1);
+}
+
+/* A recessed panel for secondary detail inside a card. */
+.rr-inset {
+    padding: var(--space-3);
+    border: 1px solid var(--rr-border);
+    border-radius: var(--radius-md);
+    background: var(--rr-surface-2);
+}
+
+.rr-avatar-sm {
+    width: 30px;
+    height: 30px;
+    flex: none;
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    object-fit: cover;
+}
+
+.rr-icon-tile {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    flex: none;
+    border-radius: var(--radius-md);
+}
+
+.rr-input-narrow { max-width: 6rem; }
+.rr-input-wide { max-width: 26rem; }
+
+/* Indeterminate progress. Reduced motion gets a static ring rather than nothing,
+   so the element still reads as "busy". */
+.rr-spinner {
+    display: inline-block;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: var(--radius-full);
+    border: 3px solid var(--rr-border);
+    border-top-color: var(--rr-accent);
+    animation: rr-spin 0.7s linear infinite;
+}
+
+@keyframes rr-spin {
+    to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rr-spinner {
+        animation: none;
+        border-top-color: var(--rr-accent);
+        opacity: 0.75;
+    }
+}
+
+/* ── 14 · Touch targets ──────────────────────────────────────────────────── */
+/* 44px is the accessibility floor. These were 38-42px, which is a miss with a
+   wet thumb. The icon stays its size; only the hit area grows. */
+.rr-icon-btn {
+    width: 2.75rem;
+    height: 2.75rem;
+}
+
+.rr-user-chip {
+    min-height: 2.75rem;
+}
+
+/* Bare icon links (the notification bell's wrapper, logo links) need a floor too. */
+.rr-logo-wrapper {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 2.75rem;
+}
+
+/* On a touch screen nothing tappable drops below 44px, including the compact
+   variants that are fine under a mouse pointer. */
+@media (pointer: coarse), (max-width: 768px) {
+    .sidebar .nav-link,
+    .nav-link,
+    .mobile-nav-link {
+        min-height: 2.75rem;
+        padding-top: var(--space-3);
+        padding-bottom: var(--space-3);
+    }
+
+    .rr-btn-sm,
+    .rr-btn-xs,
+    .btn-sm {
+        min-height: 2.75rem;
+        padding-top: var(--space-2);
+        padding-bottom: var(--space-2);
+    }
+
+    /* Compact controls that live outside the .rr-btn family still have to be
+       tappable: command tabs, the modal close, filter chips, small selects. */
+    .cmd-tab,
+    .rr-tab-btn,
+    .rr-filter,
+    .rr-modal-close,
+    .form-select-sm,
+    .form-control-sm {
+        min-height: 2.75rem;
+    }
+}
+
+/* On a phone a button row must wrap rather than push the page sideways. */
+@media (max-width: 480px) {
+    .rr-page .d-flex.gap-2,
+    .rr-page .d-flex.gap-3 {
+        flex-wrap: wrap;
+    }
+
+    .btn-dash-outline,
+    .btn-dash-primary {
+        max-width: 100%;
+    }
+}
+
+/* A target that moves under the finger is a mis-tap. On touch, :hover latches
+   after the tap, so these translate-on-hover rules slide the row a rescuer just
+   pressed. Neutralised here rather than hunted through five page sheets. */
+.btn-sos-trigger:hover,
+.dash-kpi-card:hover,
+.dash-item-card:hover,
+.rr-card-interactive:hover,
+.btn-hero-primary:hover,
+.btn-hero-secondary:hover,
+.btn-cta-white:hover,
+.btn-cta-outline-white:hover,
+.cmd-kpi:hover {
+    transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    /* Nothing animates, moves or transitions. */
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    /* One exception: a spinner that stops spinning reads as "the app has hung",
+       which is worse than the motion. Slowed, not removed. */
+    .rr-btn-loading::after {
+        animation-duration: 1.6s !important;
+        animation-iteration-count: infinite !important;
+    }
+}

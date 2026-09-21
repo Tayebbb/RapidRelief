@@ -1,3 +1,12 @@
 @namespace RapidRelief.Client.Common.Map
 
-<div id="@ElementId" class="rapid-map"></div>
+<div class="rapid-map-shell">
+    <div id="@ElementId" class="rapid-map"></div>
+
+    @if (_tilesUnavailable)
+    {
+        <p class="rapid-map-notice" role="status">
+            Map imagery is unavailable — every marker below is still live and positioned correctly.
+        </p>
+    }
+</div>

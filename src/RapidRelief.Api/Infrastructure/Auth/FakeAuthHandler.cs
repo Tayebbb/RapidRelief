@@ -19,9 +19,8 @@ public sealed class FakeAuthHandler : AuthenticationHandler<AuthenticationScheme
     public static readonly IReadOnlyDictionary<string, Guid> SeedUserIds = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase)
     {
         [Roles.Citizen] = Guid.Parse("11111111-1111-1111-1111-111111111111"),
-        [Roles.Rescue] = Guid.Parse("22222222-2222-2222-2222-222222222222"),
-        [Roles.Admin] = Guid.Parse("33333333-3333-3333-3333-333333333333"),
-        [Roles.Ngo] = Guid.Parse("44444444-4444-4444-4444-444444444444"),
+        [Roles.Rescuer] = Guid.Parse("22222222-2222-2222-2222-222222222222"),
+        [Roles.Government] = Guid.Parse("33333333-3333-3333-3333-333333333333"),
     };
 
     public FakeAuthHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)
@@ -40,13 +39,31 @@ public sealed class FakeAuthHandler : AuthenticationHandler<AuthenticationScheme
         var role = Roles.All.FirstOrDefault(r => string.Equals(r, requested, StringComparison.OrdinalIgnoreCase));
         if (role is null)
         {
-            return Task.FromResult(AuthenticateResult.Fail($"Unknown dev role '{requested}'."));
+            if (string.Equals(requested, "Admin", StringComparison.OrdinalIgnoreCase) || string.Equals(requested, "NGO", StringComparison.OrdinalIgnoreCase))
+            {
+                role = Roles.Government;
+            }
+            else if (string.Equals(requested, "Rescue", StringComparison.OrdinalIgnoreCase))
+            {
+                role = Roles.Rescuer;
+            }
+            else
+            {
+                return Task.FromResult(AuthenticateResult.Fail($"Unknown dev role '{requested}'."));
+            }
         }
+
+        var email = $"{requested.ToLowerInvariant()}1@rr.dev";
+        var userId = string.Equals(requested, "Admin", StringComparison.OrdinalIgnoreCase)
+            ? Guid.Parse("33333333-3333-3333-3333-333333333334")
+            : string.Equals(requested, "Rescue", StringComparison.OrdinalIgnoreCase)
+                ? Guid.Parse("22222222-2222-2222-2222-222222222224")
+                : SeedUserIds[role];
 
         var claims = new[]
         {
-            new Claim(ClaimTypes.NameIdentifier, SeedUserIds[role].ToString()),
-            new Claim(ClaimTypes.Name, $"{role.ToLowerInvariant()}1@rr.dev"),
+            new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+            new Claim(ClaimTypes.Name, email),
             new Claim(ClaimTypes.Role, role),
         };
         var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, SchemeName));

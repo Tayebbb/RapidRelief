@@ -23,8 +23,8 @@ public sealed class AuthSeederTests : IClassFixture<TestingWebAppFactory>
         var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
         var usersBefore = await db.Users.CountAsync();
         var rolesBefore = await db.Roles.CountAsync();
-        Assert.Equal(4, usersBefore);
-        Assert.Equal(4, rolesBefore);
+        Assert.Equal(6, usersBefore);
+        Assert.Equal(3, rolesBefore);
 
         await AuthSeeder.SeedAsync(scope.ServiceProvider, CancellationToken.None);
 
@@ -40,15 +40,16 @@ public sealed class AuthSeederTests : IClassFixture<TestingWebAppFactory>
 
         var roles = await db.Roles.ToListAsync();
 
-        Assert.Equal(4, roles.Count);
+        Assert.Equal(3, roles.Count);
         foreach (var role in Roles.All)
         {
-            var row = roles.SingleOrDefault(r => r.Name == role); // exact case — "NGO" (risk 12)
+            var row = roles.SingleOrDefault(r => r.Name == role);
             Assert.NotNull(row);
             Assert.Equal(AuthSeeder.RoleIds[role], row!.Id);
         }
         Assert.Equal(Guid.Parse("aaaaaaaa-0000-0000-0000-000000000001"), AuthSeeder.RoleIds[Roles.Citizen]);
-        Assert.Equal(Guid.Parse("aaaaaaaa-0000-0000-0000-000000000004"), AuthSeeder.RoleIds[Roles.Ngo]);
+        Assert.Equal(Guid.Parse("aaaaaaaa-0000-0000-0000-000000000002"), AuthSeeder.RoleIds[Roles.Rescuer]);
+        Assert.Equal(Guid.Parse("aaaaaaaa-0000-0000-0000-000000000003"), AuthSeeder.RoleIds[Roles.Government]);
     }
 
     [Fact] // ㊱b — demo users carry the FakeAuth GUIDs and can authenticate with Demo!123

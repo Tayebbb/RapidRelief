@@ -23,7 +23,8 @@ public sealed class IncidentCreatedHandler : IEventHandler<IncidentCreated>
     public Task HandleAsync(IncidentCreated evt, CancellationToken ct = default)
     {
         var request = new AiAnalysisRequest(evt.IncidentId, evt.Type, evt.Description,
-            evt.Location, evt.IsSos, evt.OccurredAtUtc, evt.PhotoPaths);
+            evt.Location, evt.IsSos, evt.OccurredAtUtc, evt.PhotoPaths,
+            evt.ReportedSeverity, evt.AffectedPeopleCount);
 
         // DropWrite channel: a full queue drops the item (logged by the channel's drop
         // callback); TryWrite only returns false once the writer is completed (shutdown).

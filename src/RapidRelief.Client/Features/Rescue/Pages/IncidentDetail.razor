@@ -1,0 +1,350 @@
+@page "/r/incidents/{IncidentId:guid}"
+@layout MainLayout
+@namespace RapidRelief.Client.Features.Rescue.Pages
+@using System.Globalization
+@using RapidRelief.Shared.Contracts.Common
+@using RapidRelief.Shared.Contracts.Enums
+@using RapidRelief.Shared.Contracts.Services
+@using RapidRelief.Client.Common.Ai
+@using RapidRelief.Client.Common.Map
+@using RapidRelief.Client.Common.Realtime
+@using RapidRelief.Client.Common.Ui
+@using RapidRelief.Client.Features.Reports
+@using RapidRelief.Client.Features.Rescue
+@attribute [Authorize(Roles = "Rescuer,Government")]
+@inject IncidentsClient Incidents
+@inject RescueClient Rescue
+@inject AiClient Ai
+@inject NavigationManager Navigation
+@inject LiveUpdateService Live
+@implements IDisposable
+
+<PageTitle>Incident detail — RapidRelief</PageTitle>
+
+<div class="dash-layout">
+    <div class="dash-header-banner">
+        <div class="dash-title-group">
+            <div class="dash-role-badge rescuer">
+                <AppIcon Name="layers" Size="14" />
+                <span>Incident detail</span>
+            </div>
+            <h1 class="dash-title">@(_incident?.Title ?? "Loading…")</h1>
+            <p class="dash-subtitle">
+                @if (_incident is not null)
+                {
+                    <text>#RR-@ShortId(_incident.Id) · reported @_incident.CreatedAtUtc.ToLocalTime().ToString("dd MMM HH:mm")</text>
+                }
+            </p>
+        </div>
+        <div class="dash-header-actions">
+            <a href="r" class="btn-dash-outline"><AppIcon Name="arrow-right" Size="16" /><span>Back to operations</span></a>
+        </div>
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="alert alert-danger d-flex align-items-center gap-2" role="alert">
+            <AppIcon Name="alert-circle" Size="18" />
+            <div>@_error</div>
+        </div>
+    }
+
+    @if (_loading)
+    {
+        <div class="dash-card" aria-busy="true"><span class="rr-skeleton" style="width:100%;height:4rem;"></span></div>
+    }
+    else if (_incident is null)
+    {
+        <div class="rr-empty">
+            <AppIcon Name="x-circle" Size="28" />
+            <strong>Incident not found</strong>
+            <p>It may have been resolved or removed.</p>
+        </div>
+    }
+    else
+    {
+        <div class="dash-bento-grid">
+            <div class="dash-col-7 dash-card">
+                <div class="dash-card-header">
+                    <div>
+                        <h2 class="dash-card-title"><AppIcon Name="alert-circle" Size="18" /><span>Situation</span></h2>
+                        <p class="dash-card-subtitle">What the citizen reported and what the AI made of it.</p>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <span class="badge @BandBadge() rounded-pill px-3 py-1">@(_incident.IsSos ? "SOS" : _incident.Severity.ToString())</span>
+                        <span class="badge bg-secondary-subtle text-secondary rounded-pill px-3 py-1">@StatusLabel(_incident.Status)</span>
+                    </div>
+                </div>
+
+                <dl class="row mb-0">
+                    <dt class="col-sm-4">Type</dt>
+                    <dd class="col-sm-8">@_incident.DisasterType</dd>
+
+                    <dt class="col-sm-4">Reported severity</dt>
+                    <dd class="col-sm-8">@_incident.Severity</dd>
+
+                    <dt class="col-sm-4">People affected</dt>
+                    <dd class="col-sm-8">@_incident.AffectedPeopleCount</dd>
+
+                    <dt class="col-sm-4">Description</dt>
+                    <dd class="col-sm-8" style="white-space: pre-wrap;">@_incident.Description</dd>
+
+                    <dt class="col-sm-4">Location</dt>
+                    <dd class="col-sm-8">
+                        @(string.IsNullOrWhiteSpace(_incident.AddressOrArea) ? "No address given" : _incident.AddressOrArea)
+                        <div class="rr-field-help">@Coordinates(_incident.Location)</div>
+                    </dd>
+
+                    <dt class="col-sm-4">Callback</dt>
+                    <dd class="col-sm-8">
+                        @if (string.IsNullOrWhiteSpace(_incident.ContactPhone))
+                        {
+                            <span class="text-secondary">Not supplied</span>
+                        }
+                        else
+                        {
+                            <a href="tel:@_incident.ContactPhone">@_incident.ContactPhone</a>
+                        }
+                    </dd>
+
+                    <dt class="col-sm-4">Assignment</dt>
+                    <dd class="col-sm-8">
+                        @if (_mission is null)
+                        {
+                            <span class="text-secondary">Unassigned</span>
+                        }
+                        else
+                        {
+                            <text>@_mission.TeamName · @_mission.Status · dispatched @_mission.AssignedAtUtc.ToLocalTime().ToString("HH:mm")</text>
+                        }
+                    </dd>
+                </dl>
+
+                <AiInsightPanel Insight="_insight" />
+            </div>
+
+            <div class="dash-col-5 dash-card">
+                <div class="dash-card-header">
+                    <div>
+                        <h2 class="dash-card-title"><AppIcon Name="map-pin" Size="18" /><span>Navigation</span></h2>
+                        <p class="dash-card-subtitle">Destination and route.</p>
+                    </div>
+                </div>
+
+                <RapidMap View="_map" InitialCenter="_incident.Location" InitialZoom="15" />
+
+                <div class="d-flex gap-2 mt-3">
+                    <a href="@DirectionsUrl()" target="_blank" rel="noopener" class="btn-dash-primary flex-fill justify-content-center">
+                        <AppIcon Name="navigation" Size="16" /><span>Open route</span>
+                    </a>
+                    @if (_mission is null)
+                    {
+                        <button type="button" class="btn-dash-outline flex-fill justify-content-center" disabled="@_busy" @onclick="TakeCallAsync">
+                            Take this call
+                        </button>
+                    }
+                </div>
+            </div>
+
+            @if (_incident.Media.Count > 0)
+            {
+                <div class="dash-col-12 dash-card">
+                    <div class="dash-card-header">
+                        <div>
+                            <h2 class="dash-card-title"><AppIcon Name="copy" Size="18" /><span>Media from the scene</span></h2>
+                            <p class="dash-card-subtitle">@_incident.Media.Count file(s) attached by the reporter.</p>
+                        </div>
+                    </div>
+                    <ul class="mb-0">
+                        @foreach (var media in _incident.Media)
+                        {
+                            <li class="small"><a href="@media.Url" target="_blank" rel="noopener">@media.MediaType — @media.UploadedAtUtc.ToLocalTime().ToString("dd MMM HH:mm")</a></li>
+                        }
+                    </ul>
+                </div>
+            }
+
+            <div class="dash-col-7 dash-card">
+                <div class="dash-card-header">
+                    <div>
+                        <h2 class="dash-card-title"><AppIcon Name="clock" Size="18" /><span>Incident timeline</span></h2>
+                        <p class="dash-card-subtitle">Every state change with its timestamp.</p>
+                    </div>
+                </div>
+                <ul class="mb-0">
+                    @foreach (var entry in _incident.Timeline)
+                    {
+                        <li class="small text-secondary">
+                            <strong>@entry.ChangedAtUtc.ToLocalTime().ToString("dd MMM HH:mm")</strong> — @entry.Notes
+                        </li>
+                    }
+                </ul>
+            </div>
+
+            <div class="dash-col-5 dash-card">
+                <div class="dash-card-header">
+                    <div>
+                        <h2 class="dash-card-title"><AppIcon Name="shield" Size="18" /><span>Suitable teams</span></h2>
+                        <p class="dash-card-subtitle">Availability first, then distance, load and speciality.</p>
+                    </div>
+                </div>
+
+                @if (_teams.Count == 0)
+                {
+                    <div class="rr-empty">
+                        <AppIcon Name="inbox" Size="24" />
+                        <strong>No teams on duty</strong>
+                        <p>Every unit is off duty or already deployed.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="d-flex flex-column gap-2">
+                        @foreach (var team in _teams)
+                        {
+                            <div class="rr-inset d-flex align-items-center justify-content-between gap-2">
+                                <div>
+                                    <div class="fw-bold small">@team.TeamName <span class="text-secondary fw-normal">· @team.Status</span></div>
+                                    <div class="rr-meta">@string.Join(" · ", team.Reasons)</div>
+                                </div>
+                                @if (_mission is not null && _mission.Status is not (MissionStatus.Completed or MissionStatus.Cancelled) && _isGovernment)
+                                {
+                                    <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" disabled="@_busy"
+                                            @onclick="() => ReassignAsync(team.TeamId)">
+                                        Reassign
+                                    </button>
+                                }
+                                else if (_mission is null)
+                                {
+                                    <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" disabled="@_busy"
+                                            @onclick="() => AssignAsync(team.TeamId)">
+                                        Assign
+                                    </button>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public Guid IncidentId { get; set; }
+
+    private IncidentDto? _incident;
+    private AiInsightDto? _insight;
+    private RescueMissionDto? _mission;
+    private IReadOnlyList<TeamSuitabilityDto> _teams = [];
+    private readonly MapView _map = new();
+    private bool _loading = true;
+    private bool _busy;
+    private bool _isGovernment;
+    private string? _error;
+    private IDisposable? _live;
+
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthState is not null)
+        {
+            var state = await AuthState;
+            _isGovernment = state.User.IsInRole("Government");
+        }
+
+        await LoadAsync();
+        _loading = false;
+
+        // No timer: the page reloads when this incident or its mission actually changes.
+        _live = Live.Subscribe(() => InvokeAsync(LoadAsync),
+            [.. RealtimeTopics.IncidentFeed, .. RealtimeTopics.RescueFeed]);
+    }
+
+    private async Task LoadAsync()
+    {
+        _incident = await Incidents.GetAsync(IncidentId);
+        if (_incident is null)
+        {
+            StateHasChanged();
+            return;
+        }
+
+        _map.SetLayer(MapLayerId.Incidents, [new MapPlacemark(
+            _incident.Id.ToString("N"),
+            _incident.Location,
+            _incident.Title,
+            Detail: _incident.IsSos ? "SOS" : _incident.Severity.ToString(),
+            Status: _incident.Status.ToString(),
+            IsCritical: SharedMapAdapters.IsCritical(_incident.IsSos, _incident.Severity))]);
+
+        var missions = await Rescue.GetMissionsAsync(mine: false, incidentId: IncidentId);
+        _mission = missions.FirstOrDefault(m => m.Status is not (MissionStatus.Completed or MissionStatus.Cancelled))
+            ?? missions.FirstOrDefault();
+
+        _teams = await Rescue.GetSuitableTeamsAsync(IncidentId);
+        _insight = await Ai.GetInsightAsync(IncidentId);
+        StateHasChanged();
+    }
+
+    private async Task TakeCallAsync()
+    {
+        _busy = true;
+        var result = await Rescue.AcceptIncidentAsync(IncidentId);
+        _error = result.Ok ? null : result.Error;
+        await LoadAsync();
+        _busy = false;
+    }
+
+    private async Task AssignAsync(Guid teamId)
+    {
+        _busy = true;
+        var result = await Rescue.AcceptIncidentAsync(IncidentId, teamId);
+        _error = result.Ok ? null : result.Error;
+        await LoadAsync();
+        _busy = false;
+    }
+
+    private async Task ReassignAsync(Guid teamId)
+    {
+        if (_mission is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        var result = await Rescue.ReassignAsync(_mission.Id, teamId, "Reassigned from the incident detail view");
+        _error = result.Ok ? null : result.Error;
+        await LoadAsync();
+        _busy = false;
+    }
+
+    public void Dispose() => _live?.Dispose();
+
+    private string DirectionsUrl() => _incident is null
+        ? "https://www.google.com/maps"
+        : $"https://www.google.com/maps/dir/?api=1&destination={Coord(_incident.Location.Latitude)},{Coord(_incident.Location.Longitude)}";
+
+    private static string Coord(double value) => value.ToString(CultureInfo.InvariantCulture);
+
+    private static string Coordinates(GeoPoint point) =>
+        $"{point.Latitude.ToString("F5", CultureInfo.InvariantCulture)}, {point.Longitude.ToString("F5", CultureInfo.InvariantCulture)}";
+
+    private string BandBadge() => _incident switch
+    {
+        { IsSos: true } => "bg-danger text-white",
+        { Severity: Severity.Catastrophic or Severity.Severe } => "bg-danger-subtle text-danger border border-danger-subtle",
+        { Severity: Severity.Moderate } => "bg-warning-subtle text-warning border border-warning-subtle",
+        _ => "bg-secondary-subtle text-secondary border border-secondary-subtle",
+    };
+
+    private static string StatusLabel(IncidentStatus status) => status switch
+    {
+        IncidentStatus.InProgress => "In progress",
+        IncidentStatus.Rejected => "Closed",
+        _ => status.ToString(),
+    };
+
+    private static string ShortId(Guid id) => id.ToString("N")[..6].ToUpperInvariant();
+}

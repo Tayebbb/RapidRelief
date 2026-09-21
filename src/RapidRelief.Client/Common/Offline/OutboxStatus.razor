@@ -1,0 +1,158 @@
+@namespace RapidRelief.Client.Common.Offline
+@using RapidRelief.Client.Common.Ui
+@implements IDisposable
+@inject OutboxService Outbox
+
+@* The queue in full: what is waiting, what is stuck, and what the citizen can do about it.
+   Nothing is ever removed here unless the citizen says so. *@
+
+@if (Outbox.LocalStoreWasReset)
+{
+    <div class="alert alert-warning d-flex align-items-center gap-2" role="alert">
+        <AppIcon Name="alert-circle" Size="18" />
+        <span>
+            <strong>This device's offline storage had to be rebuilt.</strong>
+            Anything saved before now was lost. If you filed a report that never arrived, please file it again —
+            or call <strong>999</strong>.
+        </span>
+    </div>
+}
+
+@if (Waiting.Count > 0 || !Outbox.IsOnline)
+{
+    <div class="rr-outbox @(Outbox.IsOnline ? "rr-outbox-syncing" : "rr-outbox-offline")" role="status" aria-live="polite">
+        <AppIcon Name="@(Outbox.IsOnline ? "refresh" : "wifi-off")" Size="16" />
+        <span class="rr-outbox-text">
+            @if (!Outbox.IsOnline && Waiting.Count > 0)
+            {
+                <strong>Offline — @Waiting.Count report@(Waiting.Count == 1 ? "" : "s") saved on this device.</strong>
+                <text> They will be sent automatically when you reconnect.</text>
+            }
+            else if (!Outbox.IsOnline)
+            {
+                <strong>Offline.</strong>
+                <text> You can still file a report — it will be saved here and sent when you reconnect.</text>
+            }
+            else if (Outbox.Status == ConnectivityState.Syncing)
+            {
+                <strong>Sending @Waiting.Count saved report@(Waiting.Count == 1 ? "" : "s")…</strong>
+            }
+            else
+            {
+                <strong>@Waiting.Count report@(Waiting.Count == 1 ? "" : "s") waiting to be sent.</strong>
+                @if (NextAttempt is { } next)
+                {
+                    <text> Next attempt at @next.ToLocalTime().ToString("HH:mm:ss").</text>
+                }
+            }
+        </span>
+
+        @if (Outbox.IsOnline && Waiting.Count > 0)
+        {
+            <button type="button" class="btn btn-sm btn-outline-secondary" disabled="@_syncing" @onclick="SyncAsync">
+                @(_syncing ? "Syncing…" : "Sync now")
+            </button>
+        }
+    </div>
+}
+else if (_lastResult is { Synced: > 0 })
+{
+    <div class="rr-outbox rr-outbox-synced" role="status" aria-live="polite">
+        <AppIcon Name="check-circle" Size="16" />
+        <span class="rr-outbox-text">
+            <strong>
+                @_lastResult.Synced saved report@(_lastResult.Synced == 1 ? "" : "s")
+                @(_lastResult.Synced == 1 ? "has" : "have") reached the command centre.
+            </strong>
+        </span>
+    </div>
+}
+
+@if (_lastResult is { Partial: true })
+{
+    <div class="alert alert-warning" role="alert">
+        <strong>Partly sent.</strong>
+        @($" {_lastResult.Synced} report(s) went through and {_lastResult.Remaining} are still on this device. Nothing has been lost.")
+    </div>
+}
+
+@if (NeedsAttention.Count > 0)
+{
+    <div class="alert alert-danger d-flex flex-column gap-2" role="alert">
+        <div class="d-flex align-items-center gap-2">
+            <AppIcon Name="alert-circle" Size="18" />
+            <strong>@NeedsAttention.Count saved report@(NeedsAttention.Count == 1 ? "" : "s") could not be sent.</strong>
+        </div>
+        @foreach (var item in NeedsAttention)
+        {
+            <div class="d-flex align-items-center justify-content-between gap-2 small">
+                <span>
+                    Saved @item.CreatedAtUtc.ToLocalTime().ToString("dd MMM HH:mm")
+                    @(item.ItemState == OutboxItemState.Corrupted ? " — saved, but unreadable on this device" : $" —     {item.Error}")
+                </span>
+                <span class="d-flex gap-2">
+                    @if (item.ItemState != OutboxItemState.Corrupted)
+                    {
+                        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="() => RetryAsync(item.Id)">Try
+                            again</button>
+                        }
+                        <button type="button" class="btn btn-sm btn-outline-danger"
+                                @onclick="() => DiscardAsync(item.Id)">Discard</button>
+                    </span>
+                </div>
+            }
+            <span class="small">Call <strong>999</strong> if you still need help.</span>
+        </div>
+    }
+
+@code {
+    private bool _syncing;
+    private OutboxSyncResult? _lastResult;
+    private List<OutboxItem> _items = new();
+
+    private List<OutboxItem> Waiting => _items.Where(x => !x.NeedsAttention).ToList();
+
+    private List<OutboxItem> NeedsAttention => _items.Where(x => x.NeedsAttention).ToList();
+
+    private DateTimeOffset? NextAttempt => Waiting
+        .Select(x => x.NextAttemptUtc)
+        .Where(x => x is not null)
+        .OrderBy(x => x)
+        .FirstOrDefault();
+
+    protected override async Task OnInitializedAsync()
+    {
+        Outbox.Changed += OnChanged;
+        await RefreshAsync();
+    }
+
+    private void OnChanged() => _ = InvokeAsync(async () =>
+    {
+        await RefreshAsync();
+        StateHasChanged();
+    });
+
+    private async Task RefreshAsync() => _items = (await Outbox.GetItemsAsync()).ToList();
+
+    private async Task SyncAsync()
+    {
+        _syncing = true;
+        _lastResult = await Outbox.SyncAsync(force: true);
+        _syncing = false;
+        await RefreshAsync();
+    }
+
+    private async Task RetryAsync(string id)
+    {
+        await Outbox.RetryAsync(id);
+        await RefreshAsync();
+    }
+
+    private async Task DiscardAsync(string id)
+    {
+        await Outbox.DiscardAsync(id);
+        await RefreshAsync();
+    }
+
+    public void Dispose() => Outbox.Changed -= OnChanged;
+}

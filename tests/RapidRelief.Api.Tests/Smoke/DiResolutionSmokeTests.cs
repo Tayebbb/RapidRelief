@@ -35,7 +35,7 @@ public sealed class DiResolutionSmokeTests : IClassFixture<TestingWebAppFactory>
         using var scope = _factory.Services.CreateScope();
         var services = scope.ServiceProvider;
         // F2 + F5
-        Assert.IsType<FakeIncidentReadService>(scope.ServiceProvider.GetRequiredService<IIncidentReadService>());
+        Assert.IsType<RapidRelief.Api.Features.Incidents.Services.IncidentReadService>(scope.ServiceProvider.GetRequiredService<IIncidentReadService>());
 
         // F3 real implementation now registered
         Assert.IsType<RapidRelief.Api.Features.Shelters.Services.ShelterReadService>(

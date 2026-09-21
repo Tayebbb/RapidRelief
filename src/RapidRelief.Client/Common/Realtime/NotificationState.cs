@@ -23,6 +23,7 @@ public sealed class NotificationState
     private CancellationTokenSource? _pollCts;
     private Task? _pollLoop;
     private int _unauthorizedStreak;
+    private bool _primed;
 
     public NotificationState(INotificationsApi api, ILogger<NotificationState>? logger = null)
     {
@@ -51,6 +52,13 @@ public sealed class NotificationState
     /// <summary>Live arrivals only — toasts must not replay the inbox on every poll.</summary>
     public event Action<NotificationDto>? Pushed;
 
+    /// <summary>
+    /// Every genuinely-new notification, from the hub or from a poll. The first page after a
+    /// clear is suppressed: that one is the existing inbox, not news, and replaying it would
+    /// make every page reload on sign-in.
+    /// </summary>
+    public event Action<NotificationDto>? Arrived;
+
     /// <summary>D-039 display rule: nothing at zero, "99+" above the cap.</summary>
     public static string FormatBadge(int unread) => unread switch
     {
@@ -66,16 +74,22 @@ public sealed class NotificationState
         if (isNew)
         {
             Pushed?.Invoke(_byId[notification.Id]);
+            Arrived?.Invoke(_byId[notification.Id]);
         }
 
+        _primed = true;
         Changed?.Invoke();
     }
 
     public void ApplyPage(NotificationPage page)
     {
+        List<NotificationDto>? arrivals = null;
         foreach (var notification in page.Items)
         {
-            Merge(notification);
+            if (Merge(notification) && _primed)
+            {
+                (arrivals ??= []).Add(notification);
+            }
         }
 
         if (!string.IsNullOrEmpty(page.NextCursor))
@@ -83,7 +97,17 @@ public sealed class NotificationState
             Cursor = page.NextCursor;
         }
 
+        _primed = true;
         Reindex();
+
+        if (arrivals is not null)
+        {
+            foreach (var arrival in arrivals)
+            {
+                Arrived?.Invoke(arrival);
+            }
+        }
+
         Changed?.Invoke();
     }
 
@@ -170,6 +194,7 @@ public sealed class NotificationState
         Cursor = null;
         _unauthorizedStreak = 0;
         PollingSuspended = false;
+        _primed = false;
         Reindex();
         Changed?.Invoke();
     }

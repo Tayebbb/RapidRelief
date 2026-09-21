@@ -1,0 +1,35 @@
+@namespace RapidRelief.Client.Features.Command.Components
+@using RapidRelief.Client.Common.Ui
+
+@* One definition of the command-centre navigation. It was copied by hand into nine
+   pages, so a route could be added in one place and silently missing in eight; the
+   active tab was also styled but never announced (`aria-current`). *@
+<nav class="cmd-tabs" aria-label="Command sections">
+    @foreach (var tab in Tabs)
+    {
+        var isActive = string.Equals(tab.Href, Active, StringComparison.OrdinalIgnoreCase);
+        <a href="@tab.Href"
+           class="cmd-tab @(isActive ? "active" : "")"
+           aria-current="@(isActive ? "page" : null)">@tab.Label</a>
+    }
+</nav>
+
+@code {
+    /// <summary>Route of the page rendering this nav, e.g. <c>g/incidents</c>.</summary>
+    [Parameter, EditorRequired] public string Active { get; set; } = "g";
+
+    private sealed record Tab(string Href, string Label);
+
+    private static readonly Tab[] Tabs =
+    [
+        new("g", "Overview"),
+        new("g/incidents", "Incidents"),
+        new("g/map", "Operational map"),
+        new("g/analytics", "Analytics"),
+        new("g/relief", "Relief & resources"),
+        new("g/teams", "Teams"),
+        new("admin/shelters", "Shelters"),
+        new("g/users", "Users"),
+        new("g/audit", "Audit trail"),
+    ];
+}

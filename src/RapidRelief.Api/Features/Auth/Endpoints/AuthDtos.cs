@@ -6,7 +6,12 @@ namespace RapidRelief.Api.Features.Auth.Endpoints;
 // Slice-local wire DTOs (D-019) — NOT contracts; the client hand-mirrors these in chunk B.
 
 public sealed record RegisterRequest(string? Email, string? Password, string? DisplayName,
-    string? PhoneNumber, string? EmergencyContact); // NO role field — ever (D-016)
+    string? PhoneNumber, string? EmergencyContact, string? Role = null);
+
+public sealed record GoogleSessionRequest(string? Email, string? DisplayName, string? ProviderUserId,
+    string? PhotoUrl, string? Role = null);
+
+public sealed record GoogleInitRequest(string? CallbackUrl = null);
 
 public sealed record LoginRequest(string? Email, string? Password);
 

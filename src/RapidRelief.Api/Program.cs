@@ -2,6 +2,7 @@ using System.Net;
 using System.Threading.RateLimiting;
 using FluentValidation;
 using Microsoft.AspNetCore.HttpOverrides;
+using RapidRelief.Api.Infrastructure;
 using RapidRelief.Api.Infrastructure.Auth;
 using RapidRelief.Api.Infrastructure.Eventing;
 using RapidRelief.Api.Infrastructure.Modules;
@@ -28,6 +29,14 @@ try
 
     var isTesting = builder.Environment.IsEnvironment("Testing");
 
+    // Secrets never live in a committed file. appsettings.*.Local.json is gitignored and loaded
+    // last, so a developer's real connection string and signing key stay on their machine while
+    // the committed files hold only placeholders.
+    builder.Configuration.AddJsonFile(
+        $"appsettings.{builder.Environment.EnvironmentName}.Local.json",
+        optional: true,
+        reloadOnChange: true);
+
     // D-011 — forwarded headers are OPT-IN for reverse-proxy deploys (Proxy:Enabled). Rate
     // limiting partitions per-IP, so proxied deployments MUST configure this or every client
     // shares the proxy's IP partition. KnownNetworks/Proxies are cleared only when proxies
@@ -53,6 +62,9 @@ try
 
     // B6 step 2 — ProblemDetails + exception handling (shared framework, no packages).
     builder.Services.AddProblemDetails();
+    builder.Services.AddExceptionHandler<BindingFailureExceptionHandler>();
+    // Registered after the binding handler so a BadHttpRequestException stays a 400.
+    builder.Services.AddExceptionHandler<DatabaseFailureExceptionHandler>();
 
     // B6 step 3 — rate limiter: global per-IP fixed window + named policy skeletons; skipped in Testing.
     if (!isTesting)
@@ -115,6 +127,16 @@ try
                         QueueLimit = 0,
                     }));
 
+            options.AddPolicy("alerts", httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    RateLimitPartitions.UserOrIp(httpContext),
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimiting.GetValue("Alerts:PermitLimit", 20),
+                        Window = TimeSpan.FromSeconds(rateLimiting.GetValue("Alerts:WindowSeconds", 60)),
+                        QueueLimit = 0,
+                    }));
+
             // Realtime endpoints are all RequireAuthorization, so a caller key always exists:
             // partitioning per user keeps shared-IP clients off each other's budget.
             options.AddPolicy("realtime", httpContext =>
@@ -131,6 +153,7 @@ try
 
     // B6 step 4 — FluentValidation validators (EXPLICIT validation only, never auto-MVC).
     builder.Services.AddValidatorsFromAssemblyContaining<Program>();
+    builder.Services.AddHttpClient();
 
     // B6 step 5 — MultiAuth policy scheme + JwtBearer + FakeAuth (Dev/Testing) + role policies.
     builder.Services.AddRapidReliefAuth(builder.Configuration, builder.Environment);
@@ -142,6 +165,13 @@ try
     builder.Services.AddSingleton<DatabaseHealth>();
     builder.Services.AddSingleton<IFileStorage, LocalDiskFileStorage>();
 
+    // Degraded mode has to be leavable: this is the only thing that clears the flag once a
+    // runtime database failure has set it. Skipped in Testing, which owns its own health flag.
+    if (!isTesting)
+    {
+        builder.Services.AddHostedService<DatabaseHealthProbe>();
+    }
+
     // B6 step 8 — module discovery + registration (deterministic order).
     var modules = ModuleDiscovery.Discover(typeof(Program).Assembly);
     foreach (var module in modules)
@@ -151,7 +181,8 @@ try
 
     var app = builder.Build();
 
-    // B6 step 9 — ProblemDetails for exceptions and bare status codes.
+    // B6 step 9 — ProblemDetails for exceptions and bare status codes. Binding failures keep
+    // their own 4xx status via BindingFailureExceptionHandler instead of surfacing as 500.
     app.UseExceptionHandler();
     app.UseStatusCodePages();
 
@@ -183,9 +214,20 @@ try
     // B6 step 10.
     app.UseSerilogRequestLogging();
 
-    // B6 step 11 — hosted Blazor WASM client.
+    // B6 step 11 — hosted Blazor WASM client. In Development, force revalidation so edited
+    // static assets (JS modules, CSS) are never served stale from the browser's heuristic cache.
     app.UseBlazorFrameworkFiles();
-    app.UseStaticFiles();
+    if (app.Environment.IsDevelopment())
+    {
+        app.UseStaticFiles(new StaticFileOptions
+        {
+            OnPrepareResponse = ctx => ctx.Context.Response.Headers.CacheControl = "no-cache",
+        });
+    }
+    else
+    {
+        app.UseStaticFiles();
+    }
 
     // B6 step 12.
     app.UseAuthentication();

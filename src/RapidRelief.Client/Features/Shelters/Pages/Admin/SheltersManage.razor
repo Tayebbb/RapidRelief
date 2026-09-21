@@ -1,10 +1,20 @@
 @page "/admin/shelters"
+@page "/g/shelters"
 @attribute [Authorize(Roles = RapidRelief.Shared.Contracts.Enums.Roles.Admin)]
 @using RapidRelief.Shared.Contracts.Common
 @using RapidRelief.Shared.Contracts.ReadModels
+@using RapidRelief.Shared.Contracts.Services
+@using RapidRelief.Client.Common.Realtime
+@using RapidRelief.Client.Features.Command.Components
 @inject SheltersClient Client
+@inject LiveUpdateService Live
+@implements IDisposable
 
-<PageTitle>Manage Shelters</PageTitle>
+<PageTitle>Manage shelters — RapidRelief</PageTitle>
+
+<div class="mb-3">
+    <CommandTabs Active="admin/shelters" />
+</div>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1>Manage Shelters</h1>
@@ -53,7 +63,7 @@ else if (_shelters is not null)
                     </td>
                     <td>
                         <div class="d-flex align-items-center gap-2">
-                            <input type="number" class="form-control form-control-sm" style="width: 80px;"
+                            <input type="number" class="form-control form-control-sm rr-input-narrow"
                                    value="@shelter.Occupancy"
                                    @onchange="@(e => UpdateOccupancyAsync(shelter.Id, e.Value))" />
                             <span>/ @shelter.Capacity</span>
@@ -136,9 +146,12 @@ else if (_shelters is not null)
     
     private ShelterFormModel _formModel = new();
 
+    private IDisposable? _live;
+
     protected override async Task OnInitializedAsync()
     {
         await LoadSheltersAsync();
+        _live = Live.Subscribe(() => InvokeAsync(LoadSheltersAsync), RealtimeTopics.CommandFeed);
     }
 
     private async Task LoadSheltersAsync()
@@ -226,6 +239,22 @@ else if (_shelters is not null)
 
     private async Task SaveShelterAsync()
     {
+        if (string.IsNullOrWhiteSpace(_formModel.Name) || _formModel.Name.Trim().Length > 100)
+        {
+            _error = "Shelter name is required and cannot exceed 100 characters.";
+            return;
+        }
+        if (_formModel.Capacity <= 0 || _formModel.Capacity > 100000)
+        {
+            _error = "Capacity must be greater than 0 and at most 100,000.";
+            return;
+        }
+        if (_formModel.Latitude < -90 || _formModel.Latitude > 90 || _formModel.Longitude < -180 || _formModel.Longitude > 180)
+        {
+            _error = "Latitude must be between -90 and 90, and longitude between -180 and 180.";
+            return;
+        }
+
         _saving = true;
         _error = null;
         try
@@ -275,4 +304,6 @@ else if (_shelters is not null)
             _saving = false;
         }
     }
+
+    public void Dispose() => _live?.Dispose();
 }

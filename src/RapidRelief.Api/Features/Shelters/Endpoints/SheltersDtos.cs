@@ -26,6 +26,7 @@ public sealed class CreateShelterValidator : AbstractValidator<CreateShelterRequ
             .GreaterThanOrEqualTo(0)
             .LessThanOrEqualTo(x => x.Capacity)
             .WithMessage("CurrentOccupancy cannot be greater than Capacity.");
+        RuleFor(x => x.Status).IsInEnum();
     }
 }
 
@@ -50,6 +51,7 @@ public sealed class UpdateShelterValidator : AbstractValidator<UpdateShelterRequ
             .GreaterThanOrEqualTo(0)
             .LessThanOrEqualTo(x => x.Capacity)
             .WithMessage("CurrentOccupancy cannot be greater than Capacity.");
+        RuleFor(x => x.Status).IsInEnum();
     }
 }
 
@@ -74,6 +76,9 @@ public sealed record ShelterDto(
 {
     public static ShelterDto FromEntity(Shelter shelter) =>
         new(shelter.Id, shelter.Name, shelter.Location, shelter.Capacity, shelter.CurrentOccupancy, shelter.Facilities, shelter.Status);
+
+    public int Occupancy => CurrentOccupancy;
+    public bool IsOpen => Status == ShelterStatus.Open;
 
     public ShelterSummaryDto ToSummary() =>
         new(Id, Name, Location, Capacity, CurrentOccupancy, Status == ShelterStatus.Open);

@@ -1,0 +1,395 @@
+@page "/g/relief"
+@layout MainLayout
+@namespace RapidRelief.Client.Features.Command.Pages
+@using RapidRelief.Shared.Contracts.Enums
+@using RapidRelief.Shared.Contracts.Services
+@using RapidRelief.Client.Common.Realtime
+@using RapidRelief.Client.Common.Ui
+@using RapidRelief.Client.Features.Command
+@using RapidRelief.Client.Features.Command.Components
+@using RapidRelief.Client.Features.Relief
+@attribute [Authorize(Roles = "Government")]
+@inject CommandClient Command
+@inject ReliefClient Relief
+@inject LiveUpdateService Live
+@implements IDisposable
+
+<PageTitle>Relief &amp; resources — RapidRelief</PageTitle>
+
+<div class="cmd-layout">
+    <header class="cmd-header">
+        <div>
+            <div class="cmd-role-badge">
+                <AppIcon Name="shield-plus" Size="14" />
+                <span>Relief &amp; resources</span>
+            </div>
+            <h1 class="cmd-title">@Pending awaiting a decision · @InPipeline in the pipeline</h1>
+            <p class="cmd-subtitle">Approve what can be covered, and see immediately whether the warehouse can actually cover it.</p>
+        </div>
+        <div class="cmd-header-actions">
+            <button type="button" class="rr-btn rr-btn-ghost rr-btn-sm" @onclick="RefreshAsync" disabled="@_loading">
+                <AppIcon Name="refresh" Size="15" /><span>Refresh</span>
+            </button>
+        </div>
+    </header>
+
+    @if (_message is not null)
+    {
+        <div class="cmd-banner @(_messageIsError ? "error" : "ok")" role="alert">
+            <AppIcon Name="@(_messageIsError ? "alert-circle" : "check-circle")" Size="18" />
+            <span>@_message</span>
+        </div>
+    }
+
+    <CommandTabs Active="g/relief" />
+
+    <div class="cmd-grid">
+        <section class="cmd-card cmd-span-7">
+            <header class="cmd-card-head">
+                <div>
+                    <h2>Request queue</h2>
+                    <p>Oldest pending first — a household waiting on water cannot wait behind paperwork.</p>
+                </div>
+                <select class="cmd-select" aria-label="Status filter" @onchange="e => _statusFilter = Enum.TryParse<ReliefStatus>(e.Value?.ToString(), out var s) ? s : null">
+                    <option value="">Open requests</option>
+                    @foreach (var status in Enum.GetValues<ReliefStatus>())
+                    {
+                        <option value="@status">@ReliefClient.StageLabel(status)</option>
+                    }
+                </select>
+            </header>
+
+            @if (_loading)
+            {
+                <p class="cmd-empty">Loading requests…</p>
+            }
+            else if (!FilteredRequests.Any())
+            {
+                <p class="cmd-empty">Nothing in this part of the queue.</p>
+            }
+            else
+            {
+                <div class="cmd-table-wrap">
+                    <table class="cmd-table">
+                        <thead>
+                            <tr>
+                                <th>Supply</th>
+                                <th>People</th>
+                                <th>Delivery</th>
+                                <th>Urgency</th>
+                                <th>Stage</th>
+                                <th>Waiting</th>
+                                <th class="cmd-col-action">Next step</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var request in FilteredRequests)
+                            {
+                                <tr>
+                                    <td><strong>@request.Type</strong><span class="cmd-sub">× @request.Quantity</span></td>
+                                    <td>@request.RecipientCount</td>
+                                    <td>
+                                        @(string.IsNullOrWhiteSpace(request.DeliveryAddress) ? "—" : request.DeliveryAddress)
+                                        <span class="cmd-sub">@CommandClient.FormatCoordinate(request.Location.Latitude), @CommandClient.FormatCoordinate(request.Location.Longitude)</span>
+                                    </td>
+                                    <td>@request.Urgency</td>
+                                    <td><span class="cmd-pill @StagePill(request.Status)">@ReliefClient.StageLabel(request.Status)</span></td>
+                                    <td>@RelativeTime(request.CreatedAtUtc)</td>
+                                    <td class="cmd-col-action">
+                                        @if (NextStage(request.Status) is { } next)
+                                        {
+                                            <button type="button" class="rr-btn rr-btn-primary rr-btn-xs" disabled="@_busy"
+                                                    @onclick="() => AdvanceAsync(request, next)">
+                                                @ReliefClient.StageLabel(next)
+                                            </button>
+                                        }
+                                        @if (request.Status is ReliefStatus.Pending or ReliefStatus.Approved or ReliefStatus.Allocated)
+                                        {
+                                            <button type="button" class="rr-btn rr-btn-ghost rr-btn-xs" disabled="@_busy"
+                                                    @onclick="() => AdvanceAsync(request, ReliefStatus.Rejected)">Decline</button>
+                                        }
+                                        @if (request.Status is ReliefStatus.Delivered or ReliefStatus.Rejected)
+                                        {
+                                            <span class="cmd-sub">Closed</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+
+        <section class="cmd-card cmd-span-5">
+            <header class="cmd-card-head">
+                <div>
+                    <h2>Warehouse inventory</h2>
+                    <p>Stock against open demand for the same supply type.</p>
+                </div>
+                <button type="button" class="rr-btn rr-btn-ghost rr-btn-sm" @onclick="StartNewResource">
+                    <AppIcon Name="plus" Size="15" /><span>Add</span>
+                </button>
+            </header>
+
+            @if (_editingResource)
+            {
+                <div class="cmd-form">
+                    <div class="cmd-field">
+                        <label for="res-name">Item</label>
+                        <input id="res-name" @bind="_draftName" placeholder="e.g. Drinking water 5 L" />
+                    </div>
+                    <div class="cmd-field">
+                        <label for="res-cat">Category</label>
+                        <select id="res-cat" @bind="_draftCategory">
+                            @foreach (var category in Enum.GetValues<ResourceType>())
+                            {
+                                <option value="@category">@category</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="cmd-field">
+                        <label for="res-total">Total held</label>
+                        <input id="res-total" type="number" min="0" step="1" @bind="_draftTotal" />
+                    </div>
+                    <div class="cmd-field">
+                        <label for="res-alloc">Already committed</label>
+                        <input id="res-alloc" type="number" min="0" step="1" @bind="_draftAllocated" />
+                    </div>
+                    <div class="cmd-field">
+                        <label for="res-unit">Unit</label>
+                        <input id="res-unit" @bind="_draftUnit" placeholder="Boxes" />
+                    </div>
+                    <div class="cmd-field">
+                        <label for="res-loc">Warehouse</label>
+                        <input id="res-loc" @bind="_draftWarehouse" placeholder="e.g. Tejgaon depot" />
+                    </div>
+                    <div class="cmd-form-actions">
+                        <button type="button" class="rr-btn rr-btn-primary rr-btn-sm" disabled="@_busy" @onclick="SaveResourceAsync">Save</button>
+                        <button type="button" class="rr-btn rr-btn-ghost rr-btn-sm" @onclick="() => _editingResource = false">Cancel</button>
+                    </div>
+                </div>
+            }
+
+            @if (_inventory is null || _inventory.Items.Count == 0)
+            {
+                <p class="cmd-empty">@(_loading ? "Loading inventory…" : "No stock recorded. Add an item so approvals can be checked against reality.")</p>
+            }
+            else
+            {
+                <ul class="cmd-dist">
+                    @foreach (var item in _inventory.Items)
+                    {
+                        var covered = item.OpenDemand <= 0 || item.AvailableQuantity >= item.OpenDemand;
+                        <li>
+                            <div class="cmd-shelter-head">
+                                <span class="cmd-shelter-name">@item.Name</span>
+                                <span class="cmd-pill @(covered ? "ok" : "danger")">
+                                    @item.AvailableQuantity.ToString("0.##") @item.Unit free
+                                </span>
+                            </div>
+                            <div class="cmd-sub">
+                                @item.Category · @item.TotalQuantity.ToString("0.##") held, @item.AllocatedQuantity.ToString("0.##") committed
+                                @if (item.OpenDemand > 0)
+                                {
+                                    <span> · open demand @item.OpenDemand.ToString("0.##")</span>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(item.WarehouseLocation))
+                                {
+                                    <span> · @item.WarehouseLocation</span>
+                                }
+                            </div>
+                            <div class="cmd-capacity-track">
+                                <div class="cmd-capacity-fill @(covered ? "" : "danger")"
+                                     style="width:@CoverageWidth(item)%"></div>
+                            </div>
+                            <button type="button" class="rr-btn rr-btn-ghost rr-btn-xs" @onclick="() => StartEditResource(item)">Edit</button>
+                        </li>
+                    }
+                </ul>
+
+                @if (_inventory.UncoveredDemand.Count > 0)
+                {
+                    <div class="cmd-banner error">
+                        <AppIcon Name="alert-triangle" Size="18" />
+                        <span>
+                            No stock at all for:
+                            @string.Join(", ", _inventory.UncoveredDemand.Select(g => $"{g.Category} ({g.OpenDemand:0.##} requested)"))
+                        </span>
+                    </div>
+                }
+            }
+        </section>
+    </div>
+</div>
+
+@code {
+    private List<ReliefRequestDto> _requests = new();
+    private ReliefInventoryDto? _inventory;
+    private ReliefStatus? _statusFilter;
+    private bool _loading = true;
+    private bool _busy;
+    private string? _message;
+    private bool _messageIsError;
+    private IDisposable? _live;
+
+    private bool _editingResource;
+    private Guid? _editingResourceId;
+    private string _draftName = string.Empty;
+    private ResourceType _draftCategory = ResourceType.Water;
+    private double _draftTotal;
+    private double _draftAllocated;
+    private string _draftUnit = "Boxes";
+    private string _draftWarehouse = string.Empty;
+
+    private int Pending => _requests.Count(r => r.Status == ReliefStatus.Pending);
+
+    private int InPipeline => _requests.Count(r =>
+        r.Status is ReliefStatus.Approved or ReliefStatus.Allocated or ReliefStatus.Dispatched);
+
+    private IEnumerable<ReliefRequestDto> FilteredRequests => _requests
+        .Where(r => _statusFilter is { } wanted
+            ? r.Status == wanted
+            : r.Status is not (ReliefStatus.Delivered or ReliefStatus.Rejected))
+        .OrderBy(r => r.Status == ReliefStatus.Pending ? 0 : 1)
+        .ThenBy(r => r.CreatedAtUtc);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAsync();
+
+        // No timer: the queue reloads when a relief request actually changes.
+        _live = Live.Subscribe(() => InvokeAsync(RefreshAsync), RealtimeTopics.ReliefStatus);
+    }
+
+    private async Task RefreshAsync()
+    {
+        _loading = true;
+        var requestsTask = Relief.GetQueueAsync();
+        var inventoryTask = Command.GetInventoryAsync();
+        await Task.WhenAll(requestsTask, inventoryTask);
+
+        _requests = (await requestsTask).ToList();
+        _inventory = await inventoryTask;
+        _loading = false;
+        StateHasChanged();
+    }
+
+    private async Task AdvanceAsync(ReliefRequestDto request, ReliefStatus next)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        var error = await Command.UpdateReliefStatusAsync(request.Id, next,
+            next == ReliefStatus.Rejected ? "Declined by the command centre after review." : null);
+        Report(error ?? $"{request.Type} request moved to {ReliefClient.StageLabel(next)} — the requester was notified.", error is not null);
+        await RefreshAsync();
+        _busy = false;
+    }
+
+    private void StartNewResource()
+    {
+        _editingResource = true;
+        _editingResourceId = null;
+        _draftName = string.Empty;
+        _draftCategory = ResourceType.Water;
+        _draftTotal = 0;
+        _draftAllocated = 0;
+        _draftUnit = "Boxes";
+        _draftWarehouse = string.Empty;
+    }
+
+    private void StartEditResource(ReliefResourceDto item)
+    {
+        _editingResource = true;
+        _editingResourceId = item.Id;
+        _draftName = item.Name;
+        _draftCategory = item.Category;
+        _draftTotal = item.TotalQuantity;
+        _draftAllocated = item.AllocatedQuantity;
+        _draftUnit = item.Unit;
+        _draftWarehouse = item.WarehouseLocation;
+    }
+
+    private async Task SaveResourceAsync()
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_draftName))
+        {
+            Report("Name the item so a driver can find it in the depot.", true);
+            return;
+        }
+
+        if (_draftAllocated > _draftTotal)
+        {
+            Report("Committed stock cannot exceed what is actually held.", true);
+            return;
+        }
+
+        _busy = true;
+        var error = await Command.SaveResourceAsync(_editingResourceId,
+            new ReliefResourceRequest(_draftName.Trim(), _draftCategory, _draftTotal, _draftAllocated, _draftUnit, _draftWarehouse));
+        Report(error ?? $"{_draftName.Trim()} saved.", error is not null);
+        if (error is null)
+        {
+            _editingResource = false;
+        }
+
+        await RefreshAsync();
+        _busy = false;
+    }
+
+    private void Report(string? message, bool isError)
+    {
+        _message = message;
+        _messageIsError = isError;
+    }
+
+    public void Dispose() => _live?.Dispose();
+
+    private static ReliefStatus? NextStage(ReliefStatus status) => status switch
+    {
+        ReliefStatus.Pending => ReliefStatus.Approved,
+        ReliefStatus.Approved => ReliefStatus.Allocated,
+        ReliefStatus.Allocated => ReliefStatus.Dispatched,
+        ReliefStatus.Dispatched => ReliefStatus.Delivered,
+        _ => null,
+    };
+
+    private static string StagePill(ReliefStatus status) => status switch
+    {
+        ReliefStatus.Pending => "warn",
+        ReliefStatus.Rejected => "danger",
+        ReliefStatus.Delivered => "ok",
+        _ => string.Empty,
+    };
+
+    private static int CoverageWidth(ReliefResourceDto item)
+    {
+        if (item.TotalQuantity <= 0)
+        {
+            return 0;
+        }
+
+        return (int)Math.Round(Math.Clamp(item.AvailableQuantity * 100.0 / item.TotalQuantity, 0, 100));
+    }
+
+    private static string RelativeTime(DateTimeOffset moment)
+    {
+        var delta = DateTimeOffset.UtcNow - moment;
+        return delta switch
+        {
+            { TotalSeconds: < 60 } => "just now",
+            { TotalMinutes: < 60 } => $"{delta.TotalMinutes:F0} min",
+            { TotalHours: < 24 } => $"{delta.TotalHours:F0} h",
+            _ => $"{delta.TotalDays:F0} d",
+        };
+    }
+}

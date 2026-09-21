@@ -11,7 +11,11 @@ internal sealed record ParsedAssessment(
     double Confidence,
     string FinishReason,
     int? TotalTokenCount,
-    string? ModelName);
+    string? ModelName,
+    IReadOnlyList<string> DamageIndicators,
+    int? EstimatedPeopleAffected,
+    bool MedicalUrgency,
+    string Reasoning);
 
 /// <summary>
 /// D-064 tri-state parse outcome. <see cref="Blocked"/> is a normal, user-visible outcome
@@ -38,6 +42,9 @@ internal sealed record AiParseResult(AiParseStatus Status, ParsedAssessment? Par
 internal static class OpenRouterResponseParser
 {
     private const int MaxSummaryLength = 200;
+    private const int MaxReasoningLength = 240;
+    private const int MaxIndicatorLength = 60;
+    private const int MaxIndicators = 6;
 
     public static AiParseResult Parse(string responseBody)
     {
@@ -175,20 +182,56 @@ internal static class OpenRouterResponseParser
             }
             var confidence = Math.Clamp(confidenceElement.GetDouble(), 0.0, 1.0);
 
+            // The decision-support extras are optional on purpose: rejecting an otherwise valid
+            // assessment because a model skipped one field would trade real analysis for none.
             var parsed = new ParsedAssessment(predictedType, severity, summary, confidence,
-                finishReason, totalTokenCount, modelName);
+                finishReason, totalTokenCount, modelName,
+                DamageIndicators(root), PeopleAffected(root), MedicalUrgency(root), Reasoning(root));
             return new AiParseResult(AiParseStatus.Ok, parsed, RejectReason: null);
         }
     }
 
+    private static IReadOnlyList<string> DamageIndicators(JsonElement root)
+    {
+        if (!root.TryGetProperty("damageIndicators", out var element) || element.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        return element.EnumerateArray()
+            .Where(item => item.ValueKind == JsonValueKind.String)
+            .Select(item => Clamp(item.GetString()!, MaxIndicatorLength).Trim())
+            .Where(text => text.Length > 0)
+            .Take(MaxIndicators)
+            .ToList();
+    }
+
+    private static int? PeopleAffected(JsonElement root)
+        => root.TryGetProperty("estimatedPeopleAffected", out var element)
+           && element.ValueKind == JsonValueKind.Number
+           && element.TryGetInt32(out var count)
+           && count is >= 0 and <= 100_000
+            ? count
+            : null;
+
+    private static bool MedicalUrgency(JsonElement root)
+        => root.TryGetProperty("medicalUrgency", out var element) && element.ValueKind == JsonValueKind.True;
+
+    private static string Reasoning(JsonElement root)
+        => root.TryGetProperty("reasoning", out var element) && element.ValueKind == JsonValueKind.String
+            ? Clamp(element.GetString()!, MaxReasoningLength).Trim()
+            : string.Empty;
+
     private static AiParseResult Invalid(string reason)
         => new(AiParseStatus.Invalid, Parsed: null, reason);
 
-    private static string ClampSummary(string raw)
+    private static string Clamp(string raw, int max)
     {
         var cleaned = new string(raw.Where(c => !char.IsControl(c)).ToArray());
-        return cleaned.Length <= MaxSummaryLength ? cleaned : cleaned[..MaxSummaryLength];
+        return cleaned.Length <= max ? cleaned : cleaned[..max];
     }
+
+    private static string ClampSummary(string raw) => Clamp(raw, MaxSummaryLength);
 
     /// <summary>Strips to [A-Za-z0-9_] and clamps to 32 chars — safe to embed in log messages.</summary>
     private static string SanitizeForMessage(string raw)

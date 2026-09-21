@@ -1,0 +1,73 @@
+@namespace RapidRelief.Client.Common.Ui
+
+@if (_isVisible)
+{
+    <div class="@ComputedClass" role="alert" @attributes="AdditionalAttributes">
+        <div class="rr-alert-icon" aria-hidden="true">
+            <AppIcon Name="@EffectiveIcon" Size="20" />
+        </div>
+        <div class="rr-alert-content">
+            @if (!string.IsNullOrWhiteSpace(Title))
+            {
+                <h4 class="rr-alert-title">@Title</h4>
+            }
+            <div class="rr-alert-body">
+                @ChildContent
+            </div>
+        </div>
+        @if (Dismissible)
+        {
+            <button type="button" class="rr-alert-close" aria-label="Dismiss alert" @onclick="HandleDismiss">
+                <AppIcon Name="close" Size="16" />
+            </button>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public AlertVariant Variant { get; set; } = AlertVariant.Info;
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public string? Icon { get; set; }
+    [Parameter] public bool Dismissible { get; set; }
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public EventCallback OnDismiss { get; set; }
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private bool _isVisible = true;
+
+    private string EffectiveIcon => !string.IsNullOrWhiteSpace(Icon)
+        ? Icon
+        : Variant switch
+        {
+            AlertVariant.Success => "check-circle",
+            AlertVariant.Warning => "alert-triangle",
+            AlertVariant.Danger => "alert-circle",
+            _ => "info"
+        };
+
+    private async Task HandleDismiss()
+    {
+        _isVisible = false;
+        if (OnDismiss.HasDelegate)
+        {
+            await OnDismiss.InvokeAsync();
+        }
+    }
+
+    private string ComputedClass
+    {
+        get
+        {
+            var variantClass = Variant switch
+            {
+                AlertVariant.Success => "rr-alert-success",
+                AlertVariant.Warning => "rr-alert-warning",
+                AlertVariant.Danger => "rr-alert-danger",
+                _ => "rr-alert-info"
+            };
+
+            return $"rr-alert {variantClass} {Class}".Trim();
+        }
+    }
+}

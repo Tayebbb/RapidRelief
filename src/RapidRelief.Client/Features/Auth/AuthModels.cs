@@ -8,7 +8,12 @@ namespace RapidRelief.Client.Features.Auth;
 public sealed record LoginRequest(string? Email, string? Password);
 
 public sealed record RegisterRequest(string? Email, string? Password, string? DisplayName,
-    string? PhoneNumber, string? EmergencyContact);
+    string? PhoneNumber, string? EmergencyContact, string? Role = null);
+
+public sealed record GoogleSessionRequest(string? Email, string? DisplayName, string? ProviderUserId,
+    string? PhotoUrl, string? Role = null);
+
+public sealed record GoogleInitRequest(string? CallbackUrl = null);
 
 public sealed record UpdateProfileRequest(string? DisplayName, string? PhoneNumber, string? EmergencyContact);
 

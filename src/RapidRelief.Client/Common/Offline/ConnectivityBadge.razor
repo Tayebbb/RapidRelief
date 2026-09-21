@@ -1,0 +1,65 @@
+@namespace RapidRelief.Client.Common.Offline
+@using RapidRelief.Client.Common.Ui
+@implements IDisposable
+@inject OutboxService Outbox
+
+@* The citizen must always be able to see whether their report is on this device or on the server.
+   One chip, one state, plain words — never a spinner that means nothing. *@
+<span class="rr-conn rr-conn-@CssState" role="status" aria-live="polite" title="@Detail">
+    <span class="rr-conn-dot"></span>
+    <AppIcon Name="@Icon" Size="14" />
+    <span class="rr-conn-label">@Label</span>
+    @if (Outbox.PendingCount > 0)
+    {
+        <span class="rr-conn-count">@Outbox.PendingCount</span>
+    }
+</span>
+
+@code {
+    private ConnectivityState State => Outbox.Status;
+
+    private string Label => State switch
+    {
+        ConnectivityState.Offline => "OFFLINE",
+        ConnectivityState.SavedLocally => "SAVED LOCALLY",
+        ConnectivityState.Syncing => "SYNCING",
+        ConnectivityState.Synced => "SYNCED",
+        ConnectivityState.SyncFailed => "SYNC FAILED",
+        _ => "ONLINE",
+    };
+
+    private string CssState => State switch
+    {
+        ConnectivityState.Offline => "offline",
+        ConnectivityState.SavedLocally => "saved",
+        ConnectivityState.Syncing => "syncing",
+        ConnectivityState.Synced => "synced",
+        ConnectivityState.SyncFailed => "failed",
+        _ => "online",
+    };
+
+    private string Icon => State switch
+    {
+        ConnectivityState.Offline or ConnectivityState.SavedLocally => "wifi-off",
+        ConnectivityState.Syncing => "refresh",
+        ConnectivityState.SyncFailed => "alert-circle",
+        ConnectivityState.Synced => "check-circle",
+        _ => "wifi",
+    };
+
+    private string Detail => State switch
+    {
+        ConnectivityState.Offline => "No connection. You can still file a report — it will be saved on this device.",
+        ConnectivityState.SavedLocally => $"{Outbox.PendingCount} report(s) saved on this device, waiting to be sent.",
+        ConnectivityState.Syncing => "Sending saved reports to the command centre…",
+        ConnectivityState.Synced => "Everything filed on this device has reached the command centre.",
+        ConnectivityState.SyncFailed => Outbox.LastError ?? "Some saved reports could not be sent.",
+        _ => "Connected to the command centre.",
+    };
+
+    protected override void OnInitialized() => Outbox.Changed += OnChanged;
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Outbox.Changed -= OnChanged;
+}

@@ -28,8 +28,40 @@ namespace RapidRelief.Api.Features.Ai.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<double>("Confidence")
+                        .HasColumnType("double precision");
+
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DamageIndicatorsJson")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("DegradedReason")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<double?>("DuplicateConfidence")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("DuplicateDecision")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("DuplicateReason")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<DateTimeOffset?>("DuplicateReviewedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DuplicateReviewedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("EstimatedPeopleAffected")
+                        .HasColumnType("integer");
 
                     b.Property<int>("EstimatedSeverity")
                         .HasColumnType("integer");
@@ -44,6 +76,9 @@ namespace RapidRelief.Api.Features.Ai.Data.Migrations
                     b.Property<int>("LatencyMs")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("MedicalUrgency")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("ModelName")
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
@@ -54,6 +89,16 @@ namespace RapidRelief.Api.Features.Ai.Data.Migrations
                     b.Property<int>("PredictedType")
                         .HasColumnType("integer");
 
+                    b.Property<string>("PriorityBand")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("PriorityFactorsJson")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
                     b.Property<double>("PriorityScore")
                         .HasColumnType("double precision");
 
@@ -61,6 +106,16 @@ namespace RapidRelief.Api.Features.Ai.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Reasoning")
+                        .IsRequired()
+                        .HasMaxLength(600)
+                        .HasColumnType("character varying(600)");
+
+                    b.Property<string>("SnapshotDescriptionKey")
+                        .IsRequired()
+                        .HasMaxLength(600)
+                        .HasColumnType("character varying(600)");
 
                     b.Property<bool>("SnapshotIsSos")
                         .HasColumnType("boolean");
@@ -85,10 +140,17 @@ namespace RapidRelief.Api.Features.Ai.Data.Migrations
                     b.Property<int?>("TokensUsed")
                         .HasColumnType("integer");
 
+                    b.Property<string>("Urgency")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("IncidentId")
                         .IsUnique();
+
+                    b.HasIndex("PossibleDuplicateOfId", "DuplicateDecision");
 
                     b.HasIndex("SnapshotType", "SnapshotReportedAtUtc");
 
@@ -131,6 +193,51 @@ namespace RapidRelief.Api.Features.Ai.Data.Migrations
                     b.HasIndex("UserId", "SessionId", "CreatedAtUtc");
 
                     b.ToTable("ai_assistant_messages", (string)null);
+                });
+
+            modelBuilder.Entity("RapidRelief.Api.Features.Ai.Domain.AuditLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("DetailsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("EntityId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("IpAddress")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset>("TimestampUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TimestampUtc");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("audit_logs", (string)null);
                 });
 #pragma warning restore 612, 618
         }

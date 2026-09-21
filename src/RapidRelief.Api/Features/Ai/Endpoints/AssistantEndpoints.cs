@@ -4,9 +4,13 @@ using Microsoft.EntityFrameworkCore;
 using RapidRelief.Api.Features.Ai.Assistant;
 using RapidRelief.Api.Features.Ai.Data;
 using RapidRelief.Api.Features.Ai.Domain;
+using RapidRelief.Api.Infrastructure.Auth;
 using RapidRelief.Api.Infrastructure.Persistence;
 using RapidRelief.Shared.Contracts.Common;
+using RapidRelief.Shared.Contracts.Enums;
+using RapidRelief.Shared.Contracts.ReadModels;
 using RapidRelief.Shared.Contracts.Services;
+using Severity = RapidRelief.Shared.Contracts.Enums.Severity;
 
 namespace RapidRelief.Api.Features.Ai.Endpoints;
 
@@ -21,6 +25,10 @@ public static class AssistantEndpoints
 
     /// <summary>Same assumption as AiEndpoints: the 50 nearest contain enough open shelters.</summary>
     private const int ShelterPrefetchCount = 50;
+
+    /// <summary>How much of the operational picture a responder's answer may cite.</summary>
+    private const int OperationalIncidentCount = 8;
+    private const double OperationalRadiusKm = 25;
 
     private const string LoggerCategory = "RapidRelief.Api.Features.Ai.Endpoints.AssistantEndpoints";
 
@@ -43,6 +51,8 @@ public static class AssistantEndpoints
         AiDbContext db,
         DatabaseHealth databaseHealth,
         IShelterReadService shelters,
+        IIncidentReadService incidents,
+        IResponderAvailabilityService responders,
         TimeProvider timeProvider,
         ILoggerFactory loggerFactory,
         CancellationToken ct)
@@ -98,7 +108,7 @@ public static class AssistantEndpoints
         AssistantContext context;
         try
         {
-            context = await BuildContextAsync(request, options, shelters, ct);
+            context = await BuildContextAsync(request, options, shelters, incidents, responders, httpContext, ct);
         }
         catch (Exception ex) when (NotCallerCancellation(ex, ct))
         {
@@ -222,28 +232,106 @@ public static class AssistantEndpoints
 
     /// <summary>
     /// D-052 context v1: nearest open shelters only, and only when the caller opted in by
-    /// sending coordinates. The coordinates themselves never leave the machine.
+    /// sending coordinates. The coordinates themselves never leave the machine. Responders and
+    /// the command centre additionally get the operational picture their role already grants
+    /// (D-102) — the role comes from the validated token, never from the request body.
     /// </summary>
     private static async Task<AssistantContext> BuildContextAsync(
-        AssistantMessageRequest request, AssistantOptions options, IShelterReadService shelters,
+        AssistantMessageRequest request,
+        AssistantOptions options,
+        IShelterReadService shelters,
+        IIncidentReadService incidents,
+        IResponderAvailabilityService responders,
+        HttpContext httpContext,
         CancellationToken ct)
     {
-        if (request.Latitude is not { } latitude || request.Longitude is not { } longitude)
+        var origin = request.Latitude is { } lat && request.Longitude is { } lng
+            ? new GeoPoint(lat, lng)
+            : (GeoPoint?)null;
+
+        var shelterContext = Array.Empty<ShelterContext>() as IReadOnlyList<ShelterContext>;
+        if (origin is { } point)
         {
-            return AssistantContext.None;
+            var nearest = await shelters.GetNearestAsync(point, ShelterPrefetchCount, ct);
+            shelterContext = nearest
+                .Where(s => s.IsOpen && s.Occupancy < s.Capacity)
+                .Take(options.ShelterCount)
+                .Select(s => new ShelterContext(s.Name,
+                    Math.Round(GeoMath.HaversineMeters(point, s.Location) / 1000.0, 2),
+                    s.Capacity - s.Occupancy))
+                .ToList();
         }
 
-        var origin = new GeoPoint(latitude, longitude);
-        var nearest = await shelters.GetNearestAsync(origin, ShelterPrefetchCount, ct);
-        var candidates = nearest
-            .Where(s => s.IsOpen && s.Occupancy < s.Capacity)
-            .Take(options.ShelterCount)
-            .Select(s => new ShelterContext(s.Name,
-                Math.Round(GeoMath.HaversineMeters(origin, s.Location) / 1000.0, 2),
-                s.Capacity - s.Occupancy))
+        var role = ResolveRole(httpContext);
+        var operations = role is Roles.Rescuer or Roles.Government
+            ? await OperationalLinesAsync(role, origin, incidents, responders, ct)
+            : [];
+
+        return new AssistantContext(origin is not null, shelterContext, Array.Empty<string>(), role, operations);
+    }
+
+    /// <summary>Server-derived role only; a citizen never reaches the operational branch.</summary>
+    private static string ResolveRole(HttpContext httpContext)
+    {
+        if (httpContext.User.IsInRole(Roles.Government))
+        {
+            return Roles.Government;
+        }
+
+        return httpContext.User.IsInRole(Roles.Rescuer) ? Roles.Rescuer : Roles.Citizen;
+    }
+
+    private static async Task<IReadOnlyList<string>> OperationalLinesAsync(
+        string role,
+        GeoPoint? origin,
+        IIncidentReadService incidents,
+        IResponderAvailabilityService responders,
+        CancellationToken ct)
+    {
+        var lines = new List<string>();
+
+        var query = origin is { } point
+            ? new IncidentQuery(PageSize: OperationalIncidentCount, Near: point, RadiusKm: OperationalRadiusKm, OpenOnly: true)
+            : new IncidentQuery(PageSize: OperationalIncidentCount, OpenOnly: true);
+        var open = await incidents.GetIncidentsAsync(query, ct);
+
+        var scope = origin is null ? "system-wide" : $"within {OperationalRadiusKm:F0} km";
+        var critical = open.Items
+            .Where(i => i.IsSos || i.Severity >= Severity.Severe)
+            .Take(OperationalIncidentCount)
             .ToList();
 
-        return new AssistantContext(HasLocation: true, candidates, Array.Empty<string>());
+        lines.Add($"Open incidents {scope}: {open.TotalCount}, of which {critical.Count} are critical or SOS.");
+
+        foreach (var incident in critical)
+        {
+            var distance = origin is { } from
+                ? $", {GeoMath.HaversineMeters(from, incident.Location) / 1000.0:F1} km away"
+                : string.Empty;
+            var priority = incident.PriorityScore is { } score ? $", AI priority {score:F0}/100" : string.Empty;
+            var sos = incident.IsSos ? " (SOS)" : string.Empty;
+            lines.Add($"{incident.Type} at severity {(int)incident.Severity}/5{sos}{distance}{priority}, "
+                + $"status {incident.Status}: {incident.Summary}");
+        }
+
+        var capacity = await responders.GetAvailabilityAsync(origin, ct);
+        lines.Add(capacity.TotalTeams == 0
+            ? "Rescue capacity: no team registry data is available."
+            : $"Rescue capacity: {capacity.AvailableTeams} of {capacity.TotalTeams} teams free, "
+              + $"{capacity.DeployedTeams} deployed, {capacity.OpenMissions} missions open"
+              + (capacity.NearestAvailableKm is { } km ? $", nearest free team {km:F1} km away." : "."));
+
+        if (role == Roles.Government)
+        {
+            var byArea = open.Items
+                .GroupBy(i => i.Type)
+                .OrderByDescending(g => g.Count())
+                .Take(4)
+                .Select(g => $"{g.Key} × {g.Count()}");
+            lines.Add($"Open incidents by disaster type: {string.Join(", ", byArea)}.");
+        }
+
+        return lines;
     }
 
     private static AssistantAnswerDto ToDto(AssistantAnswer answer, DateTimeOffset createdAtUtc)

@@ -14,14 +14,22 @@ internal sealed record AssistantAsk(string Question, IReadOnlyList<AssistantTurn
 
 internal sealed record AssistantTurn(bool FromUser, string Text);
 
-/// <summary>Alerts are always empty in v1 (D-052 — F10 has no read contract yet).</summary>
+/// <summary>
+/// Facts the assistant is allowed to use. <paramref name="Operations"/> is role-scoped and built
+/// server-side from the caller's own claims (D-102) — it never contains anything the caller could
+/// not already read through the API.
+/// </summary>
 internal sealed record AssistantContext(
     bool HasLocation,
     IReadOnlyList<ShelterContext> Shelters,
-    IReadOnlyList<string> Alerts)
+    IReadOnlyList<string> Alerts,
+    string Role = "",
+    IReadOnlyList<string>? Operations = null)
 {
     public static readonly AssistantContext None =
         new(HasLocation: false, Array.Empty<ShelterContext>(), Array.Empty<string>());
+
+    public IReadOnlyList<string> OperationLines => Operations ?? Array.Empty<string>();
 }
 
 internal sealed record ShelterContext(string Name, double DistanceKm, int FreeCapacity);

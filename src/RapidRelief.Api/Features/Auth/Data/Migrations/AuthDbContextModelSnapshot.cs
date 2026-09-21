@@ -152,6 +152,66 @@ namespace RapidRelief.Api.Features.Auth.Data.Migrations
                     b.ToTable("auth_user_tokens", (string)null);
                 });
 
+            modelBuilder.Entity("RapidRelief.Api.Features.Auth.Domain.AppPermission", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("PageRoute")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("auth_permissions", (string)null);
+                });
+
+            modelBuilder.Entity("RapidRelief.Api.Features.Auth.Domain.AppRolePermission", b =>
+                {
+                    b.Property<Guid>("RoleId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PermissionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("AssignedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("RoleId", "PermissionId");
+
+                    b.HasIndex("PermissionId");
+
+                    b.ToTable("auth_role_permissions", (string)null);
+                });
+
             modelBuilder.Entity("RapidRelief.Api.Features.Auth.Domain.AppUser", b =>
                 {
                     b.Property<Guid>("Id")
@@ -324,6 +384,25 @@ namespace RapidRelief.Api.Features.Auth.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("RapidRelief.Api.Features.Auth.Domain.AppRolePermission", b =>
+                {
+                    b.HasOne("RapidRelief.Api.Features.Auth.Domain.AppPermission", "Permission")
+                        .WithMany("RolePermissions")
+                        .HasForeignKey("PermissionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole<System.Guid>", "Role")
+                        .WithMany()
+                        .HasForeignKey("RoleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Permission");
+
+                    b.Navigation("Role");
+                });
+
             modelBuilder.Entity("RapidRelief.Api.Features.Auth.Domain.RefreshToken", b =>
                 {
                     b.HasOne("RapidRelief.Api.Features.Auth.Domain.AppUser", null)
@@ -331,6 +410,11 @@ namespace RapidRelief.Api.Features.Auth.Data.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("RapidRelief.Api.Features.Auth.Domain.AppPermission", b =>
+                {
+                    b.Navigation("RolePermissions");
                 });
 #pragma warning restore 612, 618
         }

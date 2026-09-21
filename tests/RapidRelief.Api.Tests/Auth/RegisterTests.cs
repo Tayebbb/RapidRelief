@@ -106,4 +106,56 @@ public sealed class RegisterTests : IClassFixture<TestingWebAppFactory>
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         Assert.True(body.RootElement.GetProperty("errors").TryGetProperty(expectedKey, out _));
     }
+
+    [Theory]
+    [InlineData("gmail.com")]
+    [InlineData("yahoo.com")]
+    [InlineData("outlook.com")]
+    [InlineData("customrelief.org")]
+    [InlineData("response.gov.bd")]
+    public async Task Register_with_various_email_providers_succeeds(string domain)
+    {
+        var client = AuthTestClient.CreateNoCookieClient(_factory);
+        var email = $"user_{Guid.NewGuid():N}@{domain}";
+
+        var response = await AuthTestClient.RegisterAsync(client, email, displayName: "Domain Test User");
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var session = await AuthTestClient.ReadSessionAsync(response);
+        Assert.Equal(email, session.Email);
+        Assert.Equal([Roles.Citizen], session.Roles);
+    }
+
+    [Theory]
+    [InlineData("Demo!123")] // 8 chars min boundary
+    [InlineData("A1!abcdefghij")] // 13 chars
+    [InlineData("SecureP@ssw0rd!2026WithSpecialCharsAndNumbers")] // 45 chars
+    public async Task Register_with_valid_passwords_succeeds(string password)
+    {
+        var client = AuthTestClient.CreateNoCookieClient(_factory);
+        var email = AuthTestClient.UniqueEmail();
+
+        var response = await AuthTestClient.RegisterAsync(client, email, password: password, displayName: "Password Test User");
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("Short1!")] // 7 chars (< 8)
+    [InlineData("alllowercase1!")] // missing uppercase
+    [InlineData("ALLUPPERCASE1!")] // missing lowercase
+    [InlineData("NoSpecialChar123")] // missing symbol
+    [InlineData("NoDigitSpecial!@#")] // missing digit
+    public async Task Register_with_invalid_password_returns_400(string password)
+    {
+        var client = AuthTestClient.CreateNoCookieClient(_factory);
+        var email = AuthTestClient.UniqueEmail();
+
+        var response = await AuthTestClient.RegisterAsync(client, email, password: password, displayName: "Invalid Pwd User");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var errorKeys = body.RootElement.GetProperty("errors").EnumerateObject().Select(p => p.Name).ToList();
+        Assert.Contains(errorKeys, key => key.StartsWith("Password", StringComparison.Ordinal));
+    }
 }

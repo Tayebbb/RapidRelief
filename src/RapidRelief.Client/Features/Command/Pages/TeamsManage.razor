@@ -1,0 +1,291 @@
+@page "/g/teams"
+@layout MainLayout
+@namespace RapidRelief.Client.Features.Command.Pages
+@using RapidRelief.Shared.Contracts.Services
+@using RapidRelief.Client.Common.Realtime
+@using RapidRelief.Client.Common.Ui
+@using RapidRelief.Client.Features.Command
+@using RapidRelief.Client.Features.Command.Components
+@using RapidRelief.Client.Features.Rescue
+@attribute [Authorize(Roles = "Government")]
+@inject CommandClient Command
+@inject RescueClient Rescue
+@inject LiveUpdateService Live
+@implements IDisposable
+
+<PageTitle>Rescue team registry — RapidRelief</PageTitle>
+
+<div class="cmd-layout">
+    <header class="cmd-header">
+        <div>
+            <div class="cmd-role-badge">
+                <AppIcon Name="navigation" Size="14" />
+                <span>Rescue team registry</span>
+            </div>
+            <h1 class="cmd-title">@Available available · @Deployed deployed · @OffDuty off duty</h1>
+            <p class="cmd-subtitle">
+                Duty status here is the same field the rescuer's own toggle writes — a team on a live mission cannot be stood down.
+            </p>
+        </div>
+        <div class="cmd-header-actions">
+            <button type="button" class="rr-btn rr-btn-primary rr-btn-sm" @onclick="() => _creating = !_creating">
+                <AppIcon Name="plus" Size="15" /><span>New team</span>
+            </button>
+            <button type="button" class="rr-btn rr-btn-ghost rr-btn-sm" @onclick="RefreshAsync" disabled="@_loading">
+                <AppIcon Name="refresh" Size="15" /><span>Refresh</span>
+            </button>
+        </div>
+    </header>
+
+    @if (_message is not null)
+    {
+        <div class="cmd-banner @(_messageIsError ? "error" : "ok")" role="alert">
+            <AppIcon Name="@(_messageIsError ? "alert-circle" : "check-circle")" Size="18" />
+            <span>@_message</span>
+        </div>
+    }
+
+    <CommandTabs Active="g/teams" />
+
+    @if (_creating)
+    {
+        <section class="cmd-card">
+            <header class="cmd-card-head">
+                <div>
+                    <h2>Register a team</h2>
+                    <p>New teams start Available and immediately appear in the dispatch suitability ranking.</p>
+                </div>
+            </header>
+            <div class="cmd-form">
+                <div class="cmd-field">
+                    <label for="new-name">Team name</label>
+                    <input id="new-name" @bind="_newName" placeholder="e.g. Mirpur Water Rescue 2" />
+                </div>
+                <div class="cmd-field">
+                    <label for="new-spec">Speciality</label>
+                    <input id="new-spec" @bind="_newSpecialization" placeholder="e.g. FloodRescue" />
+                </div>
+                <div class="cmd-field">
+                    <label for="new-contact">Contact number</label>
+                    <input id="new-contact" @bind="_newContact" placeholder="+8801…" />
+                </div>
+                <div class="cmd-form-actions">
+                    <button type="button" class="rr-btn rr-btn-primary rr-btn-sm" disabled="@_busy" @onclick="CreateAsync">Register team</button>
+                    <button type="button" class="rr-btn rr-btn-ghost rr-btn-sm" @onclick="() => _creating = false">Cancel</button>
+                </div>
+            </div>
+        </section>
+    }
+
+    <section class="cmd-card">
+        @if (_loading)
+        {
+            <p class="cmd-empty">Loading teams…</p>
+        }
+        else if (_teams.Count == 0)
+        {
+            <p class="cmd-empty">No rescue teams are registered. Dispatch cannot assign anyone until at least one exists.</p>
+        }
+        else
+        {
+            <div class="cmd-table-wrap">
+                <table class="cmd-table">
+                    <thead>
+                        <tr>
+                            <th>Team</th>
+                            <th>Speciality</th>
+                            <th>Contact</th>
+                            <th>Duty status</th>
+                            <th>Load</th>
+                            <th>Last position</th>
+                            <th class="cmd-col-action">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var team in Ordered)
+                        {
+                            <tr>
+                                @if (_editing == team.Id)
+                                {
+                                    <td><input class="cmd-select" @bind="_draftName" aria-label="Team name" /></td>
+                                    <td><input class="cmd-select" @bind="_draftSpecialization" aria-label="Speciality" /></td>
+                                    <td><input class="cmd-select" @bind="_draftContact" aria-label="Contact number" /></td>
+                                    <td>
+                                        <select class="cmd-select" @bind="_draftStatus" aria-label="Duty status">
+                                            <option value="Available">Available</option>
+                                            <option value="Dispatched">Dispatched</option>
+                                            <option value="OffDuty">Off duty</option>
+                                        </select>
+                                    </td>
+                                    <td>@team.ActiveMissionCount</td>
+                                    <td class="cmd-audit-entity">@PositionLabel(team)</td>
+                                    <td class="cmd-col-action">
+                                        <button type="button" class="rr-btn rr-btn-primary rr-btn-xs" disabled="@_busy" @onclick="() => SaveAsync(team)">Save</button>
+                                        <button type="button" class="rr-btn rr-btn-ghost rr-btn-xs" @onclick="() => _editing = null">Cancel</button>
+                                    </td>
+                                }
+                                else
+                                {
+                                    <td>
+                                        <span class="cmd-dot @Dot(team.Status)"></span>
+                                        <strong>@team.TeamName</strong>
+                                        <span class="cmd-sub">#@ShortId(team.Id)</span>
+                                    </td>
+                                    <td>@team.Specialization</td>
+                                    <td class="cmd-audit-entity">@(string.IsNullOrWhiteSpace(team.ContactNumber) ? "—" : team.ContactNumber)</td>
+                                    <td><span class="cmd-pill @Pill(team.Status)">@StatusWord(team.Status)</span></td>
+                                    <td>@team.ActiveMissionCount active</td>
+                                    <td class="cmd-audit-entity">@PositionLabel(team)</td>
+                                    <td class="cmd-col-action">
+                                        <button type="button" class="rr-btn rr-btn-ghost rr-btn-xs" @onclick="() => StartEdit(team)">Edit</button>
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</div>
+
+@code {
+    private List<RescueTeamDto> _teams = new();
+    private bool _loading = true;
+    private bool _busy;
+    private bool _creating;
+    private string? _message;
+    private bool _messageIsError;
+    private IDisposable? _live;
+
+    private Guid? _editing;
+    private string _draftName = string.Empty;
+    private string _draftSpecialization = string.Empty;
+    private string _draftContact = string.Empty;
+    private string _draftStatus = "Available";
+
+    private string _newName = string.Empty;
+    private string _newSpecialization = string.Empty;
+    private string _newContact = string.Empty;
+
+    private int Available => _teams.Count(t => t.Status == "Available");
+    private int Deployed => _teams.Count(t => t.Status == "Dispatched");
+    private int OffDuty => _teams.Count(t => t.Status == "OffDuty");
+
+    private IEnumerable<RescueTeamDto> Ordered => _teams
+        .OrderBy(t => t.Status == "Available" ? 0 : t.Status == "Dispatched" ? 1 : 2)
+        .ThenBy(t => t.TeamName);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAsync();
+
+        // No timer: the registry reloads when a team actually changes.
+        _live = Live.Subscribe(() => InvokeAsync(RefreshAsync), RealtimeTopics.RescueFeed);
+    }
+
+    private async Task RefreshAsync()
+    {
+        _loading = true;
+        _teams = (await Rescue.GetTeamsAsync()).ToList();
+        _loading = false;
+        StateHasChanged();
+    }
+
+    private void StartEdit(RescueTeamDto team)
+    {
+        _editing = team.Id;
+        _draftName = team.TeamName;
+        _draftSpecialization = team.Specialization;
+        _draftContact = team.ContactNumber;
+        _draftStatus = team.Status;
+    }
+
+    private async Task SaveAsync(RescueTeamDto team)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_draftName))
+        {
+            Report("A team needs a name responders will recognise on a radio.", true);
+            return;
+        }
+
+        _busy = true;
+        var error = await Command.UpdateTeamAsync(team.Id,
+            new UpdateTeamRequest(_draftName.Trim(), _draftSpecialization?.Trim(), _draftContact?.Trim(), _draftStatus));
+        Report(error ?? $"{_draftName.Trim()} updated.", error is not null);
+        if (error is null)
+        {
+            _editing = null;
+        }
+
+        await RefreshAsync();
+        _busy = false;
+    }
+
+    private async Task CreateAsync()
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_newName))
+        {
+            Report("Give the new team a name.", true);
+            return;
+        }
+
+        _busy = true;
+        var error = await Command.CreateTeamAsync(_newName.Trim(), _newSpecialization?.Trim(), _newContact?.Trim());
+        Report(error ?? $"{_newName.Trim()} registered and available for dispatch.", error is not null);
+        if (error is null)
+        {
+            _newName = _newSpecialization = _newContact = string.Empty;
+            _creating = false;
+        }
+
+        await RefreshAsync();
+        _busy = false;
+    }
+
+    private void Report(string? message, bool isError)
+    {
+        _message = message;
+        _messageIsError = isError;
+    }
+
+    public void Dispose() => _live?.Dispose();
+
+    private static string ShortId(Guid id) => id.ToString("N")[..6].ToUpperInvariant();
+
+    private static string PositionLabel(RescueTeamDto team) => team.CurrentLocation is { } point
+        ? $"{CommandClient.FormatCoordinate(point.Latitude)}, {CommandClient.FormatCoordinate(point.Longitude)}"
+        : "Not sharing position";
+
+    private static string Dot(string status) => status switch
+    {
+        "Available" => "ok",
+        "Dispatched" => "warn",
+        _ => "idle",
+    };
+
+    private static string Pill(string status) => status switch
+    {
+        "Available" => "ok",
+        "Dispatched" => "warn",
+        _ => string.Empty,
+    };
+
+    private static string StatusWord(string status) => status switch
+    {
+        "Available" => "Available",
+        "Dispatched" => "On a mission",
+        "OffDuty" => "Off duty",
+        _ => status,
+    };
+}

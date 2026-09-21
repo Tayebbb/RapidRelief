@@ -16,7 +16,7 @@ public sealed record IncidentAssessedNotification(
 /// <summary>D-036: IncidentAssessed → topic <c>ai.incident.assessed</c> for Rescue + Admin.</summary>
 public sealed class IncidentAssessedNotificationHandler : IEventHandler<IncidentAssessed>
 {
-    public const string Topic = "ai.incident.assessed";
+    public const string Topic = RealtimeTopics.IncidentAssessed;
 
     private readonly IRealtimeNotifier _notifier;
 

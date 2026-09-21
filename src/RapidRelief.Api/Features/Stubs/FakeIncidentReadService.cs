@@ -1,4 +1,4 @@
-using RapidRelief.Api.Features.Stubs.SeedData;
+using RapidRelief.Api.Infrastructure.SeedData;
 using RapidRelief.Shared.Contracts.Common;
 using RapidRelief.Shared.Contracts.ReadModels;
 using RapidRelief.Shared.Contracts.Services;

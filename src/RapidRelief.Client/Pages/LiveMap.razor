@@ -1,0 +1,326 @@
+@page "/livemap"
+@page "/sample"
+@page "/map"
+@using RapidRelief.Shared.Contracts.Common
+@using RapidRelief.Shared.Contracts.ReadModels
+@using RapidRelief.Client.Common.Map
+@using RapidRelief.Client.Common.Ui
+@using RapidRelief.Client.Features.Shelters
+@inject SheltersClient SheltersClient
+@inject GeolocationService Geo
+
+<PageTitle>Live Disaster & Shelter Map — RapidRelief</PageTitle>
+
+<div class="livemap-container">
+    <!-- Top Header -->
+    <header class="livemap-header">
+        <div>
+            <div class="livemap-badge">
+                <span class="live-dot" aria-hidden="true"></span>
+                <span>Live Emergency Grid</span>
+            </div>
+            <h1 class="livemap-title">Live Disaster &amp; Shelter Map</h1>
+            <p class="livemap-subtitle">
+                Real-time emergency shelters, live vacancy telemetry, and safe routes across the city.
+            </p>
+        </div>
+        <div class="livemap-actions">
+            <button type="button" class="btn btn-outline-primary btn-sm d-flex align-items-center gap-2"
+                    @onclick="LocateAsync" disabled="@_locating">
+                <AppIcon Name="navigation" Size="15" />
+                <span>@(_locating ? "Locating…" : "Locate Me")</span>
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-2"
+                    @onclick="RefreshAsync" disabled="@_loading">
+                <AppIcon Name="refresh" Size="15" />
+                <span>Refresh</span>
+            </button>
+        </div>
+    </header>
+
+    @if (_geoNote is not null)
+    {
+        <div class="alert alert-warning py-2 px-3 mb-3 d-flex align-items-center justify-content-between" role="alert">
+            <span class="small">@_geoNote Showing shelters across central Dhaka.</span>
+            <button class="btn btn-link btn-sm text-decoration-none p-0" type="button" @onclick="LocateAsync">Try again</button>
+        </div>
+    }
+
+    <!-- Stat Summary Strip -->
+    <div class="livemap-stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon bg-success-subtle text-success">
+                <AppIcon Name="home" Size="20" />
+            </div>
+            <div class="stat-meta">
+                <span class="stat-label">Available Shelters</span>
+                <strong class="stat-value">@(_shelters?.Count(s => s.IsOpen) ?? 0) Open</strong>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon bg-primary-subtle text-primary">
+                <AppIcon Name="shield" Size="20" />
+            </div>
+            <div class="stat-meta">
+                <span class="stat-label">Total Free Spaces</span>
+                <strong class="stat-value">@TotalFreeSpaces.ToString("N0")</strong>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon bg-warning-subtle text-warning">
+                <AppIcon Name="map-pin" Size="20" />
+            </div>
+            <div class="stat-meta">
+                <span class="stat-label">Nearest Safe Facility</span>
+                <strong class="stat-value">@NearestShelterSummary</strong>
+            </div>
+        </div>
+    </div>
+
+    <!-- Interactive Map Shell -->
+    <div class="livemap-frame-card">
+        <div class="livemap-toolbar">
+            <div class="livemap-filter-group">
+                <button type="button" class="btn-filter @(_activeFilter == "all" ? "active" : null)"
+                        @onclick='() => SetFilter("all")'>
+                    All Shelters (@(_shelters?.Count ?? 0))
+                </button>
+                <button type="button" class="btn-filter @(_activeFilter == "open" ? "active" : null)"
+                        @onclick='() => SetFilter("open")'>
+                    Open Now (@(_shelters?.Count(s => s.IsOpen) ?? 0))
+                </button>
+                <button type="button" class="btn-filter @(_activeFilter == "high-cap" ? "active" : null)"
+                        @onclick='() => SetFilter("high-cap")'>
+                    High Free Capacity (@(_shelters?.Count(s => s.Capacity - s.Occupancy > 50) ?? 0))
+                </button>
+            </div>
+            <span class="map-legend-item">
+                <span class="legend-dot open"></span> Safe &amp; Open
+            </span>
+        </div>
+
+        <div class="map-viewport-wrapper">
+            <RapidMap View="_map" InitialCenter="MapCenter" InitialZoom="13" />
+        </div>
+    </div>
+
+    <!-- Shelters List for Current User -->
+    <section class="livemap-shelters-section">
+        <div class="section-title-wrap">
+            <h2 class="h5 mb-1">Available Shelters Near You</h2>
+            <p class="text-secondary small mb-3">Live capacity status and direct routing to nearby relief shelters.</p>
+        </div>
+
+        @if (_loading && _shelters is null)
+        {
+            <div class="shelters-grid">
+                <div class="rr-skeleton rr-skeleton-rect" style="height: 140px; border-radius: var(--radius-md);"></div>
+                <div class="rr-skeleton rr-skeleton-rect" style="height: 140px; border-radius: var(--radius-md);"></div>
+                <div class="rr-skeleton rr-skeleton-rect" style="height: 140px; border-radius: var(--radius-md);"></div>
+            </div>
+        }
+        else if (FilteredShelters.Count == 0)
+        {
+            <div class="rr-empty py-5 text-center">
+                <AppIcon Name="home" Size="32" />
+                <strong class="d-block mt-2">No shelters match the current filter.</strong>
+                <p class="text-secondary small">Call <strong>999</strong> for immediate emergency disaster coordination.</p>
+            </div>
+        }
+        else
+        {
+            <div class="shelters-grid">
+                @foreach (var shelter in FilteredShelters)
+                {
+                    var free = Math.Max(0, shelter.Capacity - shelter.Occupancy);
+                    var pct = shelter.Capacity > 0 ? (int)Math.Round((double)shelter.Occupancy / shelter.Capacity * 100) : 0;
+                    var isRecommended = _recommendations.Any(r => r.Id == shelter.Id);
+
+                    <div class="shelter-card @(isRecommended ? "is-recommended" : null)">
+                        <div class="shelter-card-head">
+                            <div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <h3 class="shelter-name">@shelter.Name</h3>
+                                    @if (isRecommended)
+                                    {
+                                        <span class="badge bg-success text-white">Recommended</span>
+                                    }
+                                </div>
+                                <div class="d-flex align-items-center gap-2 mt-1">
+                                    <span class="status-pill @(shelter.IsOpen ? "status-open" : "status-closed")">
+                                        @(shelter.IsOpen ? "Open" : "Closed")
+                                    </span>
+                                    <span class="text-secondary small">
+                                        @shelter.Occupancy / @shelter.Capacity people
+                                    </span>
+                                </div>
+                            </div>
+
+                            <a href="https://www.google.com/maps/dir/?api=1&destination=@shelter.Location.Latitude,@shelter.Location.Longitude"
+                               target="_blank" rel="noopener" class="btn btn-sm btn-primary d-flex align-items-center gap-1">
+                                <AppIcon Name="navigation" Size="14" />
+                                <span>Directions</span>
+                            </a>
+                        </div>
+
+                        <!-- Occupancy Progress Bar -->
+                        <div class="progress mt-3" style="height: 6px;" role="progressbar"
+                             aria-label="Occupancy" aria-valuenow="@pct" aria-valuemin="0" aria-valuemax="100">
+                            <div class="progress-bar @(pct >= 85 ? "bg-danger" : pct >= 60 ? "bg-warning" : "bg-success")"
+                                 style="width: @(pct)%"></div>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center mt-2">
+                            <span class="small font-monospace text-success fw-semibold">
+                                @free free spaces available
+                            </span>
+                            <span class="small text-muted">@(pct)% occupied</span>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </section>
+</div>
+
+@code {
+    private static readonly GeoPoint DhakaFallback = new(23.8103, 90.4125);
+
+    private readonly MapView _map = new();
+    private List<ShelterSummaryDto>? _shelters;
+    private List<ShelterRecommendationDto> _recommendations = [];
+    private string _activeFilter = "all";
+    private bool _loading = true;
+    private bool _locating;
+    private string? _geoNote;
+    private GeoPoint? _userLocation;
+    private GeoPoint? _gpsFix;
+    private double _gpsAccuracy;
+
+    private GeoPoint MapCenter => _userLocation ?? DhakaFallback;
+
+    private int TotalFreeSpaces => _shelters?
+        .Where(s => s.IsOpen)
+        .Sum(s => Math.Max(0, s.Capacity - s.Occupancy)) ?? 0;
+
+    private string NearestShelterSummary
+    {
+        get
+        {
+            if (_recommendations.Count > 0)
+            {
+                var top = _recommendations[0];
+                return $"{top.Name} ({top.DistanceKm:F1} km)";
+            }
+            if (_shelters?.Count > 0)
+            {
+                return _shelters[0].Name;
+            }
+            return "Searching…";
+        }
+    }
+
+    private IReadOnlyList<ShelterSummaryDto> FilteredShelters
+    {
+        get
+        {
+            if (_shelters is null) return [];
+            return _activeFilter switch
+            {
+                "open" => _shelters.Where(s => s.IsOpen).ToList(),
+                "high-cap" => _shelters.Where(s => s.IsOpen && (s.Capacity - s.Occupancy) > 50).ToList(),
+                _ => _shelters
+            };
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LocateAsync();
+            await LoadSheltersAsync();
+        }
+    }
+
+    private async Task LocateAsync()
+    {
+        _locating = true;
+        StateHasChanged();
+
+        var fix = await Geo.GetCurrentAsync();
+        if (fix.Ok && fix.Point is not null)
+        {
+            _gpsFix = fix.Point;
+            _gpsAccuracy = fix.AccuracyMeters;
+            _userLocation = fix.Point;
+            _geoNote = null;
+        }
+        else
+        {
+            _userLocation = DhakaFallback;
+            _geoNote = fix.Message;
+        }
+
+        _locating = false;
+        UpdateMapLayers();
+        StateHasChanged();
+    }
+
+    private async Task RefreshAsync()
+    {
+        _loading = true;
+        StateHasChanged();
+        await LoadSheltersAsync();
+        _loading = false;
+        StateHasChanged();
+    }
+
+    private async Task LoadSheltersAsync()
+    {
+        try
+        {
+            var center = _userLocation ?? DhakaFallback;
+            var envelope = await SheltersClient.GetSheltersAsync(center.Latitude, center.Longitude);
+            if (envelope?.Data is not null)
+            {
+                _shelters = envelope.Data.Items.ToList();
+            }
+
+            _recommendations = (await SheltersClient.GetRecommendationsAsync(
+                center.Latitude, center.Longitude, count: 3)).ToList();
+
+            UpdateMapLayers();
+        }
+        catch (HttpRequestException)
+        {
+            _geoNote = "Could not fetch shelter telemetry. Check your connection.";
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void SetFilter(string filter)
+    {
+        _activeFilter = filter;
+        UpdateMapLayers();
+    }
+
+    private void UpdateMapLayers()
+    {
+        if (_shelters is not null)
+        {
+            var visibleShelters = FilteredShelters;
+            _map.SetLayer(MapLayerId.Shelters, visibleShelters.ToPlacemarks());
+        }
+
+        _map.UserLocation = _gpsFix;
+        _map.UserLocationAccuracyMeters = _gpsAccuracy;
+        _map.FallbackCenter = MapCenter;
+    }
+}

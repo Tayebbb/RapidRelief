@@ -57,6 +57,41 @@ public sealed class AuthApi
         }
     }
 
+    public async Task<AuthResult> SyncGoogleSessionAsync(GoogleSessionRequest request)
+    {
+        try
+        {
+            using var response = await _http.PostAsJsonAsync("api/auth/oauth/google-session", request);
+            return await ReadSessionAsync(response);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return AuthResult.Fail(OfflineMessage);
+        }
+    }
+
+    public async Task<string> GetGoogleInitUrlAsync(string? callbackUrl = null)
+    {
+        try
+        {
+            using var response = await _http.PostAsJsonAsync("api/auth/oauth/google-init", new GoogleInitRequest(callbackUrl));
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+                if (json.TryGetProperty("url", out var urlProp) && urlProp.GetString() is { Length: > 0 } url)
+                {
+                    return url;
+                }
+            }
+        }
+        catch
+        {
+            // fallback
+        }
+
+        return "https://ep-little-mountain-b3ttfx56.neonauth.c-4.ap-southeast-1.aws.neon.tech/neondb/auth";
+    }
+
     /// <summary>
     /// Single-flight silent refresh (boot restore + proactive mid-session). 401 clears the session;
     /// degraded/offline outcomes leave the current state untouched and report false.
@@ -197,6 +232,81 @@ public sealed class AuthApi
 public sealed record AuthResult(
     bool Succeeded, string? Error, IReadOnlyDictionary<string, string[]>? FieldErrors)
 {
+    public bool Success => Succeeded;
+
+    public string? FormattedError
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(Error))
+            {
+                return Error;
+            }
+
+            if (FieldErrors is { Count: > 0 })
+            {
+                var messages = new List<string>();
+                foreach (var (key, errs) in FieldErrors)
+                {
+                    foreach (var err in errs)
+                    {
+                        if (string.IsNullOrWhiteSpace(err)) continue;
+
+                        if (key.StartsWith("Duplicate", StringComparison.OrdinalIgnoreCase))
+                        {
+                            messages.Add("An account with this email address already exists. Please sign in instead.");
+                        }
+                        else if (string.Equals(key, "PasswordRequiresUpper", StringComparison.OrdinalIgnoreCase))
+                        {
+                            messages.Add("Password must contain at least one uppercase letter ('A'-'Z').");
+                        }
+                        else if (string.Equals(key, "PasswordRequiresLower", StringComparison.OrdinalIgnoreCase))
+                        {
+                            messages.Add("Password must contain at least one lowercase letter ('a'-'z').");
+                        }
+                        else if (string.Equals(key, "PasswordRequiresDigit", StringComparison.OrdinalIgnoreCase))
+                        {
+                            messages.Add("Password must contain at least one number ('0'-'9').");
+                        }
+                        else if (string.Equals(key, "PasswordRequiresNonAlphanumeric", StringComparison.OrdinalIgnoreCase))
+                        {
+                            messages.Add("Password must contain at least one special character (e.g. !@#$%).");
+                        }
+                        else if (string.Equals(key, "PasswordTooShort", StringComparison.OrdinalIgnoreCase))
+                        {
+                            messages.Add("Password must be at least 8 characters long.");
+                        }
+                        else
+                        {
+                            messages.Add(err);
+                        }
+                    }
+                }
+
+                if (messages.Count > 0)
+                {
+                    return string.Join(" ", messages.Distinct());
+                }
+            }
+
+            return null;
+        }
+    }
+
+    public string? GetFieldError(string fieldName)
+    {
+        if (FieldErrors is null) return null;
+
+        foreach (var (key, errors) in FieldErrors)
+        {
+            if (string.Equals(key, fieldName, StringComparison.OrdinalIgnoreCase) && errors.Length > 0)
+            {
+                return errors[0];
+            }
+        }
+        return null;
+    }
+
     public static AuthResult Ok() => new(true, null, null);
 
     public static AuthResult Fail(string error) => new(false, error, null);

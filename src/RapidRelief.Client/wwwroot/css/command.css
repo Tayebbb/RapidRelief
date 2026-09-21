@@ -1,0 +1,851 @@
+/* ==========================================================================
+   Government Emergency Operations Centre (F7)
+   Dense, scannable command surfaces. Tokens only — no raw values.
+   ========================================================================== */
+
+/* Local aliases so the rules below read operationally. Namespaced --cmd-*:
+   this block previously redeclared --rr-warning, and because command.css loads
+   after app.css at equal specificity it silently changed amber APP-WIDE. Never
+   redeclare an --rr-* token outside app.css §2. */
+:root,
+[data-theme='dark'] {
+    --cmd-text-muted: var(--rr-text-3);
+    --cmd-primary-soft: var(--rr-info-soft);
+    --cmd-warning: var(--rr-warning-soft-text);
+    --cmd-border-subtle: var(--rr-border);
+}
+
+.cmd-layout {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    padding: var(--space-5) 0 var(--space-8);
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+
+.cmd-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-4);
+}
+
+.cmd-role-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 0.25rem 0.7rem;
+    border-radius: var(--rr-radius-pill);
+    background: var(--cmd-primary-soft);
+    color: var(--rr-primary);
+    font-size: 0.75rem;
+    font-weight: 650;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.cmd-title {
+    margin: var(--space-2) 0 0;
+    font-size: clamp(1.4rem, 2.4vw, 1.9rem);
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--rr-text);
+}
+
+.cmd-subtitle {
+    margin: 0.35rem 0 0;
+    color: var(--cmd-text-muted);
+    font-size: 0.94rem;
+    max-width: 62ch;
+}
+
+.cmd-header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.cmd-refreshed {
+    font-size: 0.8rem;
+    color: var(--cmd-text-muted);
+    white-space: nowrap;
+}
+
+.cmd-banner {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 0.7rem 1rem;
+    border-radius: var(--rr-radius);
+    font-size: 0.9rem;
+}
+
+/* On the soft surface, the solid --rr-danger ink is only 4.41:1 — the soft
+   surface has its own paired text token for exactly this reason. */
+.cmd-banner.error {
+    background: var(--rr-danger-soft);
+    color: var(--rr-danger-soft-text);
+    border: 1px solid var(--rr-danger-soft-border);
+}
+
+.cmd-banner.ok {
+    background: var(--cmd-primary-soft);
+    color: var(--rr-primary);
+    border: 1px solid var(--rr-primary);
+}
+
+/* ── Tabs ───────────────────────────────────────────────────────────────── */
+
+.cmd-tabs {
+    display: flex;
+    gap: 0.25rem;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--rr-border);
+    padding-bottom: 1px;
+    scrollbar-width: thin;
+    /* Nine tabs, roughly three fit on a phone, and touch scrollbars are invisible.
+       The fade tells the user there is more to the right. */
+    -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 2rem), transparent 100%);
+    mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 2rem), transparent 100%);
+}
+
+@media (min-width: 1024px) {
+    /* Everything fits: no fade, no implication of hidden content. */
+    .cmd-tabs {
+        -webkit-mask-image: none;
+        mask-image: none;
+    }
+}
+
+.cmd-tab {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--rr-radius-s) var(--rr-radius-s) 0 0;
+    color: var(--cmd-text-muted);
+    text-decoration: none;
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+    transition: color var(--rr-fast) var(--rr-ease), border-color var(--rr-fast) var(--rr-ease);
+}
+
+.cmd-tab:hover {
+    color: var(--rr-text);
+    background: var(--rr-surface-2);
+}
+
+.cmd-tab.active {
+    color: var(--rr-primary);
+    border-bottom-color: var(--rr-primary);
+}
+
+/* ── KPI strip ──────────────────────────────────────────────────────────── */
+
+.cmd-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: var(--space-3);
+}
+
+.cmd-kpi {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: var(--space-4);
+    border-radius: var(--rr-radius);
+    background: var(--rr-surface);
+    border: 1px solid var(--rr-border);
+    text-decoration: none;
+    color: inherit;
+    transition: border-color var(--rr-fast) var(--rr-ease), box-shadow var(--rr-fast) var(--rr-ease);
+}
+
+a.cmd-kpi:hover {
+    border-color: var(--rr-primary);
+    box-shadow: var(--rr-shadow-pop);
+}
+
+.cmd-kpi.critical {
+    border-color: var(--rr-danger);
+    background: var(--rr-danger-soft);
+}
+
+.cmd-kpi.warn {
+    border-color: var(--rr-warning-soft-border);
+}
+
+.cmd-kpi-label {
+    font-size: 0.76rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--cmd-text-muted);
+}
+
+.cmd-kpi-value {
+    font-size: 1.9rem;
+    font-weight: 700;
+    line-height: 1.1;
+    color: var(--rr-text);
+    font-variant-numeric: tabular-nums;
+}
+
+.cmd-kpi.critical .cmd-kpi-value {
+    color: var(--rr-danger);
+}
+
+.cmd-kpi-of {
+    font-size: 1rem;
+    font-weight: 550;
+    color: var(--cmd-text-muted);
+}
+
+.cmd-kpi-note {
+    font-size: 0.8rem;
+    color: var(--cmd-text-muted);
+}
+
+/* ── Cards & grid ───────────────────────────────────────────────────────── */
+
+.cmd-grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: var(--space-4);
+}
+
+.cmd-card {
+    grid-column: span 12;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border-radius: var(--rr-radius-l);
+    background: var(--rr-surface);
+    border: 1px solid var(--rr-border);
+    min-width: 0;
+}
+
+.cmd-span-4 { grid-column: span 12; }
+.cmd-span-5 { grid-column: span 12; }
+.cmd-span-6 { grid-column: span 12; }
+.cmd-span-7 { grid-column: span 12; }
+.cmd-span-8 { grid-column: span 12; }
+.cmd-span-12 { grid-column: span 12; }
+
+@media (min-width: 768px) {
+    .cmd-span-4 { grid-column: span 4; }
+    .cmd-span-5 { grid-column: span 5; }
+    .cmd-span-6 { grid-column: span 6; }
+    .cmd-span-7 { grid-column: span 7; }
+    .cmd-span-8 { grid-column: span 8; }
+}
+
+/* The overview map is a reading surface, not a workspace: shorter than the full
+   operational map so the decision tables stay above the fold on a laptop. */
+.cmd-situation-frame {
+    border-radius: var(--rr-radius-l);
+    overflow: hidden;
+    border: 1px solid var(--rr-border);
+}
+
+.cmd-situation-frame .rapid-map {
+    height: 42vh;
+    min-height: 18rem;
+    max-height: 30rem;
+}
+
+.cmd-legend-inline {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--text-xs);
+    color: var(--rr-text-3);
+}
+
+.cmd-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+.cmd-card-head h2 {
+    margin: 0;
+    font-size: 1.02rem;
+    font-weight: 650;
+    color: var(--rr-text);
+}
+
+.cmd-card-head p {
+    margin: 0.15rem 0 0;
+    font-size: 0.82rem;
+    color: var(--cmd-text-muted);
+}
+
+.cmd-empty {
+    margin: 0;
+    padding: var(--space-5) 0;
+    text-align: center;
+    color: var(--cmd-text-muted);
+    font-size: 0.9rem;
+}
+
+.cmd-sub {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--cmd-text-muted);
+}
+
+.cmd-link {
+    color: var(--rr-text);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.cmd-link:hover {
+    color: var(--rr-primary);
+    text-decoration: underline;
+}
+
+/* ── Tables ─────────────────────────────────────────────────────────────── */
+
+/* Scrolls horizontally inside the card. It used to bleed to the card edge with
+   negative side margins, which made the box wider than the card and pushed the
+   whole page into a horizontal scroll on phones. */
+.cmd-table-wrap {
+    overflow-x: auto;
+    margin: 0 0 calc(var(--space-4) * -1);
+    padding: 0 0 var(--space-4);
+    max-width: 100%;
+}
+
+.cmd-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.cmd-table th {
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.72rem;
+    font-weight: 650;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--cmd-text-muted);
+    border-bottom: 1px solid var(--rr-border);
+    white-space: nowrap;
+}
+
+.cmd-table td {
+    padding: 0.65rem 0.75rem;
+    border-bottom: 1px solid var(--cmd-border-subtle);
+    vertical-align: top;
+}
+
+.cmd-table tbody tr:hover {
+    background: var(--rr-surface-2);
+}
+
+.cmd-table tr.is-sos td {
+    background: var(--rr-danger-soft);
+}
+
+.cmd-col-action {
+    text-align: right;
+    white-space: nowrap;
+}
+
+/* ── Pills, dots, trends ────────────────────────────────────────────────── */
+
+.cmd-pill {
+    display: inline-block;
+    padding: 0.15rem 0.55rem;
+    border-radius: var(--rr-radius-pill);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    white-space: nowrap;
+    background: var(--rr-surface-2);
+    color: var(--cmd-text-muted);
+    border: 1px solid var(--rr-border);
+}
+
+/* Soft surfaces always pair with their -text token; the solid semantic ink is
+   for solid fills only and drops below 4.5:1 on a tint. */
+.cmd-pill.danger {
+    background: var(--rr-danger-soft);
+    color: var(--rr-danger-soft-text);
+    border-color: var(--rr-danger-soft-border);
+}
+
+.cmd-pill.warn {
+    background: var(--rr-warning-soft);
+    color: var(--rr-warning-soft-text);
+    border-color: var(--rr-warning-soft-border);
+}
+
+.cmd-pill.ok {
+    background: var(--cmd-primary-soft);
+    color: var(--rr-primary);
+    border-color: var(--rr-primary);
+}
+
+.cmd-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex: 0 0 auto;
+    background: var(--cmd-text-muted);
+}
+
+.cmd-dot.ok { background: var(--rr-primary); }
+.cmd-dot.warn { background: var(--rr-warning); }
+.cmd-dot.idle { background: var(--cmd-text-muted); opacity: 0.5; }
+
+.cmd-trend {
+    font-size: 0.72rem;
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.cmd-trend.escalating { color: var(--rr-danger); }
+.cmd-trend.steady { color: var(--rr-warning); }
+.cmd-trend.easing { color: var(--rr-primary); }
+.cmd-trend.quiet { color: var(--cmd-text-muted); }
+
+/* ── Hotspots ───────────────────────────────────────────────────────────── */
+
+.cmd-hotspots,
+.cmd-team-list,
+.cmd-shelter-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.cmd-hotspot-main {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
+.cmd-hotspot-area {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--rr-text);
+}
+
+.cmd-hotspot-meta {
+    font-size: 0.79rem;
+    color: var(--cmd-text-muted);
+    margin-top: 0.1rem;
+}
+
+.cmd-hotspot-bar,
+.cmd-capacity-track {
+    height: 6px;
+    border-radius: var(--rr-radius-pill);
+    background: var(--rr-surface-2);
+    overflow: hidden;
+    margin-top: 0.35rem;
+}
+
+.cmd-hotspot-fill,
+.cmd-capacity-fill {
+    height: 100%;
+    border-radius: var(--rr-radius-pill);
+    background: var(--rr-primary);
+}
+
+.cmd-hotspot-fill.danger,
+.cmd-capacity-fill.danger {
+    background: var(--rr-danger);
+}
+
+.cmd-capacity-fill.warn {
+    background: var(--rr-warning);
+}
+
+/* ── Teams & shelters ───────────────────────────────────────────────────── */
+
+.cmd-team {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: 0.55rem 0.7rem;
+    border-radius: var(--rr-radius-s);
+    background: var(--rr-surface-2);
+}
+
+.cmd-team-main {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.cmd-team-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--rr-text);
+}
+
+.cmd-team-load {
+    font-size: 0.78rem;
+    color: var(--cmd-text-muted);
+    white-space: nowrap;
+}
+
+.cmd-shelter-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
+.cmd-shelter-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--rr-text);
+}
+
+/* ── Filter bar ─────────────────────────────────────────────────────────── */
+
+.cmd-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border-radius: var(--rr-radius);
+    background: var(--rr-surface);
+    border: 1px solid var(--rr-border);
+}
+
+.cmd-search {
+    position: relative;
+    flex: 1 1 240px;
+    min-width: 200px;
+}
+
+.cmd-search input {
+    width: 100%;
+    padding: var(--space-2) var(--space-3) var(--space-2) 2.1rem;
+    min-height: 2.75rem;
+    border-radius: var(--rr-radius-s);
+    border: 1px solid var(--rr-border);
+    background: var(--rr-surface-2);
+    color: var(--rr-text);
+    font-size: var(--text-sm);
+    font-family: inherit;
+}
+
+/* Focus ring intentionally omitted — components.css owns the single ring. */
+
+.cmd-search-icon {
+    position: absolute;
+    left: 0.65rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--cmd-text-muted);
+    pointer-events: none;
+}
+
+.cmd-select {
+    padding: var(--space-2) var(--space-2);
+    min-height: 2.75rem;
+    border-radius: var(--rr-radius-s);
+    border: 1px solid var(--rr-border);
+    background: var(--rr-surface-2);
+    color: var(--rr-text);
+    font-size: var(--text-sm);
+    font-family: inherit;
+}
+
+.cmd-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    color: var(--cmd-text-muted);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.cmd-result-count {
+    font-size: 0.83rem;
+    color: var(--cmd-text-muted);
+    margin-left: auto;
+    white-space: nowrap;
+}
+
+/* Button sizes live in components.css. `.rr-btn-xs` used to be redeclared here
+   and immediately lost to the later sheet — dead weight, removed. */
+
+/* ── Map layout ─────────────────────────────────────────────────────────── */
+
+.cmd-map-shell {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+}
+
+@media (min-width: 1024px) {
+    .cmd-map-shell {
+        grid-template-columns: minmax(0, 1fr) 320px;
+    }
+}
+
+.cmd-map-frame {
+    border-radius: var(--rr-radius-l);
+    overflow: hidden;
+    border: 1px solid var(--rr-border);
+    min-height: 520px;
+}
+
+.cmd-map-frame .rapid-map {
+    height: 60vh;
+    min-height: 520px;
+}
+
+.cmd-legend {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.cmd-legend-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: 0.85rem;
+    color: var(--cmd-text-muted);
+}
+
+.cmd-layer-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: 0.5rem 0.7rem;
+    border-radius: var(--rr-radius-s);
+    background: var(--rr-surface-2);
+    font-size: 0.87rem;
+    cursor: pointer;
+}
+
+/* ── Charts ─────────────────────────────────────────────────────────────── */
+
+.cmd-chart {
+    width: 100%;
+    height: auto;
+    overflow: visible;
+}
+
+.cmd-chart-axis {
+    stroke: var(--rr-border);
+    stroke-width: 1;
+}
+
+.cmd-chart-grid {
+    stroke: var(--rr-border);
+    stroke-width: 1;
+    opacity: 0.45;
+}
+
+.cmd-chart-label {
+    fill: var(--cmd-text-muted);
+    /* 9px axis labels were unreadable on a phone. */
+    font-size: var(--text-2xs);
+    font-family: var(--rr-font);
+}
+
+.cmd-chart-bar { fill: var(--rr-primary); }
+.cmd-chart-bar.danger { fill: var(--rr-danger); }
+.cmd-chart-bar.warn { fill: var(--rr-warning); }
+.cmd-chart-bar.muted { fill: var(--cmd-text-muted); opacity: 0.45; }
+
+.cmd-chart-line {
+    fill: none;
+    stroke: var(--rr-primary);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+
+.cmd-chart-line.resolved {
+    stroke: var(--cmd-text-muted);
+    stroke-dasharray: 4 3;
+}
+
+.cmd-chart-legend {
+    display: flex;
+    gap: var(--space-4);
+    font-size: 0.8rem;
+    color: var(--cmd-text-muted);
+    flex-wrap: wrap;
+}
+
+.cmd-chart-key {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.cmd-swatch {
+    width: 12px;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--rr-primary);
+}
+
+.cmd-swatch.muted { background: var(--cmd-text-muted); }
+.cmd-swatch.danger { background: var(--rr-danger); }
+
+/* ── Distribution rows (severity / type) ────────────────────────────────── */
+
+.cmd-dist {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.cmd-dist-row {
+    display: grid;
+    grid-template-columns: minmax(90px, 30%) 1fr auto;
+    align-items: center;
+    gap: var(--space-3);
+    font-size: 0.85rem;
+}
+
+.cmd-dist-name {
+    color: var(--rr-text);
+    font-weight: 550;
+}
+
+.cmd-dist-track {
+    height: 8px;
+    border-radius: var(--rr-radius-pill);
+    background: var(--rr-surface-2);
+    overflow: hidden;
+}
+
+.cmd-dist-fill {
+    height: 100%;
+    border-radius: var(--rr-radius-pill);
+    background: var(--rr-primary);
+}
+
+.cmd-dist-fill.danger { background: var(--rr-danger); }
+.cmd-dist-fill.warn { background: var(--rr-warning); }
+
+.cmd-dist-count {
+    font-variant-numeric: tabular-nums;
+    color: var(--cmd-text-muted);
+    min-width: 3ch;
+    text-align: right;
+}
+
+/* ── Forms in drawers / inline editors ──────────────────────────────────── */
+
+.cmd-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--space-3);
+}
+
+.cmd-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.cmd-field label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--cmd-text-muted);
+}
+
+.cmd-field input,
+.cmd-field select,
+.cmd-field textarea {
+    padding: 0.45rem 0.6rem;
+    border-radius: var(--rr-radius-s);
+    border: 1px solid var(--rr-border);
+    background: var(--rr-surface-2);
+    color: var(--rr-text);
+    font-size: 0.88rem;
+    font-family: inherit;
+}
+
+.cmd-form-actions {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+    grid-column: 1 / -1;
+}
+
+/* ── Audit ──────────────────────────────────────────────────────────────── */
+
+.cmd-audit-action {
+    font-family: var(--rr-font-mono);
+    font-size: 0.79rem;
+    color: var(--rr-text);
+}
+
+.cmd-audit-entity {
+    font-size: 0.76rem;
+    color: var(--cmd-text-muted);
+    word-break: break-all;
+}
+
+/* ── Dialog ─────────────────────────────────────────────────────────────── */
+
+.cmd-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-popover);
+    background: var(--rr-backdrop);
+    backdrop-filter: blur(2px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-4);
+    overflow-y: auto;
+}
+
+.cmd-modal {
+    width: 100%;
+    max-width: 520px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-5);
+    border-radius: var(--rr-radius-l);
+    background: var(--rr-surface);
+    border: 1px solid var(--rr-border);
+    box-shadow: var(--rr-shadow-pop);
+}
+
+.cmd-modal h2 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 650;
+    color: var(--rr-text);
+}

@@ -1,0 +1,217 @@
+@page "/g/audit"
+@layout MainLayout
+@namespace RapidRelief.Client.Features.Command.Pages
+@using RapidRelief.Shared.Contracts.ReadModels
+@using RapidRelief.Shared.Contracts.Services
+@using RapidRelief.Client.Common.Realtime
+@using RapidRelief.Client.Common.Ui
+@using RapidRelief.Client.Features.Command
+@using RapidRelief.Client.Features.Command.Components
+@attribute [Authorize(Roles = "Government")]
+@inject CommandClient Command
+@inject LiveUpdateService Live
+@implements IDisposable
+
+<PageTitle>Audit trail — RapidRelief</PageTitle>
+
+<div class="cmd-layout">
+    <header class="cmd-header">
+        <div>
+            <div class="cmd-role-badge">
+                <AppIcon Name="clock" Size="14" />
+                <span>Audit trail</span>
+            </div>
+            <h1 class="cmd-title">@_total recorded action@(_total == 1 ? "" : "s")</h1>
+            <p class="cmd-subtitle">
+                Who did what, when, to which record, and what came of it. Append-only — entries cannot be edited or deleted from the app.
+            </p>
+        </div>
+        <div class="cmd-header-actions">
+            <button type="button" class="rr-btn rr-btn-ghost rr-btn-sm" @onclick="RefreshAsync" disabled="@_loading">
+                <AppIcon Name="refresh" Size="15" /><span>Refresh</span>
+            </button>
+        </div>
+    </header>
+
+    <CommandTabs Active="g/audit" />
+
+    <div class="cmd-filters">
+        <div class="cmd-search">
+            <span class="cmd-search-icon"><AppIcon Name="search" Size="15" /></span>
+            <input type="search" placeholder="Search summary, actor or record id…" @bind="_query" @bind:event="onchange" aria-label="Search the trail" />
+        </div>
+
+        <select class="cmd-select" aria-label="Action" @onchange="async e => { _action = Empty(e.Value); await RefreshAsync(); }">
+            <option value="">Any action</option>
+            @foreach (var action in _facets?.Actions ?? [])
+            {
+                <option value="@action">@action</option>
+            }
+        </select>
+
+        <select class="cmd-select" aria-label="Record type" @onchange="async e => { _entityType = Empty(e.Value); await RefreshAsync(); }">
+            <option value="">Any record</option>
+            @foreach (var entity in _facets?.EntityTypes ?? [])
+            {
+                <option value="@entity">@entity</option>
+            }
+        </select>
+
+        <select class="cmd-select" aria-label="Time window" @onchange="async e => { _hours = int.TryParse(e.Value?.ToString(), out var h) ? h : 0; await RefreshAsync(); }">
+            <option value="0">All time</option>
+            <option value="6">Last 6 hours</option>
+            <option value="24">Last 24 hours</option>
+            <option value="168">Last 7 days</option>
+        </select>
+
+        <button type="button" class="rr-btn rr-btn-ghost rr-btn-xs" @onclick="RefreshAsync">Apply</button>
+        <span class="cmd-result-count">@_entries.Count shown of @_total</span>
+    </div>
+
+    <section class="cmd-card">
+        @if (_loading)
+        {
+            <p class="cmd-empty">Loading the trail…</p>
+        }
+        else if (_entries.Count == 0)
+        {
+            <p class="cmd-empty">
+                Nothing recorded for these filters. Verifications, dispatches, role changes, shelter edits,
+                broadcasts and relief decisions all land here as they happen.
+            </p>
+        }
+        else
+        {
+            <div class="cmd-table-wrap">
+                <table class="cmd-table">
+                    <thead>
+                        <tr>
+                            <th>When</th>
+                            <th>Who</th>
+                            <th>Action</th>
+                            <th>Record</th>
+                            <th>What happened</th>
+                            <th>Result</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var entry in _entries)
+                        {
+                            <tr>
+                                <td>
+                                    @entry.OccurredAtUtc.ToLocalTime().ToString("dd MMM HH:mm:ss")
+                                    <span class="cmd-sub">@RelativeTime(entry.OccurredAtUtc)</span>
+                                </td>
+                                <td>
+                                    @(string.IsNullOrWhiteSpace(entry.ActorName) ? ActorFallback(entry) : entry.ActorName)
+                                    <span class="cmd-sub">@(string.IsNullOrWhiteSpace(entry.ActorRole) ? entry.Source : entry.ActorRole)</span>
+                                </td>
+                                <td><span class="cmd-audit-action">@entry.Action</span></td>
+                                <td>
+                                    @entry.EntityType
+                                    <span class="cmd-audit-entity">@entry.EntityId</span>
+                                </td>
+                                <td>@entry.Summary</td>
+                                <td><span class="cmd-pill @ResultPill(entry.Result)">@entry.Result</span></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (_total > _entries.Count)
+            {
+                <div class="cmd-form-actions">
+                    <button type="button" class="rr-btn rr-btn-ghost rr-btn-sm" disabled="@_loading" @onclick="LoadMoreAsync">
+                        Load @Math.Min(PageSize, _total - _entries.Count) more
+                    </button>
+                </div>
+            }
+        }
+    </section>
+</div>
+
+@code {
+    private const int PageSize = 50;
+
+    private readonly List<AuditEntryDto> _entries = new();
+    private AuditFacetsDto? _facets;
+    private string? _query;
+    private string? _action;
+    private string? _entityType;
+    private int _hours;
+    private int _page = 1;
+    private int _total;
+    private bool _loading = true;
+    private IDisposable? _live;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _facets = await Command.GetAuditFacetsAsync();
+        await RefreshAsync();
+
+        // No timer: the trail reloads when the operation actually changes.
+        _live = Live.Subscribe(() => InvokeAsync(RefreshAsync), RealtimeTopics.CommandFeed);
+    }
+
+    private async Task RefreshAsync()
+    {
+        _loading = true;
+        _page = 1;
+        var paged = await Command.GetAuditAsync(_action, _entityType, _query, _hours, _page, PageSize);
+        _entries.Clear();
+        if (paged is not null)
+        {
+            _entries.AddRange(paged.Items);
+            _total = paged.TotalCount;
+        }
+
+        _loading = false;
+        StateHasChanged();
+    }
+
+    private async Task LoadMoreAsync()
+    {
+        _loading = true;
+        _page++;
+        var paged = await Command.GetAuditAsync(_action, _entityType, _query, _hours, _page, PageSize);
+        if (paged is not null)
+        {
+            _entries.AddRange(paged.Items);
+            _total = paged.TotalCount;
+        }
+
+        _loading = false;
+        StateHasChanged();
+    }
+
+    public void Dispose() => _live?.Dispose();
+
+    private static string? Empty(object? value)
+    {
+        var text = value?.ToString();
+        return string.IsNullOrWhiteSpace(text) ? null : text;
+    }
+
+    private static string ActorFallback(AuditEntryDto entry) =>
+        entry.ActorId is { } id ? $"#{id.ToString("N")[..6].ToUpperInvariant()}" : "System";
+
+    private static string ResultPill(string result) => result switch
+    {
+        "Rejected" or "Locked" or "Deleted" or "Cancelled" or "Failed" => "danger",
+        "Verified" or "Assigned" or "Resolved" or "Delivered" or "Created" or "Updated" or "Unlocked" => "ok",
+        _ => string.Empty,
+    };
+
+    private static string RelativeTime(DateTimeOffset moment)
+    {
+        var delta = DateTimeOffset.UtcNow - moment;
+        return delta switch
+        {
+            { TotalSeconds: < 60 } => "just now",
+            { TotalMinutes: < 60 } => $"{delta.TotalMinutes:F0} min ago",
+            { TotalHours: < 24 } => $"{delta.TotalHours:F0} h ago",
+            _ => $"{delta.TotalDays:F0} d ago",
+        };
+    }
+}

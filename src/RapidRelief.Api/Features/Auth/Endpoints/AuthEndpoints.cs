@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using FluentValidation;
 using Microsoft.AspNetCore.Identity;
+using RapidRelief.Api.Features.Auth.Data;
 using RapidRelief.Api.Features.Auth.Domain;
 using RapidRelief.Api.Features.Auth.Services;
 using RapidRelief.Api.Infrastructure.Persistence;
@@ -36,6 +37,12 @@ public static class AuthEndpoints
             .AllowAnonymous()
             .RequireRateLimiting("auth");
         group.MapPost("/refresh", RefreshAsync)
+            .AllowAnonymous()
+            .RequireRateLimiting("auth");
+        group.MapPost("/oauth/google-session", GoogleSessionAsync)
+            .AllowAnonymous()
+            .RequireRateLimiting("auth");
+        group.MapPost("/oauth/google-init", GoogleInitAsync)
             .AllowAnonymous()
             .RequireRateLimiting("auth");
         group.MapPost("/logout", LogoutAsync)
@@ -87,8 +94,9 @@ public static class AuthEndpoints
             return created.ToValidationProblem();
         }
 
-        // Server hard-assigns Citizen; the request carries no role field — ever (D-016).
-        var roleResult = await userManager.AddToRoleAsync(user, Roles.Citizen);
+        var assignedRole = ResolveRegistrationRole(request.Role, env);
+
+        var roleResult = await userManager.AddToRoleAsync(user, assignedRole);
         if (!roleResult.Succeeded)
         {
             // Compensate: a stranded role-less account could still log in but would carry no
@@ -99,7 +107,7 @@ public static class AuthEndpoints
 
         await eventBus.PublishAsync(new AuthEvent(user.Id, "Register", null), ct);
 
-        var session = await MintSessionAsync(user, [Roles.Citizen], tokenService, httpContext, env, ct);
+        var session = await MintSessionAsync(user, [assignedRole], tokenService, httpContext, env, ct);
         return Results.Created("/api/auth/profile", new ApiEnvelope<AuthSessionDto>(session));
     }
 
@@ -222,6 +230,7 @@ public static class AuthEndpoints
         ClaimsPrincipal principal,
         UserManager<AppUser> userManager,
         DatabaseHealth databaseHealth,
+        AuthDbContext db,
         CancellationToken ct)
     {
         if (databaseHealth.PostgresAvailable != true)
@@ -233,6 +242,32 @@ public static class AuthEndpoints
         if (user is null)
         {
             return UserNotFound();
+        }
+
+        if (string.IsNullOrWhiteSpace(user.DisplayName) ||
+            user.DisplayName.Equals("Google User", StringComparison.OrdinalIgnoreCase) ||
+            user.DisplayName.Equals("Google-user", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(user.Email, "google-user@rr.dev", StringComparison.OrdinalIgnoreCase))
+        {
+            var neonProfile = await TryGetNeonGoogleProfileAsync(db, user.Email, ct);
+            if (neonProfile is not null)
+            {
+                var changed = false;
+                if (!string.IsNullOrWhiteSpace(neonProfile.Value.Name) && user.DisplayName != neonProfile.Value.Name)
+                {
+                    user.DisplayName = neonProfile.Value.Name;
+                    changed = true;
+                }
+                if (!string.IsNullOrWhiteSpace(neonProfile.Value.Image) && string.IsNullOrEmpty(user.PhotoPath))
+                {
+                    user.PhotoPath = neonProfile.Value.Image;
+                    changed = true;
+                }
+                if (changed)
+                {
+                    await userManager.UpdateAsync(user);
+                }
+            }
         }
 
         var profile = BuildProfile(user, (await userManager.GetRolesAsync(user)).ToList());
@@ -428,6 +463,35 @@ public static class AuthEndpoints
     private static bool TryGetUserId(ClaimsPrincipal principal, out Guid userId) =>
         Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out userId);
 
+    /// <summary>
+    /// Rescuer is an operational role: it unlocks the dispatch queue, the team registry and every
+    /// reporter's precise location. A user can only become a rescuer if granted access by an
+    /// administrator/government (promoted through PUT /api/auth/users/{id}/roles).
+    /// All normal registrations default to Citizen.
+    /// </summary>
+    private static string ResolveRegistrationRole(string? requestedRole, IHostEnvironment env)
+        => Roles.Citizen;
+
+    /// <summary>
+    /// Accepts a requested OAuth callback only when it stays on this deployment's own origin;
+    /// anything else falls back to the canonical callback path.
+    /// </summary>
+    internal static string SameOriginCallback(string? requested, string origin)
+    {
+        var fallback = $"{origin}/auth/callback";
+        if (string.IsNullOrWhiteSpace(requested))
+        {
+            return fallback;
+        }
+
+        return Uri.TryCreate(requested, UriKind.Absolute, out var candidate)
+               && Uri.TryCreate(origin, UriKind.Absolute, out var self)
+               && candidate.Scheme == self.Scheme
+               && string.Equals(candidate.Authority, self.Authority, StringComparison.OrdinalIgnoreCase)
+            ? candidate.ToString()
+            : fallback;
+    }
+
     private static CookieOptions BuildCookieOptions(IHostEnvironment env, DateTimeOffset? expires)
     {
         var options = new CookieOptions
@@ -471,6 +535,235 @@ public static class AuthEndpoints
             ".webp" => "image/webp",
             _ => "application/octet-stream",
         };
+
+    private static async Task<IResult> GoogleInitAsync(
+        GoogleInitRequest request,
+        IHttpClientFactory httpClientFactory,
+        HttpContext httpContext,
+        CancellationToken ct)
+    {
+        try
+        {
+            var origin = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}";
+            var client = httpClientFactory.CreateClient();
+            var payload = new
+            {
+                provider = "google",
+                // Never forward a caller-supplied callback verbatim: it is the address the OAuth
+                // result is delivered to, so an attacker-chosen value turns this into an open
+                // redirect that hands them the victim's sign-in.
+                callbackURL = SameOriginCallback(request.CallbackUrl, origin),
+            };
+
+            using var msg = new HttpRequestMessage(HttpMethod.Post, "https://ep-little-mountain-b3ttfx56.neonauth.c-4.ap-southeast-1.aws.neon.tech/neondb/auth/sign-in/social");
+            msg.Headers.Add("Origin", origin);
+            msg.Content = JsonContent.Create(payload);
+
+            using var resp = await client.SendAsync(msg, ct);
+            if (resp.IsSuccessStatusCode)
+            {
+                var json = await resp.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>(cancellationToken: ct);
+                if (json.TryGetProperty("url", out var urlProp) && urlProp.GetString() is { Length: > 0 } u)
+                {
+                    return Results.Ok(new { url = u });
+                }
+            }
+        }
+        catch
+        {
+            // fallback
+        }
+
+        var fallbackUrl = "https://ep-little-mountain-b3ttfx56.neonauth.c-4.ap-southeast-1.aws.neon.tech/neondb/auth";
+        return Results.Ok(new { url = fallbackUrl });
+    }
+
+    private static async Task<IResult> GoogleSessionAsync(
+        GoogleSessionRequest request,
+        UserManager<AppUser> userManager,
+        ITokenService tokenService,
+        IEventBus eventBus,
+        DatabaseHealth databaseHealth,
+        AuthDbContext db,
+        HttpContext httpContext,
+        IHostEnvironment env,
+        CancellationToken ct)
+    {
+        // SECURITY (audit 2026-09-03): this endpoint mints a full session from a caller-supplied
+        // e-mail without verifying any provider token — an authentication bypass for every account.
+        // Refused outside local dev until the Neon Auth session is validated server-side.
+        if (!env.IsDevelopment() && !env.IsEnvironment("Testing"))
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Not found");
+        }
+
+        if (databaseHealth.PostgresAvailable != true)
+        {
+            return DatabaseUnavailable();
+        }
+
+        var effectiveEmail = request.Email?.Trim() ?? string.Empty;
+        var effectiveDisplayName = request.DisplayName?.Trim();
+        var effectivePhoto = request.PhotoUrl;
+
+        // Resolve authentic Google account profile from neon_auth tables
+        var neonProfile = await TryGetNeonGoogleProfileAsync(db, effectiveEmail, ct);
+        if (neonProfile is not null)
+        {
+            if (string.IsNullOrWhiteSpace(effectiveEmail) || effectiveEmail.Equals("google-user@rr.dev", StringComparison.OrdinalIgnoreCase))
+            {
+                effectiveEmail = neonProfile.Value.Email ?? effectiveEmail;
+            }
+
+            if (string.IsNullOrWhiteSpace(effectiveDisplayName) ||
+                effectiveDisplayName.Equals("Google User", StringComparison.OrdinalIgnoreCase) ||
+                effectiveDisplayName.Equals("Google-user", StringComparison.OrdinalIgnoreCase))
+            {
+                effectiveDisplayName = neonProfile.Value.Name ?? effectiveDisplayName;
+            }
+
+            effectivePhoto ??= neonProfile.Value.Image;
+        }
+
+        if (string.IsNullOrWhiteSpace(effectiveEmail))
+        {
+            return Results.BadRequest("Email is required");
+        }
+
+        var assignedRole = ResolveRegistrationRole(request.Role, env);
+
+        var user = await userManager.FindByEmailAsync(effectiveEmail);
+        if (user is null)
+        {
+            user = new AppUser
+            {
+                UserName = effectiveEmail,
+                Email = effectiveEmail,
+                DisplayName = string.IsNullOrWhiteSpace(effectiveDisplayName)
+                    ? (effectiveEmail.Contains('@') ? effectiveEmail.Split('@')[0] : effectiveEmail)
+                    : effectiveDisplayName,
+                PhotoPath = effectivePhoto,
+                EmailConfirmed = true,
+            };
+            var createResult = await userManager.CreateAsync(user);
+            if (!createResult.Succeeded)
+            {
+                return createResult.ToValidationProblem();
+            }
+
+            var roleResult = await userManager.AddToRoleAsync(user, assignedRole);
+            if (!roleResult.Succeeded)
+            {
+                await userManager.DeleteAsync(user);
+                return roleResult.ToValidationProblem();
+            }
+
+            await eventBus.PublishAsync(new AuthEvent(user.Id, "RegisterGoogle", null), ct);
+        }
+        else
+        {
+            var changed = false;
+            if (!string.IsNullOrWhiteSpace(effectiveDisplayName) &&
+                (string.IsNullOrWhiteSpace(user.DisplayName) ||
+                 user.DisplayName.Equals("Google User", StringComparison.OrdinalIgnoreCase) ||
+                 user.DisplayName.Equals("Google-user", StringComparison.OrdinalIgnoreCase) ||
+                 user.DisplayName != effectiveDisplayName))
+            {
+                user.DisplayName = effectiveDisplayName;
+                changed = true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(effectivePhoto) && user.PhotoPath != effectivePhoto)
+            {
+                user.PhotoPath = effectivePhoto;
+                changed = true;
+            }
+
+            if (changed)
+            {
+                await userManager.UpdateAsync(user);
+            }
+
+            var userRoles = await userManager.GetRolesAsync(user);
+            if (userRoles.Count == 0)
+            {
+                await userManager.AddToRoleAsync(user, assignedRole);
+            }
+            else if (!string.IsNullOrEmpty(request.Role) && !userRoles.Contains(assignedRole) && (assignedRole == Roles.Citizen || assignedRole == Roles.Rescuer))
+            {
+                await userManager.AddToRoleAsync(user, assignedRole);
+            }
+        }
+
+        if (user.LockoutEnd > DateTimeOffset.UtcNow)
+        {
+            return Results.Unauthorized();
+        }
+
+        var roles = (await userManager.GetRolesAsync(user)).ToArray();
+        var session = await MintSessionAsync(user, roles, tokenService, httpContext, env, ct);
+        return Results.Ok(new ApiEnvelope<AuthSessionDto>(session));
+    }
+
+    private static async Task<(string? Name, string? Email, string? Image)?> TryGetNeonGoogleProfileAsync(
+        AuthDbContext db,
+        string? requestEmail,
+        CancellationToken ct)
+    {
+        try
+        {
+            var conn = Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.GetDbConnection(db.Database);
+            if (conn.State != System.Data.ConnectionState.Open)
+            {
+                await conn.OpenAsync(ct);
+            }
+
+            using var cmd = conn.CreateCommand();
+
+            if (!string.IsNullOrWhiteSpace(requestEmail) && !requestEmail.Equals("google-user@rr.dev", StringComparison.OrdinalIgnoreCase))
+            {
+                cmd.CommandText = "SELECT name, email, image FROM neon_auth.user WHERE LOWER(email) = LOWER(@email) LIMIT 1;";
+                var p = cmd.CreateParameter();
+                p.ParameterName = "@email";
+                p.Value = requestEmail;
+                cmd.Parameters.Add(p);
+
+                using var reader = await cmd.ExecuteReaderAsync(ct);
+                if (await reader.ReadAsync(ct))
+                {
+                    var name = reader.IsDBNull(0) ? null : reader.GetString(0);
+                    var email = reader.IsDBNull(1) ? null : reader.GetString(1);
+                    var image = reader.IsDBNull(2) ? null : reader.GetString(2);
+                    return (name, email, image);
+                }
+            }
+
+            cmd.Parameters.Clear();
+            cmd.CommandText = @"
+                SELECT u.name, u.email, u.image
+                FROM neon_auth.session s
+                JOIN neon_auth.user u ON s.""userId"" = u.id
+                ORDER BY s.""createdAt"" DESC
+                LIMIT 1;";
+
+            using var sessionReader = await cmd.ExecuteReaderAsync(ct);
+            if (await sessionReader.ReadAsync(ct))
+            {
+                var name = sessionReader.IsDBNull(0) ? null : sessionReader.GetString(0);
+                var email = sessionReader.IsDBNull(1) ? null : sessionReader.GetString(1);
+                var image = sessionReader.IsDBNull(2) ? null : sessionReader.GetString(2);
+                return (name, email, image);
+            }
+        }
+        catch
+        {
+            // Fall back safely if neon_auth schema is not available (e.g. SQLite tests or offline)
+        }
+
+        return null;
+    }
 
     internal static IResult DatabaseUnavailable() => Results.Problem(
         statusCode: StatusCodes.Status503ServiceUnavailable,

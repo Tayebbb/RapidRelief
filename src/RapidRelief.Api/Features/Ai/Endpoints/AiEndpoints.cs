@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using RapidRelief.Api.Features.Ai.Data;
 using RapidRelief.Api.Infrastructure.Persistence;
+using RapidRelief.Api.Infrastructure.Auth;
 using RapidRelief.Shared.Contracts.Common;
 using RapidRelief.Shared.Contracts.Enums;
 using RapidRelief.Shared.Contracts.Services;
@@ -43,7 +44,9 @@ public static class AiEndpoints
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         var group = endpoints.MapGroup("/api/ai")
-            .RequireAuthorization()
+            // Responder-only: an incident id is not a secret, and these routes expose the AI
+            // summary and location-derived recommendations for ANY incident by id.
+            .RequireAuthorization(AuthPolicies.RequireResponder)
             .RequireRateLimiting("ai");
         group.AddEndpointFilter(CacheControlNoStoreFilter);
 
@@ -51,7 +54,14 @@ public static class AiEndpoints
         group.MapGet("/recommendations/shelter", GetShelterRecommendationsAsync);
         group.MapGet("/recommendations/team", GetTeamRecommendationsAsync);
         group.MapGet("/recommendations/resource", GetResourceRecommendationsAsync);
+
+        AiInsightEndpoints.Map(endpoints);
     }
+
+    internal static Guid? CallerId(HttpContext context)
+        => Guid.TryParse(context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var id)
+            ? id
+            : null;
 
     private static async Task<IResult> GetAssessmentAsync(
         Guid incidentId,

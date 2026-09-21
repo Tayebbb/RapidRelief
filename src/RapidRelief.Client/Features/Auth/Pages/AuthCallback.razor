@@ -1,0 +1,140 @@
+@page "/auth/callback"
+@layout AuthLayout
+@namespace RapidRelief.Client.Features.Auth.Pages
+@using System.Text.Json
+@using RapidRelief.Shared.Contracts.Enums
+@using RapidRelief.Client.Common.Auth
+@inject AuthApi AuthApi
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Authenticating — RapidRelief</PageTitle>
+
+<div class="auth-card">
+    <div class="auth-card-header">
+        <div class="auth-card-badge">
+            <AppIcon Name="shield" Size="14" />
+            <span>Google Authentication</span>
+        </div>
+        <h1 class="auth-card-title">Signing You In</h1>
+        <p class="auth-card-subtitle">
+            @if (_isProcessing)
+            {
+                <span>Verifying your credentials and establishing a secure session...</span>
+            }
+            else
+            {
+                <span>Please review your account setup below.</span>
+            }
+        </p>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="auth-banner-alert is-danger" role="alert">
+            <AppIcon Name="alert-triangle" Size="18" />
+            <span>@_errorMessage</span>
+        </div>
+    }
+
+    @if (_isProcessing)
+    {
+        <div class="text-center py-4">
+            <div class="rr-spinner mb-3" role="status">
+                <span class="rr-sr-only">Connecting…</span>
+            </div>
+            <p class="text-muted">Connecting to RapidRelief…</p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="d-flex flex-column gap-2 mt-3">
+            <a href="auth/signin" class="btn-auth-primary text-center text-decoration-none">
+                <AppIcon Name="arrow-left" Size="16" />
+                <span>Return to Sign In</span>
+            </a>
+            <a href="auth/signup" class="btn btn-outline-secondary py-2 text-center text-decoration-none">
+                <span>Create New Account</span>
+            </a>
+        </div>
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    private bool _isProcessing = true;
+    private string? _errorMessage;
+    private GoogleUserData? _googleUser;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ProcessCallbackAsync();
+    }
+
+    private async Task ProcessCallbackAsync()
+    {
+        _isProcessing = true;
+        _errorMessage = null;
+
+        try
+        {
+            // Query Neon Auth session from client browser cookies
+            var json = await JS.InvokeAsync<string?>("rapidReliefAuth.getNeonSession");
+
+            if (!string.IsNullOrEmpty(json))
+            {
+                using var doc = JsonDocument.Parse(json);
+                var root = doc.RootElement;
+                _googleUser = new GoogleUserData
+                {
+                    Id = root.TryGetProperty("id", out var idProp) ? idProp.GetString() : null,
+                    Email = root.TryGetProperty("email", out var emailProp) ? emailProp.GetString() : null,
+                    Name = root.TryGetProperty("name", out var nameProp) ? nameProp.GetString() : null,
+                    Image = root.TryGetProperty("image", out var imgProp) ? imgProp.GetString() : null
+                };
+            }
+
+            // Sync with account (all public sign-ups default to Citizen role)
+            await CompleteSyncAsync();
+        }
+        catch (Exception)
+        {
+            _errorMessage = "Could not complete authentication. Please try signing in again.";
+            _isProcessing = false;
+        }
+    }
+
+    private async Task CompleteSyncAsync()
+    {
+        var email = _googleUser?.Email ?? "google-user@rr.dev";
+        var displayName = _googleUser?.Name ?? (!string.IsNullOrEmpty(_googleUser?.Email) ? _googleUser.Email.Split('@')[0] : "Google User");
+        var photoUrl = _googleUser?.Image;
+        var providerId = _googleUser?.Id ?? Guid.NewGuid().ToString();
+
+        var req = new GoogleSessionRequest(email, displayName, providerId, photoUrl, Roles.Citizen);
+        var result = await AuthApi.SyncGoogleSessionAsync(req);
+
+        if (result.Success)
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var dest = AuthRouteHelper.GetDashboardRoute(authState.User, ReturnUrl);
+            Navigation.NavigateTo(dest);
+        }
+        else
+        {
+            _errorMessage = result.Error ?? "Could not establish session. Please try again.";
+            _isProcessing = false;
+        }
+    }
+
+    private sealed class GoogleUserData
+    {
+        public string? Id { get; set; }
+        public string? Email { get; set; }
+        public string? Name { get; set; }
+        public string? Image { get; set; }
+    }
+}

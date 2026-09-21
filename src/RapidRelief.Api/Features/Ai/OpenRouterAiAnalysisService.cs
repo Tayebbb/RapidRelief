@@ -12,7 +12,9 @@ internal sealed record AiAnalysisOutcome(
     string? ModelName,
     int LatencyMs,
     int? TokensUsed,
-    string? FinishReason);
+    string? FinishReason,
+    AiFindings Findings,
+    string? DegradedReason);
 
 /// <summary>
 /// D-028 composite provider chain: empty Ai:OpenRouter:ApiKey → straight to rule-based;
@@ -62,14 +64,14 @@ internal sealed class OpenRouterAiAnalysisService : IAiAnalysisService
         if (string.IsNullOrWhiteSpace(apiKey))
         {
             // D-028: missing key never crashes and never counts against the breaker.
-            return await FallbackAsync(request, stopwatch, ct);
+            return await FallbackAsync(request, stopwatch, ct, "No model provider is configured");
         }
 
         if (!_breaker.TryEnter())
         {
             _logger.LogInformation("OpenRouter breaker open — rule-based fallback for incident {IncidentId}",
                 request.IncidentId);
-            return await FallbackAsync(request, stopwatch, ct);
+            return await FallbackAsync(request, stopwatch, ct, "Model provider is temporarily circuit-broken");
         }
 
         IReadOnlyList<string> models = ModelsFor(isVision: false);
@@ -95,7 +97,7 @@ internal sealed class OpenRouterAiAnalysisService : IAiAnalysisService
                 _logger.LogInformation(
                     "OpenRouter blocked the request for incident {IncidentId} ({Reason}) — rule-based fallback",
                     request.IncidentId, result.RejectReason);
-                return await FallbackAsync(request, stopwatch, ct);
+                return await FallbackAsync(request, stopwatch, ct, "Model provider declined to assess this report");
             }
 
             var parsed = result.Parsed!;
@@ -113,7 +115,8 @@ internal sealed class OpenRouterAiAnalysisService : IAiAnalysisService
 
             var dto = new AiAssessmentDto(request.IncidentId, parsed.PredictedType, severity,
                 priority, parsed.Summary, PossibleDuplicateOfId: null, Provider: "OpenRouter");
-            return new AiAnalysisOutcome(dto, parsed.ModelName, LatencyMs(stopwatch), parsed.TotalTokenCount, parsed.FinishReason);
+            return new AiAnalysisOutcome(dto, parsed.ModelName, LatencyMs(stopwatch), parsed.TotalTokenCount,
+                parsed.FinishReason, Merge(request, parsed, photo is not null), DegradedReason: null);
         }
         catch (AiProviderBlockedException ex)
         {
@@ -122,7 +125,7 @@ internal sealed class OpenRouterAiAnalysisService : IAiAnalysisService
             _logger.LogInformation(
                 "OpenRouter flagged the input for incident {IncidentId} ({Reason}) — rule-based fallback",
                 request.IncidentId, ex.Message);
-            return await FallbackAsync(request, stopwatch, ct);
+            return await FallbackAsync(request, stopwatch, ct, "Model provider flagged the report text");
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -138,8 +141,41 @@ internal sealed class OpenRouterAiAnalysisService : IAiAnalysisService
             _logger.LogWarning(
                 "OpenRouter path failed for incident {IncidentId} ({ExceptionType}) after {LatencyMs} ms on model {Model} — falling back to rule-based: {Reason}",
                 request.IncidentId, ex.GetType().Name, stopwatch.ElapsedMilliseconds, models[0], ex.Message);
-            return await FallbackAsync(request, stopwatch, ct);
+            return await FallbackAsync(request, stopwatch, ct, $"Model provider unavailable ({ex.GetType().Name})");
         }
+    }
+
+    /// <summary>
+    /// The model supplies judgement; the deterministic reader supplies evidence. Union the two so
+    /// a terse model answer still carries the indicators the text plainly contains, and a reported
+    /// head count is never overwritten by a lower guess.
+    /// </summary>
+    private AiFindings Merge(AiAnalysisRequest request, ParsedAssessment parsed, bool sawPhoto)
+    {
+        var signals = IncidentSignalReader.Read(request.Description);
+
+        var indicators = parsed.DamageIndicators
+            .Concat(signals.DamageIndicators)
+            .Select(i => i.Trim())
+            .Where(i => i.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(8)
+            .ToList();
+
+        var people = request.AffectedPeopleCount > 0
+            ? Math.Max(request.AffectedPeopleCount, parsed.EstimatedPeopleAffected ?? 0)
+            : parsed.EstimatedPeopleAffected ?? signals.PeopleMentioned;
+
+        var reasoning = string.IsNullOrWhiteSpace(parsed.Reasoning)
+            ? $"Model {parsed.ModelName ?? "response"} returned {parsed.PredictedType} at severity {parsed.Severity}/5 without stating its evidence."
+            : parsed.Reasoning;
+        reasoning += sawPhoto
+            ? " A photo from the report was analysed."
+            : " No photo was available, so this is a text-only assessment.";
+
+        return new AiFindings(parsed.PredictedType, (Severity)parsed.Severity, parsed.Confidence,
+            indicators, people, parsed.MedicalUrgency || signals.MedicalUrgency,
+            parsed.Summary, reasoning);
     }
 
     /// <summary>D-061/D-062 model pairs from config; empty fallback ⇒ single-element array.</summary>
@@ -214,11 +250,13 @@ internal sealed class OpenRouterAiAnalysisService : IAiAnalysisService
     };
 
     private async Task<AiAnalysisOutcome> FallbackAsync(
-        AiAnalysisRequest request, Stopwatch stopwatch, CancellationToken ct)
+        AiAnalysisRequest request, Stopwatch stopwatch, CancellationToken ct, string degradedReason)
     {
+        var findings = _fallback.Analyze(request);
         var dto = await _fallback.AnalyzeIncidentAsync(request, ct);
         stopwatch.Stop();
-        return new AiAnalysisOutcome(dto, ModelName: null, LatencyMs(stopwatch), TokensUsed: null, FinishReason: null);
+        return new AiAnalysisOutcome(dto, ModelName: null, LatencyMs(stopwatch), TokensUsed: null,
+            FinishReason: null, findings, degradedReason);
     }
 
     private static int LatencyMs(Stopwatch stopwatch)

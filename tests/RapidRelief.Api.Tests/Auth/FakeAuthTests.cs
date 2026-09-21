@@ -32,9 +32,9 @@ public sealed class FakeAuthTests : IClassFixture<TestingWebAppFactory>
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         var data = body.RootElement.GetProperty("data");
-        Assert.Equal("admin1@rr.dev", data.GetProperty("name").GetString());
-        Assert.Equal(FakeAuthHandler.SeedUserIds[Roles.Admin].ToString(), data.GetProperty("id").GetString());
-        Assert.Contains(Roles.Admin, data.GetProperty("roles").EnumerateArray().Select(r => r.GetString()));
+        Assert.Equal("government1@rr.dev", data.GetProperty("name").GetString());
+        Assert.Equal(FakeAuthHandler.SeedUserIds[Roles.Government].ToString(), data.GetProperty("id").GetString());
+        Assert.Contains(Roles.Government, data.GetProperty("roles").EnumerateArray().Select(r => r.GetString()));
     }
 
     [Fact]

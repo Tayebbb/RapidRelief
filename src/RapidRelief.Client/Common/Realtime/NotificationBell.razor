@@ -1,46 +1,88 @@
 @namespace RapidRelief.Client.Common.Realtime
+@using System.Security.Claims
+@using RapidRelief.Client.Common.Auth
+@using RapidRelief.Client.Common.Ui
+@using RapidRelief.Shared.Contracts.Enums
 @implements IDisposable
 @inject NotificationState State
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
 
-@* Every value below is rendered with plain @-interpolation: notification text can originate
-   from AI output or user-submitted content, so Blazor's automatic HTML encoding is the
-   defence. MarkupString / innerHTML are forbidden here. *@
+@* Every summary/title value below is rendered with plain @-interpolation: notification text can originate
+   from AI output or user-submitted content, so Blazor's automatic HTML encoding is the defence.
+   MarkupString / innerHTML are forbidden here. *@
 <div class="notification-bell">
-    <button class="btn btn-sm btn-outline-secondary position-relative" type="button"
-            title="@(State.HubConnected ? "Live" : "Polling")" aria-label="@($"Notifications ({State.UnreadCount} unread)")"
+    <button class="rr-icon-btn bell-btn @(_open ? "is-active" : "")" type="button"
+            title="@(State.HubConnected ? "Notifications — live" : "Notifications — polling")"
+            aria-label="@($"Notifications ({State.UnreadCount} unread)")" aria-expanded="@_open"
             @onclick="Toggle">
-        <span aria-hidden="true">🔔</span>
+        <AppIcon Name="bell" Size="19" />
         @if (State.BadgeText.Length > 0)
         {
-            <span class="badge bg-danger">@State.BadgeText</span>
+            <span class="bell-badge">@State.BadgeText</span>
         }
     </button>
 
     @if (_open)
     {
-        <div class="notification-panel">
+        <div class="notification-backdrop" @onclick="Toggle"></div>
+        <div class="notification-panel" @onclick:stopPropagation="true">
             <div class="notification-panel-head">
-                <strong>Notifications</strong>
-                <button class="btn btn-link btn-sm" type="button" disabled="@_busy" @onclick="MarkAllAsync">
-                    Mark all read
-                </button>
+                <div class="d-flex align-items-center gap-2">
+                    <strong>Notifications</strong>
+                    @if (State.UnreadCount > 0)
+                    {
+                        <span class="panel-unread-pill">@State.UnreadCount unread</span>
+                    }
+                </div>
+                @if (State.UnreadCount > 0)
+                {
+                    <button class="btn btn-link btn-sm p-0 mark-all-btn" type="button" disabled="@_busy" @onclick="MarkAllAsync">
+                        Mark all read
+                    </button>
+                }
             </div>
+
             @if (State.Items.Count == 0)
             {
-                <p class="notification-empty">Nothing yet.</p>
+                <p class="notification-empty">Nothing yet — alerts and AI assessments will appear here.</p>
             }
             else
             {
                 <ul class="notification-list">
                     @foreach (var item in State.Items.Take(MaxInPanel))
                     {
-                        <li class="@(item.IsRead ? "read" : "unread")">
-                            <span class="notification-summary">@item.Summary</span>
-                            <span class="notification-meta">@item.Topic · @item.CreatedAtUtc.ToLocalTime().ToString("t")</span>
+                        var details = NotificationActionHelper.Parse(item, _userRole);
+                        <li class="notif-item @(item.IsRead ? "read" : "unread") @(details.IsSos ? "is-sos" : "")"
+                            @onclick="() => OnNotificationClick(item, details.TargetUrl)"
+                            role="button"
+                            tabindex="0"
+                            title="Tap to open in @details.ActionLabel">
+                            <div class="notif-content-wrapper">
+                                <div class="notif-badges-line">
+                                    <span class="notif-tag @details.CategoryBadgeClass">
+                                        <AppIcon Name="@details.CategoryIcon" Size="11" />
+                                        <span>@details.Category</span>
+                                    </span>
+                                    @if (!string.IsNullOrEmpty(details.BadgeText))
+                                    {
+                                        <span class="notif-status-pill @details.BadgeClass">@details.BadgeText</span>
+                                    }
+                                </div>
+                                <span class="notification-summary">@item.Summary</span>
+                                <div class="notif-meta-line">
+                                    <span class="notification-meta">@item.Topic · @item.CreatedAtUtc.ToLocalTime().ToString("t")</span>
+                                    <span class="notif-action-hint">
+                                        <span>@details.ActionLabel</span>
+                                        <AppIcon Name="arrow-right" Size="11" />
+                                    </span>
+                                </div>
+                            </div>
                             @if (!item.IsRead)
                             {
-                                <button class="btn btn-link btn-sm" type="button" disabled="@_busy"
-                                        @onclick="() => MarkReadAsync(item.Id)">
+                                <button class="btn btn-link btn-sm notif-mark-btn" type="button" disabled="@_busy"
+                                        @onclick="() => MarkReadAsync(item.Id)" @onclick:stopPropagation="true"
+                                        title="Mark read without opening">
                                     Mark read
                                 </button>
                             }
@@ -48,22 +90,87 @@
                     }
                 </ul>
             }
-            <a class="notification-all" href="notifications">Open inbox</a>
+
+            <div class="notification-panel-foot">
+                <a class="notification-all" href="notifications" @onclick="Toggle">
+                    <span>Open inbox</span>
+                    <AppIcon Name="arrow-right" Size="13" />
+                </a>
+            </div>
         </div>
     }
 </div>
 
 @code {
-    private const int MaxInPanel = 5;
+    private const int MaxInPanel = 6;
 
     private bool _open;
     private bool _busy;
+    private string _userRole = Roles.Citizen;
 
-    protected override void OnInitialized() => State.Changed += OnStateChanged;
+    protected override void OnInitialized()
+    {
+        State.Changed += OnStateChanged;
+    }
 
-    private void Toggle() => _open = !_open;
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUserRoleAsync();
+    }
+
+    private async Task LoadUserRoleAsync()
+    {
+        try
+        {
+            var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = auth.User;
+            if (user?.Identity?.IsAuthenticated == true)
+            {
+                if (user.IsInRole(Roles.Government))
+                {
+                    _userRole = Roles.Government;
+                }
+                else if (user.IsInRole(Roles.Rescuer))
+                {
+                    _userRole = Roles.Rescuer;
+                }
+                else
+                {
+                    _userRole = Roles.Citizen;
+                }
+            }
+        }
+        catch
+        {
+            _userRole = Roles.Citizen;
+        }
+    }
+
+    private void Toggle()
+    {
+        _open = !_open;
+        if (_open)
+        {
+            _ = LoadUserRoleAsync();
+        }
+    }
 
     private void OnStateChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private async Task OnNotificationClick(NotificationDto item, string? targetUrl)
+    {
+        _open = false;
+
+        if (!item.IsRead)
+        {
+            await State.MarkReadAsync(item.Id);
+        }
+
+        if (!string.IsNullOrWhiteSpace(targetUrl))
+        {
+            Navigation.NavigateTo(targetUrl);
+        }
+    }
 
     private async Task MarkReadAsync(Guid id)
     {

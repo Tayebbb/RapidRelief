@@ -1,0 +1,18 @@
+@inherits LayoutComponentBase
+@namespace RapidRelief.Client.Layout
+@using RapidRelief.Client.Features.Landing.Components
+
+<a class="skip-link" href="#rr-landing-main">Skip to main content</a>
+
+<div class="landing-wrapper">
+    <LandingNavbar />
+
+    <main id="rr-landing-main" tabindex="-1">
+        @Body
+    </main>
+
+    <LandingFooter />
+</div>
+
+@* Live push toasts. Rendered outside AuthorizeView so any session receives alerts. *@
+<ToastHost />

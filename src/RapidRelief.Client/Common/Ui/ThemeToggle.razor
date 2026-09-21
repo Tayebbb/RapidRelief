@@ -1,0 +1,44 @@
+@namespace RapidRelief.Client.Common.Ui
+@inject IJSRuntime Js
+
+@* Light/dark toggle backed by js/theme.js (localStorage stores ONLY the theme preference).
+   Icon shows the mode you would switch TO. *@
+<button class="rr-icon-btn" type="button" @onclick="ToggleAsync"
+        title="@(_theme == "dark" ? "Switch to light mode" : "Switch to dark mode")"
+        aria-label="@(_theme == "dark" ? "Switch to light mode" : "Switch to dark mode")">
+    <AppIcon Name="@(_theme == "dark" ? "sun" : "moon")" Size="19" />
+</button>
+
+@code {
+    private string _theme = "light";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        try
+        {
+            _theme = await Js.InvokeAsync<string>("rrTheme.get");
+            StateHasChanged();
+        }
+        catch (JSException)
+        {
+            // theme.js missing — the toggle still works from its default state.
+        }
+    }
+
+    private async Task ToggleAsync()
+    {
+        try
+        {
+            _theme = await Js.InvokeAsync<string>("rrTheme.toggle");
+        }
+        catch (JSException)
+        {
+            // Never let a cosmetic control throw.
+        }
+    }
+}

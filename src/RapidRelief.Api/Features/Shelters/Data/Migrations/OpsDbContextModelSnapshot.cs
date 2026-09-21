@@ -23,6 +23,46 @@ namespace RapidRelief.Api.Features.Shelters.Data.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("RapidRelief.Api.Features.Shelters.Domain.SafetyZone", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AdvisoryText")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("PolygonGeoJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("RiskLevel")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("ZoneType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ops_safety_zones", (string)null);
+                });
+
             modelBuilder.Entity("RapidRelief.Api.Features.Shelters.Domain.Shelter", b =>
                 {
                     b.Property<Guid>("Id")
@@ -50,6 +90,38 @@ namespace RapidRelief.Api.Features.Shelters.Data.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("ops_shelters", (string)null);
+                });
+
+            modelBuilder.Entity("RapidRelief.Api.Features.Shelters.Domain.ShelterSupply", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("LastReplenishedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<double>("Quantity")
+                        .HasColumnType("double precision");
+
+                    b.Property<Guid>("ShelterId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SupplyType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShelterId");
+
+                    b.ToTable("ops_shelter_supplies", (string)null);
                 });
 
             modelBuilder.Entity("RapidRelief.Api.Features.Shelters.Domain.Shelter", b =>

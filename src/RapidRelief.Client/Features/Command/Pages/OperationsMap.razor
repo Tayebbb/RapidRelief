@@ -1,0 +1,201 @@
+@page "/g/map"
+@layout MainLayout
+@namespace RapidRelief.Client.Features.Command.Pages
+@using RapidRelief.Shared.Contracts.Common
+@using RapidRelief.Shared.Contracts.Enums
+@using RapidRelief.Shared.Contracts.ReadModels
+@using RapidRelief.Client.Common.Map
+@using RapidRelief.Client.Features.Command.Components
+@using RapidRelief.Client.Common.Ui
+@using RapidRelief.Client.Common.Realtime
+@using RapidRelief.Client.Features.Command
+@using RapidRelief.Client.Features.Rescue
+@using RapidRelief.Client.Features.Shelters
+@using RapidRelief.Client.Features.Relief
+@using RapidRelief.Shared.Contracts.Services
+@attribute [Authorize(Roles = "Government")]
+@inject CommandClient Command
+@inject RescueClient Rescue
+@inject SheltersClient Shelters
+@inject ReliefClient Relief
+@inject MapConfigService MapConfig
+@inject LiveUpdateService Live
+@implements IDisposable
+
+<PageTitle>Operational map — RapidRelief</PageTitle>
+
+<div class="cmd-layout">
+    <header class="cmd-header">
+        <div>
+            <div class="cmd-role-badge">
+                <AppIcon Name="map" Size="14" />
+                <span>Operational map</span>
+            </div>
+            <h1 class="cmd-title">@_map.VisibleItems.Count point@(_map.VisibleItems.Count == 1 ? "" : "s") on the map
+            </h1>
+            <p class="cmd-subtitle">Incidents, rescue teams, shelters and relief drop-offs in one picture.</p>
+        </div>
+        <div class="cmd-header-actions">
+            <RealtimeIndicator />
+            <button type="button" class="rr-btn rr-btn-ghost rr-btn-sm" @onclick="RefreshAsync" disabled="@_loading">
+                <AppIcon Name="refresh" Size="15" /><span>Refresh</span>
+            </button>
+        </div>
+    </header>
+
+    <CommandTabs Active="g/map" />
+
+    <div class="cmd-map-shell">
+        <div class="cmd-map-frame">
+            <RapidMap View="_map" InitialCenter="@_map.Center" InitialZoom="12" />
+        </div>
+
+        <aside class="cmd-card">
+            <header class="cmd-card-head">
+                <div>
+                    <h2>Layers</h2>
+                    <p>Turn off what you are not commanding right now.</p>
+                </div>
+            </header>
+
+            <div class="cmd-legend">
+                @foreach (var entry in _map.Legend)
+                {
+                    var layer = entry.Layer;
+                    <label class="cmd-layer-toggle">
+                        <span class="cmd-legend-item">
+                            <span class="cmd-dot @DotClass(layer)"></span>
+                            <span>@entry.Label (@entry.Count)</span>
+                        </span>
+                        <input type="checkbox" checked="@entry.Visible"
+                               @onchange="e => _map.SetVisible(layer, (bool?)e.Value == true)" />
+                    </label>
+                }
+            </div>
+
+            <header class="cmd-card-head" style="margin-top:var(--space-3);">
+                <div>
+                    <h2>Filters</h2>
+                    <p>Applied to every layer that is switched on.</p>
+                </div>
+            </header>
+
+            <div class="cmd-field">
+                <label for="map-status">Incident status</label>
+                <select id="map-status" value="@(_status?.ToString() ?? "")" @onchange="OnStatusChangedAsync">
+                    <option value="">Open incidents</option>
+                    @foreach (var status in Enum.GetValues<IncidentStatus>())
+                    {
+                        <option value="@status">@status</option>
+                    }
+                </select>
+            </div>
+
+            <div class="cmd-field">
+                <label for="map-search">Search</label>
+                <input id="map-search" type="search" placeholder="Name, area or status" value="@_map.Search"
+                       @oninput="e => _map.Search = e.Value?.ToString() ?? string.Empty" />
+            </div>
+
+            <label class="cmd-check">
+                <input type="checkbox" checked="@_map.CriticalOnly"
+                       @onchange="e => _map.CriticalOnly = (bool?)e.Value == true" />
+                <span>Critical and SOS only</span>
+            </label>
+
+            <label class="cmd-check">
+                <input type="checkbox" checked="@_map.ShowHeatmap"
+                       @onchange="e => _map.ShowHeatmap = (bool?)e.Value == true" />
+                <span>Show concentration heatmap</span>
+            </label>
+
+            @if (_map.VisibleCountIn(MapLayerId.Shelters) > 0)
+            {
+                <header class="cmd-card-head" style="margin-top:var(--space-3);">
+                    <div>
+                        <h2>Nearest capacity</h2>
+                        <p>Shelters with the most free space.</p>
+                    </div>
+                </header>
+                <ul class="cmd-shelter-list">
+                    @foreach (var shelter in _shelters.OrderByDescending(s => s.Capacity - s.Occupancy).Take(4))
+                    {
+                        <li class="cmd-shelter">
+                            <div class="cmd-shelter-head">
+                                <span class="cmd-shelter-name">@shelter.Name</span>
+                                <span class="cmd-pill ok">@Math.Max(0, shelter.Capacity - shelter.Occupancy) free</span>
+                            </div>
+                        </li>
+                    }
+                </ul>
+            }
+        </aside>
+    </div>
+</div>
+
+@code {
+    private MapView _map = new();
+    private List<IncidentSearchRow> _incidents = new();
+    private List<RescueTeamDto> _teams = new();
+    private List<ShelterSummaryDto> _shelters = new();
+    private List<ReliefRequestDto> _relief = new();
+
+    private IncidentStatus? _status;
+    private bool _loading = true;
+    private IDisposable? _live;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _map = MapConfig.CreateView();
+        _map.SetVisible(MapLayerId.Relief, false);
+
+        await RefreshAsync();
+
+        // No timer: the command centre reloads when the operation actually changes.
+        _live = Live.Subscribe(RefreshAsync, RealtimeTopics.CommandFeed);
+    }
+
+    private async Task RefreshAsync()
+    {
+        _loading = true;
+
+        var filter = new IncidentFilter { Status = _status, PageSize = 200 };
+        var incidentsTask = Command.SearchIncidentsAsync(filter);
+        var teamsTask = Rescue.GetTeamsAsync();
+        var sheltersTask = Shelters.GetSheltersAsync();
+        var reliefTask = Relief.GetQueueAsync();
+
+        await Task.WhenAll(incidentsTask, teamsTask, sheltersTask, reliefTask);
+
+        var incidents = await incidentsTask;
+        _incidents = _status is null
+            ? incidents.Where(i => i.Status is not (IncidentStatus.Resolved or IncidentStatus.Rejected)).ToList()
+            : incidents.ToList();
+        _teams = (await teamsTask).ToList();
+        _shelters = (await sheltersTask)?.Data?.Items?.ToList() ?? new List<ShelterSummaryDto>();
+        _relief = (await reliefTask).ToList();
+
+        _map.SetLayer(MapLayerId.Incidents, _incidents.ToPlacemarks())
+            .SetLayer(MapLayerId.Teams, _teams.ToPlacemarks())
+            .SetLayer(MapLayerId.Shelters, _shelters.ToPlacemarks())
+            .SetLayer(MapLayerId.Relief, _relief.Where(r => r.IsOpen()).ToPlacemarks());
+
+        _loading = false;
+        StateHasChanged();
+    }
+
+    private async Task OnStatusChangedAsync(ChangeEventArgs e)
+    {
+        _status = Enum.TryParse<IncidentStatus>(e.Value?.ToString(), out var status) ? status : null;
+        await RefreshAsync();
+    }
+
+    private static string DotClass(MapLayerId layer) => layer switch
+    {
+        MapLayerId.Incidents => "warn",
+        MapLayerId.Teams => "ok",
+        _ => "idle",
+    };
+
+    public void Dispose() => _live?.Dispose();
+}

@@ -10,7 +10,7 @@
         // Leading slash is required by Login's strict local-path guard (SafeDestination).
         // replace: true keeps the guarded page out of history — Back must not bounce again.
         Navigation.NavigateTo(string.IsNullOrEmpty(relative)
-            ? "login"
-            : $"login?returnUrl={Uri.EscapeDataString("/" + relative)}", replace: true);
+            ? "auth/signin"
+            : $"auth/signin?returnUrl={Uri.EscapeDataString("/" + relative)}", replace: true);
     }
 }

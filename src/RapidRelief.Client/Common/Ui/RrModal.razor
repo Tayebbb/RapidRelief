@@ -1,0 +1,143 @@
+@namespace RapidRelief.Client.Common.Ui
+@implements IAsyncDisposable
+@inject IJSRuntime Js
+
+@if (IsOpen)
+{
+    <div class="rr-modal-backdrop" aria-hidden="true"></div>
+    @* The click handler lives here, not on the backdrop: the container is
+       inset:0 and stacked above the backdrop, so it is what a tap outside the
+       dialog actually hits. *@
+    <div id="@ContainerId" class="rr-modal-container" role="dialog" aria-modal="true"
+         aria-labelledby="@TitleId" tabindex="-1"
+         @onclick="HandleBackdropClick" @onkeydown="HandleKeyDown">
+        <div class="@ComputedDialogClass" @onclick:stopPropagation="true">
+            <div class="rr-modal-head">
+                @if (Header is not null)
+                {
+                    @* The slot still has to carry the id, or aria-labelledby dangles
+                       and the dialog is announced as a bare "dialog". *@
+                    <div id="@TitleId">@Header</div>
+                }
+                else
+                {
+                    <h2 id="@TitleId" class="rr-modal-title">@Title</h2>
+                }
+                <button type="button" class="rr-modal-close" aria-label="Close dialog" @onclick="HandleClose">
+                    <AppIcon Name="close" Size="18" />
+                </button>
+            </div>
+
+            @if (ChildContent is not null)
+            {
+                <div class="rr-modal-body">
+                    @ChildContent
+                </div>
+            }
+
+            @if (Footer is not null)
+            {
+                <div class="rr-modal-foot">
+                    @Footer
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public ModalSize Size { get; set; } = ModalSize.Md;
+    [Parameter] public bool CloseOnBackdrop { get; set; } = true;
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public RenderFragment? Header { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public RenderFragment? Footer { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private string TitleId = $"modal-title-{Guid.NewGuid():N}";
+    private string ContainerId = $"modal-{Guid.NewGuid():N}";
+    private bool _trapped;
+
+    // A dialog that does not hold focus is a keyboard trap in reverse: the user tabs
+    // straight out into the page behind it. Attach the trap after the DOM exists.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (IsOpen && !_trapped)
+        {
+            _trapped = true;
+            await SafeInvokeAsync("rrDialog.open", "#" + ContainerId);
+        }
+        else if (!IsOpen && _trapped)
+        {
+            _trapped = false;
+            await SafeInvokeAsync("rrDialog.close", "#" + ContainerId);
+        }
+    }
+
+    private async ValueTask SafeInvokeAsync(string identifier, params object?[] args)
+    {
+        try
+        {
+            await Js.InvokeVoidAsync(identifier, args);
+        }
+        catch (JSDisconnectedException)
+        {
+            // Circuit/renderer is gone — nothing to release.
+        }
+        catch (InvalidOperationException)
+        {
+            // Prerender or disposal race; the dialog is not on screen anyway.
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_trapped)
+        {
+            _trapped = false;
+            await SafeInvokeAsync("rrDialog.close", "#" + ContainerId);
+        }
+    }
+
+    private async Task HandleClose()
+    {
+        if (OnClose.HasDelegate)
+        {
+            await OnClose.InvokeAsync();
+        }
+    }
+
+    private async Task HandleBackdropClick()
+    {
+        if (CloseOnBackdrop)
+        {
+            await HandleClose();
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            await HandleClose();
+        }
+    }
+
+    private string ComputedDialogClass
+    {
+        get
+        {
+            var sizeClass = Size switch
+            {
+                ModalSize.Sm => "rr-modal-sm",
+                ModalSize.Lg => "rr-modal-lg",
+                ModalSize.Full => "rr-modal-full",
+                _ => ""
+            };
+
+            return $"rr-modal-dialog {sizeClass} {Class}".Trim();
+        }
+    }
+}

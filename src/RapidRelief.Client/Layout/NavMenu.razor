@@ -1,68 +1,135 @@
-<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">RapidRelief</a>
-        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
-            <span class="navbar-toggler-icon"></span>
+<div class="nav-shell">
+    <div class="nav-head">
+        <a class="brand" href="" @onclick="Navigated">
+            <AppLogo Size="32" CssClass="brand-logo-img" />
+            <span class="brand-text">RapidRelief</span>
+        </a>
+        <button class="rr-icon-btn nav-close" type="button" @onclick="Navigated" aria-label="Close navigation">
+            <AppIcon Name="close" Size="20" />
         </button>
     </div>
-</div>
 
-<div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
-    <nav class="flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="sample">
-                <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Sample
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="shelters/finder">
-                <span class="bi bi-geo-alt-fill-nav-menu" aria-hidden="true"></span> Find Shelter
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="admin/shelters">
-                <span class="bi bi-shield-lock-fill-nav-menu" aria-hidden="true"></span> Manage Shelters
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="admin/command-center">
-                <span class="bi bi-speedometer2" aria-hidden="true"></span> Command Center
-            </NavLink>
-        </div>
+    @* Clicking any link closes the mobile drawer (same pattern as the template it replaces). *@
+    <nav class="nav-body" @onclick="Navigated">
         <AuthorizeView>
             <Authorized>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="assistant">
-                        <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Assistant
-                    </NavLink>
-                </div>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="notifications">
-                        <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Notifications
-                    </NavLink>
-                </div>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="profile">
-                        <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Profile
-                    </NavLink>
-                </div>
+                <!-- Citizen Emergency Services -->
+                <span class="nav-section">Citizen Portal</span>
+                <NavLink class="nav-link" href="c" Match="NavLinkMatch.All">
+                    <AppIcon Name="layers" Size="19" /><span>Dashboard</span>
+                </NavLink>
+                <NavLink class="nav-link" href="reports/new">
+                    <AppIcon Name="alert-circle" Size="19" /><span>Report Incident & SOS</span>
+                </NavLink>
+                <NavLink class="nav-link" href="reports/my">
+                    <AppIcon Name="clock" Size="19" /><span>Track My Reports</span>
+                </NavLink>
+                <NavLink class="nav-link" href="shelter">
+                    <AppIcon Name="map-pin" Size="19" /><span>Find Shelter</span>
+                </NavLink>
+                <NavLink class="nav-link" href="relief/request">
+                    <AppIcon Name="shield-plus" Size="19" /><span>Request Relief</span>
+                </NavLink>
+                <NavLink class="nav-link" href="assistant">
+                    <AppIcon Name="chat" Size="19" /><span>AI Assistant</span>
+                </NavLink>
+
+                <span class="nav-section">Personal & Alerts</span>
+                <NavLink class="nav-link" href="notifications">
+                    <AppIcon Name="bell" Size="19" /><span>Emergency Alerts</span>
+                </NavLink>
+                <NavLink class="nav-link" href="profile">
+                    <AppIcon Name="user" Size="19" /><span>Profile & Contacts</span>
+                </NavLink>
+            </Authorized>
+        </AuthorizeView>
+
+        <AuthorizeView Roles="Government">
+            <Authorized>
+                <span class="nav-section">Government Command</span>
+                <NavLink class="nav-link" href="g" Match="NavLinkMatch.All">
+                    <AppIcon Name="shield" Size="19" /><span>Command Center</span>
+                </NavLink>
+                <NavLink class="nav-link" href="admin/command-center">
+                    <AppIcon Name="activity" Size="19" /><span>Command Overview</span>
+                </NavLink>
+                <NavLink class="nav-link" href="g/incidents">
+                    <AppIcon Name="layers" Size="19" /><span>Incident Management</span>
+                </NavLink>
+                <NavLink class="nav-link" href="g/duplicates">
+                    <AppIcon Name="copy" Size="19" /><span>Duplicate Review</span>
+                    <span class="nav-tag">AI</span>
+                </NavLink>
+                <NavLink class="nav-link" href="g/map">
+                    <AppIcon Name="map" Size="19" /><span>Operational Map</span>
+                </NavLink>
+                <NavLink class="nav-link" href="g/analytics">
+                    <AppIcon Name="activity" Size="19" /><span>Response Analytics</span>
+                </NavLink>
+                <NavLink class="nav-link" href="g/relief">
+                    <AppIcon Name="shield-plus" Size="19" /><span>Relief &amp; Resources</span>
+                </NavLink>
+                <NavLink class="nav-link" href="g/teams">
+                    <AppIcon Name="navigation" Size="19" /><span>Rescue Teams</span>
+                </NavLink>
+                <NavLink class="nav-link" href="admin/shelters">
+                    <AppIcon Name="home" Size="19" /><span>Manage Shelters</span>
+                </NavLink>
+                <NavLink class="nav-link" href="alerts/compose">
+                    <AppIcon Name="alert-circle" Size="19" /><span>Broadcast Alerts</span>
+                </NavLink>
+                <NavLink class="nav-link" href="g/users">
+                    <AppIcon Name="user" Size="19" /><span>User Management</span>
+                </NavLink>
+                <NavLink class="nav-link" href="g/audit">
+                    <AppIcon Name="clock" Size="19" /><span>Audit Trail</span>
+                </NavLink>
+                <NavLink class="nav-link" href="livemap">
+                    <AppIcon Name="map" Size="19" /><span>Live Disaster Map</span>
+                    <span class="nav-tag">Live</span>
+                </NavLink>
+                <NavLink class="nav-link" href="ui-showcase">
+                    <AppIcon Name="layers" Size="19" /><span>UI Showcase</span>
+                    <span class="nav-tag">Dev</span>
+                </NavLink>
+            </Authorized>
+        </AuthorizeView>
+
+        <AuthorizeView Roles="Rescuer">
+            <Authorized>
+                <span class="nav-section">Rescuer Operations</span>
+                <NavLink class="nav-link" href="r">
+                    <AppIcon Name="activity" Size="19" /><span>Rescuer HUD</span>
+                </NavLink>
             </Authorized>
         </AuthorizeView>
     </nav>
+
+    <div class="nav-foot">
+        <div class="nav-emergency">
+            <AppIcon Name="phone" Size="16" />
+            <span>Life-threatening emergency? Call <strong>999</strong> first.</span>
+        </div>
+    </div>
 </div>
 
 @code {
-    private bool collapseNavMenu = true;
+    [Parameter] public EventCallback OnNavigated { get; set; }
+    [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
+    private string DashboardLink = "c";
 
-    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
-
-    private void ToggleNavMenu()
+    protected override async Task OnInitializedAsync()
     {
-        collapseNavMenu = !collapseNavMenu;
+        try
+        {
+            var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+            DashboardLink = RapidRelief.Client.Common.Auth.AuthRouteHelper.GetDashboardRoute(auth.User);
+        }
+        catch
+        {
+            DashboardLink = "c";
+        }
     }
+
+    private Task Navigated() => OnNavigated.InvokeAsync();
 }

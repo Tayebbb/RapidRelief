@@ -12,6 +12,9 @@ namespace RapidRelief.Api.Features.Ai;
 /// </summary>
 public sealed class RuleBasedAiAnalysisService : IAiAnalysisService
 {
+    /// <summary>Keyword matching is evidence, not inference — it never claims model-grade certainty.</summary>
+    internal const double RuleBasedConfidence = 0.45;
+
     private readonly TimeProvider _timeProvider;
 
     public RuleBasedAiAnalysisService(TimeProvider timeProvider) => _timeProvider = timeProvider;
@@ -25,45 +28,81 @@ public sealed class RuleBasedAiAnalysisService : IAiAnalysisService
         (DisasterType.Flood, ["flood", "water rising", "submerged", "waterlogged", "under water"]),
     ];
 
-    private static readonly string[] SeverityBumpWords = ["trapped", "children", "spreading", "injured"];
-
-    // AiAnalysisRequest carries no reported severity (frozen contract), so the baseline derives
-    // from the predicted type; bump words add one step, clamped at Catastrophic.
-    private static Severity BaseSeverity(DisasterType type) => type switch
-    {
-        DisasterType.BuildingCollapse or DisasterType.Earthquake or DisasterType.Cyclone => Severity.Severe,
-        DisasterType.Flood or DisasterType.Fire or DisasterType.Landslide => Severity.Moderate,
-        _ => Severity.Minor,
-    };
-
     public Task<AiAssessmentDto> AnalyzeIncidentAsync(AiAnalysisRequest request, CancellationToken ct = default)
+    {
+        var findings = Analyze(request);
+        var priority = PriorityFormula.Compute(findings.EstimatedSeverity, request.IsSos,
+            request.ReportedAtUtc, _timeProvider.GetUtcNow());
+
+        return Task.FromResult(new AiAssessmentDto(
+            request.IncidentId, findings.PredictedType, findings.EstimatedSeverity, priority,
+            findings.Summary, PossibleDuplicateOfId: null, Provider: "RuleBased"));
+    }
+
+    /// <summary>
+    /// Structured findings from text alone. Used directly as the fallback and as the floor the
+    /// model path is merged into, so an outage still yields damage indicators and a reason.
+    /// </summary>
+    internal AiFindings Analyze(AiAnalysisRequest request)
     {
         var description = request.Description ?? string.Empty;
 
         var predictedType = request.ReportedType;
+        var typeEvidence = "the reporter's declared type";
         foreach (var (type, keywords) in TypeKeywords)
         {
-            if (keywords.Any(k => description.Contains(k, StringComparison.OrdinalIgnoreCase)))
+            var hit = keywords.FirstOrDefault(k => description.Contains(k, StringComparison.OrdinalIgnoreCase));
+            if (hit is not null)
             {
                 predictedType = type;
+                typeEvidence = $"the word \"{hit}\" in the report";
                 break;
             }
         }
 
-        var severity = BaseSeverity(predictedType);
-        if (SeverityBumpWords.Any(w => description.Contains(w, StringComparison.OrdinalIgnoreCase)))
+        var signals = IncidentSignalReader.Read(description);
+        var severity = IncidentSignalReader.BaseSeverity(predictedType);
+        if (signals.SeverityBump > 0)
         {
-            severity = (Severity)Math.Min((int)severity + 1, (int)Severity.Catastrophic);
+            severity = (Severity)Math.Min((int)severity + signals.SeverityBump, (int)Severity.Catastrophic);
         }
 
-        // F8: the shared formula — extracted verbatim so the live-model path scores identically.
-        var priority = PriorityFormula.Compute(severity, request.IsSos, request.ReportedAtUtc, _timeProvider.GetUtcNow());
+        var people = request.AffectedPeopleCount > 0 ? request.AffectedPeopleCount : signals.PeopleMentioned;
 
+        var priority = PriorityFormula.Compute(severity, request.IsSos, request.ReportedAtUtc,
+            _timeProvider.GetUtcNow());
         var summary = string.Create(CultureInfo.InvariantCulture,
             $"{predictedType} assessed at severity {(int)severity}/5{(request.IsSos ? " with SOS flag" : "")}; priority {priority:F0}/100.");
 
-        return Task.FromResult(new AiAssessmentDto(
-            request.IncidentId, predictedType, severity, priority, summary,
-            PossibleDuplicateOfId: null, Provider: "RuleBased"));
+        return new AiFindings(predictedType, severity, RuleBasedConfidence, signals.DamageIndicators,
+            people, signals.MedicalUrgency, summary, Reason(predictedType, typeEvidence, severity, signals, people));
+    }
+
+    private static string Reason(
+        DisasterType type, string typeEvidence, Severity severity, IncidentSignals signals, int? people)
+    {
+        var parts = new List<string> { $"Classified as {type} from {typeEvidence}" };
+
+        parts.Add(signals.SeverityBump > 0
+            ? $"severity raised to {severity} because the report describes an escalating situation"
+            : $"severity {severity} is the baseline for {type} with nothing in the text raising it");
+
+        if (signals.DamageIndicators.Count > 0)
+        {
+            parts.Add($"damage indicators found: {string.Join(", ", signals.DamageIndicators)}");
+        }
+
+        if (signals.MedicalUrgency)
+        {
+            parts.Add("medical wording present, so this is treated as a medical emergency");
+        }
+
+        if (people is { } count)
+        {
+            parts.Add($"{count} people affected");
+        }
+
+        parts.Add("no external model was used — this is keyword analysis of the report text");
+        return string.Join("; ", parts) + ".";
     }
 }

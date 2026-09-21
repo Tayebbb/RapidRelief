@@ -1,0 +1,108 @@
+@namespace RapidRelief.Client.Common.Ui
+
+<CascadingValue Value="this" IsFixed="true">
+    <div class="@ComputedClass" @attributes="AdditionalAttributes">
+        <div class="rr-tabs-bar" role="tablist" aria-orientation="horizontal">
+            @foreach (var tab in _tabs)
+            {
+                var isSelected = tab.Key == ActiveKey;
+                <button type="button"
+                        id="@tab.TabId"
+                        class="rr-tab-btn @(isSelected ? "rr-tab-active" : "")"
+                        role="tab"
+                        aria-selected="@(isSelected ? "true" : "false")"
+                        aria-controls="@tab.PanelId"
+                        tabindex="@(isSelected ? "0" : "-1")"
+                        @onclick="() => SelectTab(tab.Key)"
+                        @onkeydown="e => HandleKeyDown(e, tab.Key)">
+                    @if (!string.IsNullOrWhiteSpace(tab.Icon))
+                    {
+                        <AppIcon Name="@tab.Icon" Size="16" CssClass="rr-tab-icon" />
+                    }
+                    <span class="rr-tab-label">@tab.Label</span>
+                    @if (tab.BadgeCount.HasValue)
+                    {
+                        <span class="rr-tab-badge">@tab.BadgeCount.Value</span>
+                    }
+                </button>
+            }
+        </div>
+
+        <div class="rr-tabs-content">
+            @ChildContent
+        </div>
+    </div>
+</CascadingValue>
+
+@code {
+    [Parameter] public string? ActiveKey { get; set; }
+    [Parameter] public EventCallback<string> ActiveKeyChanged { get; set; }
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private readonly List<RrTabItem> _tabs = [];
+
+    public void RegisterTab(RrTabItem tab)
+    {
+        if (!_tabs.Contains(tab))
+        {
+            _tabs.Add(tab);
+            if (string.IsNullOrWhiteSpace(ActiveKey) && _tabs.Count == 1)
+            {
+                ActiveKey = tab.Key;
+            }
+            StateHasChanged();
+        }
+    }
+
+    public void UnregisterTab(RrTabItem tab)
+    {
+        _tabs.Remove(tab);
+        StateHasChanged();
+    }
+
+    private async Task SelectTab(string key)
+    {
+        if (ActiveKey != key)
+        {
+            ActiveKey = key;
+            if (ActiveKeyChanged.HasDelegate)
+            {
+                await ActiveKeyChanged.InvokeAsync(key);
+            }
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e, string currentKey)
+    {
+        if (_tabs.Count == 0) return;
+
+        var currentIndex = _tabs.FindIndex(t => t.Key == currentKey);
+        int targetIndex = -1;
+
+        if (e.Key == "ArrowRight")
+        {
+            targetIndex = (currentIndex + 1) % _tabs.Count;
+        }
+        else if (e.Key == "ArrowLeft")
+        {
+            targetIndex = (currentIndex - 1 + _tabs.Count) % _tabs.Count;
+        }
+        else if (e.Key == "Home")
+        {
+            targetIndex = 0;
+        }
+        else if (e.Key == "End")
+        {
+            targetIndex = _tabs.Count - 1;
+        }
+
+        if (targetIndex >= 0 && targetIndex < _tabs.Count)
+        {
+            await SelectTab(_tabs[targetIndex].Key);
+        }
+    }
+
+    private string ComputedClass => $"rr-tabs {Class}".Trim();
+}

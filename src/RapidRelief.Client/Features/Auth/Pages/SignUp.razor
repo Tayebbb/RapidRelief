@@ -1,0 +1,484 @@
+@page "/auth/signup"
+@page "/register"
+@layout AuthLayout
+@namespace RapidRelief.Client.Features.Auth.Pages
+@using System.Text.RegularExpressions
+@using RapidRelief.Shared.Contracts.Enums
+@using RapidRelief.Client.Common.Auth
+@inject AuthApi AuthApi
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Sign Up — RapidRelief</PageTitle>
+
+<div class="auth-card">
+    <div class="auth-card-header">
+        <div class="auth-card-badge">
+            <AppIcon Name="user-plus" Size="14" />
+            <span>Join RapidRelief</span>
+        </div>
+        <h1 class="auth-card-title">Create an Account</h1>
+        <p class="auth-card-subtitle">Connect with emergency aid, response teams, and real-time alerts.</p>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="auth-banner-alert is-danger" role="alert">
+            <AppIcon Name="alert-triangle" Size="18" />
+            <span>@_errorMessage</span>
+        </div>
+    }
+
+    <!-- Continue with Google (Neon Auth) -->
+    <button type="button" class="btn-google-auth" @onclick="ContinueWithGoogleAsync" disabled="@_isGoogleBusy">
+        @if (_isGoogleBusy)
+        {
+            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            <span>Connecting to Google...</span>
+        }
+        else
+        {
+            <svg class="google-icon-svg" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z" />
+                <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.34 24 12 24z" />
+                <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.16 0 9.94 0 12s.45 3.84 1.25 5.42l4.03-3.15z" />
+                <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z" />
+            </svg>
+            <span>Continue with Google</span>
+        }
+    </button>
+
+    <div class="auth-divider">
+        <span>or sign up with email</span>
+    </div>
+
+    <!-- Registration Form -->
+    <EditForm Model="@_model" OnValidSubmit="HandleRegisterAsync">
+        <!-- Name -->
+        <div class="auth-form-group">
+            <label class="auth-label" for="signup-name">Full Name</label>
+            <div class="auth-input-wrapper">
+                <span class="auth-input-icon">
+                    <AppIcon Name="user" Size="18" />
+                </span>
+                <input id="signup-name" type="text" class="auth-input @(!string.IsNullOrEmpty(_nameError) ? "is-invalid" : null)"
+                       placeholder="e.g. Sarah Khan" maxlength="100"
+                       @bind="_model.DisplayName" @bind:event="oninput" autocomplete="name" />
+            </div>
+            @if (!string.IsNullOrEmpty(_nameError))
+            {
+                <div class="auth-field-error">
+                    <AppIcon Name="alert-circle" Size="14" />
+                    <span>@_nameError</span>
+                </div>
+            }
+        </div>
+
+        <!-- Email -->
+        <div class="auth-form-group">
+            <label class="auth-label" for="signup-email">Email Address</label>
+            <div class="auth-input-wrapper">
+                <span class="auth-input-icon">
+                    <AppIcon Name="mail" Size="18" />
+                </span>
+                <input id="signup-email" type="email" class="auth-input @(!string.IsNullOrEmpty(_emailError) ? "is-invalid" : null)"
+                       placeholder="you@gmail.com, you@example.org..." maxlength="256"
+                       @bind="_model.Email" @bind:event="oninput" autocomplete="email" />
+            </div>
+            @if (!string.IsNullOrEmpty(_emailError))
+            {
+                <div class="auth-field-error">
+                    <AppIcon Name="alert-circle" Size="14" />
+                    <span>@_emailError</span>
+                </div>
+            }
+        </div>
+
+        <!-- Password -->
+        <div class="auth-form-group">
+            <label class="auth-label" for="signup-password">Password</label>
+            <div class="auth-input-wrapper">
+                <span class="auth-input-icon">
+                    <AppIcon Name="lock" Size="18" />
+                </span>
+                <input id="signup-password" type="@(_showPassword ? "text" : "password")" class="auth-input @(!string.IsNullOrEmpty(_passwordError) ? "is-invalid" : null)"
+                       placeholder="At least 8 characters with letters, numbers & symbols" maxlength="128"
+                       @bind="_model.Password" @bind:event="oninput" autocomplete="new-password" />
+                <button type="button" class="auth-toggle-pwd" @onclick="() => _showPassword = !_showPassword"
+                        aria-label="@(_showPassword ? "Hide password" : "Show password")">
+                    <AppIcon Name="@(_showPassword ? "eye-off" : "eye")" Size="16" />
+                </button>
+            </div>
+            @if (!string.IsNullOrEmpty(_passwordError))
+            {
+                <div class="auth-field-error">
+                    <AppIcon Name="alert-circle" Size="14" />
+                    <span>@_passwordError</span>
+                </div>
+            }
+
+            <!-- Live Password Requirements Checklist -->
+            @if (!string.IsNullOrEmpty(_model.Password))
+            {
+                <div class="auth-password-hints">
+                    <div class="auth-password-hints-title">
+                        <AppIcon Name="shield" Size="12" />
+                        <span>Password Requirements</span>
+                    </div>
+                    <ul class="auth-password-checklist">
+                        <li class="auth-password-rule @(_hasMinLength ? "is-met" : "is-unmet")">
+                            <span class="auth-password-rule-icon">
+                                <AppIcon Name="@(_hasMinLength ? "check" : "circle")" Size="12" />
+                            </span>
+                            <span>8+ characters</span>
+                        </li>
+                        <li class="auth-password-rule @(_hasUpperCase ? "is-met" : "is-unmet")">
+                            <span class="auth-password-rule-icon">
+                                <AppIcon Name="@(_hasUpperCase ? "check" : "circle")" Size="12" />
+                            </span>
+                            <span>Uppercase letter (A-Z)</span>
+                        </li>
+                        <li class="auth-password-rule @(_hasLowerCase ? "is-met" : "is-unmet")">
+                            <span class="auth-password-rule-icon">
+                                <AppIcon Name="@(_hasLowerCase ? "check" : "circle")" Size="12" />
+                            </span>
+                            <span>Lowercase letter (a-z)</span>
+                        </li>
+                        <li class="auth-password-rule @(_hasDigit ? "is-met" : "is-unmet")">
+                            <span class="auth-password-rule-icon">
+                                <AppIcon Name="@(_hasDigit ? "check" : "circle")" Size="12" />
+                            </span>
+                            <span>Number (0-9)</span>
+                        </li>
+                        <li class="auth-password-rule @(_hasSpecial ? "is-met" : "is-unmet")">
+                            <span class="auth-password-rule-icon">
+                                <AppIcon Name="@(_hasSpecial ? "check" : "circle")" Size="12" />
+                            </span>
+                            <span>Special character (!@@#$)</span>
+                        </li>
+                    </ul>
+                </div>
+            }
+        </div>
+
+        <!-- Confirm Password -->
+        <div class="auth-form-group">
+            <label class="auth-label" for="signup-confirm-password">Confirm Password</label>
+            <div class="auth-input-wrapper">
+                <span class="auth-input-icon">
+                    <AppIcon Name="lock" Size="18" />
+                </span>
+                <input id="signup-confirm-password" type="@(_showConfirmPassword ? "text" : "password")" class="auth-input @(!string.IsNullOrEmpty(_confirmPasswordError) ? "is-invalid" : null)"
+                       placeholder="Re-enter your password" maxlength="128"
+                       @bind="_model.ConfirmPassword" @bind:event="oninput" autocomplete="new-password" />
+                <button type="button" class="auth-toggle-pwd" @onclick="() => _showConfirmPassword = !_showConfirmPassword"
+                        aria-label="@(_showConfirmPassword ? "Hide password" : "Show password")">
+                    <AppIcon Name="@(_showConfirmPassword ? "eye-off" : "eye")" Size="16" />
+                </button>
+            </div>
+            @if (!string.IsNullOrEmpty(_confirmPasswordError))
+            {
+                <div class="auth-field-error">
+                    <AppIcon Name="alert-circle" Size="14" />
+                    <span>@_confirmPasswordError</span>
+                </div>
+            }
+        </div>
+
+        <!-- Agreement -->
+        <div class="auth-form-group">
+            <label class="auth-checkbox-label">
+                <input type="checkbox" class="auth-checkbox-input" @bind="_agreedToTerms" />
+                <span>I understand RapidRelief is an emergency platform and agree to responsible use.</span>
+            </label>
+            @if (!_agreedToTerms && _submittedOnce)
+            {
+                <div class="auth-field-error">
+                    <AppIcon Name="alert-circle" Size="14" />
+                    <span>You must agree to the terms to create an account.</span>
+                </div>
+            }
+        </div>
+
+        <button type="submit" class="btn-auth-primary" disabled="@_isSubmitting">
+            @if (_isSubmitting)
+            {
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                <span>Creating Account...</span>
+            }
+            else
+            {
+                <span>Create Account</span>
+                <AppIcon Name="arrow-right" Size="16" />
+            }
+        </button>
+    </EditForm>
+
+    <div class="auth-card-footer">
+        <span>Already have an account? </span>
+        <a href="auth/signin" class="auth-link">Sign In</a>
+    </div>
+</div>
+
+@code {
+    private readonly SignUpViewModel _model = new();
+    private bool _showPassword;
+    private bool _showConfirmPassword;
+    private bool _agreedToTerms = true;
+    private bool _submittedOnce;
+    private bool _isSubmitting;
+    private bool _isGoogleBusy;
+    private string? _errorMessage;
+
+    private string? _nameError;
+    private string? _emailError;
+    private string? _passwordError;
+    private string? _confirmPasswordError;
+
+    // Password criteria helpers
+    private bool _hasMinLength => !string.IsNullOrEmpty(_model.Password) && _model.Password.Length >= 8;
+    private bool _hasUpperCase => !string.IsNullOrEmpty(_model.Password) && _model.Password.Any(char.IsUpper);
+    private bool _hasLowerCase => !string.IsNullOrEmpty(_model.Password) && _model.Password.Any(char.IsLower);
+    private bool _hasDigit => !string.IsNullOrEmpty(_model.Password) && _model.Password.Any(char.IsDigit);
+    private bool _hasSpecial => !string.IsNullOrEmpty(_model.Password) && _model.Password.Any(ch => !char.IsLetterOrDigit(ch));
+
+    private static readonly Regex EmailRegex = new(
+        @"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    private bool ValidateForm()
+    {
+        _nameError = null;
+        _emailError = null;
+        _passwordError = null;
+        _confirmPasswordError = null;
+        var isValid = true;
+
+        // Name validation
+        var trimmedName = _model.DisplayName?.Trim();
+        if (string.IsNullOrWhiteSpace(trimmedName))
+        {
+            _nameError = "Please enter your full name.";
+            isValid = false;
+        }
+        else if (trimmedName.Length < 2)
+        {
+            _nameError = "Full name must be at least 2 characters.";
+            isValid = false;
+        }
+        else if (trimmedName.Length > 100)
+        {
+            _nameError = "Full name cannot exceed 100 characters.";
+            isValid = false;
+        }
+
+        // Email validation (handles gmail.com, yahoo.com, outlook.com, custom domains, subdomains)
+        var trimmedEmail = _model.Email?.Trim();
+        if (string.IsNullOrWhiteSpace(trimmedEmail))
+        {
+            _emailError = "Please enter your email address.";
+            isValid = false;
+        }
+        else if (trimmedEmail.Length > 256)
+        {
+            _emailError = "Email address cannot exceed 256 characters.";
+            isValid = false;
+        }
+        else if (trimmedEmail.Contains(' '))
+        {
+            _emailError = "Email address cannot contain spaces.";
+            isValid = false;
+        }
+        else
+        {
+            var atIndex = trimmedEmail.IndexOf('@');
+            if (atIndex == -1)
+            {
+                _emailError = "Please include an '@' in your email address (e.g. you@gmail.com).";
+                isValid = false;
+            }
+            else if (atIndex == 0)
+            {
+                _emailError = "Please enter a username before '@' in your email address.";
+                isValid = false;
+            }
+            else if (trimmedEmail.IndexOf('@', atIndex + 1) != -1)
+            {
+                _emailError = "Email address can only contain a single '@' symbol.";
+                isValid = false;
+            }
+            else
+            {
+                var domainPart = trimmedEmail.Substring(atIndex + 1);
+                if (string.IsNullOrWhiteSpace(domainPart) || !domainPart.Contains('.'))
+                {
+                    _emailError = "Please enter a valid email domain (e.g. gmail.com, yahoo.com, example.org).";
+                    isValid = false;
+                }
+                else if (domainPart.StartsWith('.') || domainPart.EndsWith('.'))
+                {
+                    _emailError = "Email domain cannot start or end with a dot.";
+                    isValid = false;
+                }
+                else if (domainPart.Contains(".."))
+                {
+                    _emailError = "Email domain cannot contain consecutive dots.";
+                    isValid = false;
+                }
+                else
+                {
+                    var tld = domainPart.Substring(domainPart.LastIndexOf('.') + 1);
+                    if (tld.Length < 2)
+                    {
+                        _emailError = "Email domain extension must be at least 2 characters (e.g. .com).";
+                        isValid = false;
+                    }
+                    else if (!EmailRegex.IsMatch(trimmedEmail))
+                    {
+                        _emailError = "Please enter a valid email address (e.g. you@gmail.com).";
+                        isValid = false;
+                    }
+                }
+            }
+        }
+
+        // Password validation
+        var pwd = _model.Password ?? string.Empty;
+        if (string.IsNullOrEmpty(pwd))
+        {
+            _passwordError = "Password is required.";
+            isValid = false;
+        }
+        else if (pwd.Length < 8)
+        {
+            _passwordError = "Password must be at least 8 characters.";
+            isValid = false;
+        }
+        else if (pwd.Length > 128)
+        {
+            _passwordError = "Password cannot exceed 128 characters.";
+            isValid = false;
+        }
+        else if (!_hasUpperCase)
+        {
+            _passwordError = "Password must contain at least one uppercase letter (A-Z).";
+            isValid = false;
+        }
+        else if (!_hasLowerCase)
+        {
+            _passwordError = "Password must contain at least one lowercase letter (a-z).";
+            isValid = false;
+        }
+        else if (!_hasDigit)
+        {
+            _passwordError = "Password must contain at least one number (0-9).";
+            isValid = false;
+        }
+        else if (!_hasSpecial)
+        {
+            _passwordError = "Password must contain at least one special character (!@@#$).";
+            isValid = false;
+        }
+
+        // Confirm Password validation
+        if (string.IsNullOrEmpty(_model.ConfirmPassword))
+        {
+            _confirmPasswordError = "Please confirm your password.";
+            isValid = false;
+        }
+        else if (_model.Password != _model.ConfirmPassword)
+        {
+            _confirmPasswordError = "Passwords do not match.";
+            isValid = false;
+        }
+
+        // Terms
+        if (!_agreedToTerms)
+        {
+            isValid = false;
+        }
+
+        return isValid;
+    }
+
+    private async Task HandleRegisterAsync()
+    {
+        if (_isSubmitting) return;
+
+        _errorMessage = null;
+        _submittedOnce = true;
+
+        if (!ValidateForm())
+        {
+            return;
+        }
+
+        _isSubmitting = true;
+
+        try
+        {
+            var req = new RegisterRequest(
+                Email: _model.Email!.Trim(),
+                Password: _model.Password,
+                DisplayName: _model.DisplayName!.Trim(),
+                PhoneNumber: null,
+                EmergencyContact: null,
+                Role: Roles.Citizen
+            );
+
+            var result = await AuthApi.RegisterAsync(req);
+
+            if (result.Success)
+            {
+                var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+                var dest = AuthRouteHelper.GetDashboardRoute(authState.User, Roles.Citizen);
+                Navigation.NavigateTo(dest);
+            }
+            else
+            {
+                // Highlight specific field if returned
+                _emailError = result.GetFieldError("Email") ?? result.GetFieldError("DuplicateEmail") ?? result.GetFieldError("DuplicateUserName");
+                _passwordError = result.GetFieldError("Password") ?? result.GetFieldError("PasswordRequiresUpper") ?? result.GetFieldError("PasswordRequiresNonAlphanumeric");
+                _nameError = result.GetFieldError("DisplayName");
+
+                _errorMessage = result.FormattedError ?? "Could not create your account. Please check the details and try again.";
+            }
+        }
+        catch (Exception)
+        {
+            _errorMessage = "An unexpected error occurred. Please check your connection and try again.";
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private async Task ContinueWithGoogleAsync()
+    {
+        if (_isGoogleBusy) return;
+
+        _errorMessage = null;
+        _isGoogleBusy = true;
+
+        try
+        {
+            var callbackUrl = Navigation.ToAbsoluteUri("auth/callback").ToString();
+            var targetUrl = await AuthApi.GetGoogleInitUrlAsync(callbackUrl);
+            Navigation.NavigateTo(targetUrl, forceLoad: true);
+        }
+        catch (Exception)
+        {
+            _errorMessage = "Could not initialize Google authentication. Please try again.";
+            _isGoogleBusy = false;
+        }
+    }
+
+    private sealed class SignUpViewModel
+    {
+        public string? DisplayName { get; set; }
+        public string? Email { get; set; }
+        public string? Password { get; set; }
+        public string? ConfirmPassword { get; set; }
+    }
+}

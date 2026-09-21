@@ -1,0 +1,150 @@
+@namespace RapidRelief.Client.Common.Ai
+@using RapidRelief.Client.Common.Ui
+
+@if (Insight is null)
+{
+    @if (ShowPendingState)
+    {
+        <div class="rr-ai">
+            <div class="rr-ai-head">
+                <h3 class="rr-eyebrow"><AppIcon Name="sparkles" Size="13" /> AI · decision support</h3>
+                <span class="rr-ai-confidence">not assessed</span>
+            </div>
+            <div class="rr-ai-body">
+                <p class="rr-ai-quote">No assessment yet. Responders act on the report itself until one arrives.</p>
+            </div>
+        </div>
+    }
+}
+else
+{
+    <div class="rr-ai">
+        <div class="rr-ai-head">
+            <h3 class="rr-eyebrow"><AppIcon Name="sparkles" Size="13" /> AI · decision support</h3>
+            <span class="rr-ai-confidence">
+                <span>@Insight.Confidence.ToString("P0") confident</span>
+                <span class="rr-ai-meter" role="img" aria-label="@($"Model confidence {Insight.Confidence:P0}")">
+                    <span style="width:@ConfidencePercent%"></span>
+                </span>
+            </span>
+        </div>
+
+        <div class="rr-ai-body">
+            <!-- Suggestion, not a verdict: the wording and the severity chip carry
+                 the same weight so nobody reads this as an instruction. -->
+            <div class="rr-row rr-wrap">
+                <span class="rr-sev @SevClass(Insight.PriorityBand)">@Insight.PriorityBand</span>
+                <span class="rr-ai-verdict">Suggested priority @Insight.PriorityScore.ToString("F0")/100 · @Insight.Urgency</span>
+            </div>
+
+            <p class="rr-ai-quote">@Insight.Summary</p>
+
+            <dl class="ai-facts">
+                <div>
+                    <dt>Classification</dt>
+                    <dd>@Insight.PredictedType · severity @((int)Insight.EstimatedSeverity)/5</dd>
+                </div>
+                <div>
+                    <dt>Assessed by</dt>
+                    <dd>@ProviderLabel</dd>
+                </div>
+                @if (Insight.EstimatedPeopleAffected is { } people)
+                {
+                    <div>
+                        <dt>People affected</dt>
+                        <dd>@people</dd>
+                    </div>
+                }
+                @if (Insight.MedicalUrgency)
+                {
+                    <div>
+                        <dt>Medical urgency</dt>
+                        <dd class="ai-flag">Injuries or entrapment described</dd>
+                    </div>
+                }
+            </dl>
+
+            @if (Insight.DamageIndicators.Count > 0)
+            {
+                <div class="ai-section">
+                    <h4>Damage indicators</h4>
+                    <ul class="ai-chips">
+                        @foreach (var indicator in Insight.DamageIndicators)
+                        {
+                            <li class="ai-chip">@indicator</li>
+                        }
+                    </ul>
+                </div>
+            }
+
+            @if (Insight.PriorityFactors.Count > 0)
+            {
+                <div class="ai-section">
+                    <h4>Because</h4>
+                    <ul class="rr-ai-because">
+                        @foreach (var factor in Insight.PriorityFactors.OrderByDescending(f => f.Points))
+                        {
+                            <li>
+                                <span>
+                                    <strong>@factor.Label</strong>
+                                    <span class="ai-muted"> (+@factor.Points.ToString("0.#"))</span>
+                                    — @factor.Evidence
+                                </span>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(Insight.Reasoning))
+            {
+                <div class="ai-section">
+                    <h4>Reasoning</h4>
+                    <p class="ai-reasoning">@Insight.Reasoning</p>
+                </div>
+            }
+
+            @if (Insight.PossibleDuplicateOfId is { } duplicateOf)
+            {
+                <div class="ai-duplicate">
+                    <AppIcon Name="copy" Size="15" />
+                    <div>
+                        <strong>Possible duplicate of #@ShortId(duplicateOf)</strong>
+                        <span class="ai-muted"> — @((Insight.DuplicateConfidence ?? 0).ToString("P0")) confidence</span>
+                        <p class="ai-muted">@Insight.DuplicateReason</p>
+                        <p class="ai-muted">Both reports stay open until the command centre decides.</p>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <p class="rr-ai-foot">@AiInsightDto.Disclaimer</p>
+    </div>
+}
+
+@code {
+    [Parameter] public AiInsightDto? Insight { get; set; }
+
+    /// <summary>Renders the "not assessed yet" note instead of nothing at all.</summary>
+    [Parameter] public bool ShowPendingState { get; set; } = true;
+
+    private string ConfidencePercent =>
+        Math.Clamp(Insight!.Confidence * 100, 0, 100).ToString("F0", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static string SevClass(string band) => band switch
+    {
+        "Critical" => "rr-sev-critical",
+        "High" => "rr-sev-high",
+        "Medium" => "rr-sev-medium",
+        _ => "rr-sev-low",
+    };
+
+    private string ProviderLabel => Insight!.Provider switch
+    {
+        "OpenRouter" => Insight.ModelName is { Length: > 0 } model ? $"model {model}" : "language model",
+        "RuleBased" => "offline rule engine",
+        _ => Insight.Provider,
+    };
+
+    private static string ShortId(Guid id) => id.ToString("N")[..6].ToUpperInvariant();
+}

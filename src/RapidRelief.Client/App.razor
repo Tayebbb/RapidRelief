@@ -5,7 +5,12 @@
                 @if (context.User.Identity?.IsAuthenticated == true)
                 {
                     <PageTitle>Not authorized</PageTitle>
-                    <p role="alert">You're signed in but not authorized to view this page.</p>
+                    <div class="rr-empty rr-router-state" role="alert">
+                        <AppIcon Name="shield" Size="28" />
+                        <strong>You don't have access to this page</strong>
+                        <p>You're signed in, but this area needs a different role. An administrator can grant it.</p>
+                        <a class="btn btn-primary btn-sm" href="">Go to Home</a>
+                    </div>
                 }
                 else
                 {
@@ -18,7 +23,12 @@
     <NotFound>
         <PageTitle>Not found</PageTitle>
         <LayoutView Layout="@typeof(MainLayout)">
-            <p role="alert">Sorry, there's nothing at this address.</p>
+            <div class="rr-empty rr-router-state" role="alert">
+                <AppIcon Name="map" Size="28" />
+                <strong>Nothing at this address</strong>
+                <p>The page may have moved, or the link is wrong. Head back home to find your way.</p>
+                <a class="btn btn-primary btn-sm" href="">Go to Home</a>
+            </div>
         </LayoutView>
     </NotFound>
 </Router>

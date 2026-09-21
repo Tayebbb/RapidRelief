@@ -6,4 +6,4 @@ namespace RapidRelief.Shared.Contracts.Events;
 
 public sealed record IncidentCreated(Guid IncidentId, Guid ReporterUserId, DisasterType Type,
     Severity ReportedSeverity, GeoPoint Location, string Description, bool IsSos,
-    IReadOnlyList<string> PhotoPaths) : EventBase;
+    IReadOnlyList<string> PhotoPaths, int AffectedPeopleCount = 0) : EventBase;

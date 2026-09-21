@@ -1,0 +1,21 @@
+@namespace RapidRelief.Client.Common.Realtime
+@using RapidRelief.Client.Common.Ui
+@implements IDisposable
+@inject NotificationState Notifications
+
+@* Says whether the screen is being pushed updates or is falling back to periodic checks, so an
+   operator can tell "nothing is happening" apart from "nothing is reaching me". *@
+<span class="rr-live rr-live-@(Notifications.HubConnected ? "on" : "off")" role="status" aria-live="polite" title="@(Notifications.HubConnected
+                        ? "Live: updates arrive the moment they happen."
+                        : "Reconnecting: this screen is refreshing on a timer until the live link is back.")">
+    <span class="rr-live-dot"></span>
+    <span class="rr-live-label">@(Notifications.HubConnected ? "LIVE" : "RECONNECTING")</span>
+</span>
+
+@code {
+    protected override void OnInitialized() => Notifications.Changed += OnChanged;
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Notifications.Changed -= OnChanged;
+}

@@ -1,0 +1,31 @@
+@namespace RapidRelief.Client.Common.Ui
+@implements IDisposable
+
+@if (ParentTabs is not null && ParentTabs.ActiveKey == Key)
+{
+    <div class="rr-tab-panel" role="tabpanel" id="@PanelId" aria-labelledby="@TabId" tabindex="0">
+        @ChildContent
+    </div>
+}
+
+@code {
+    [CascadingParameter] public RrTabs? ParentTabs { get; set; }
+    [Parameter, EditorRequired] public string Key { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+    [Parameter] public string? Icon { get; set; }
+    [Parameter] public int? BadgeCount { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    public string TabId => $"tab-{Key}";
+    public string PanelId => $"panel-{Key}";
+
+    protected override void OnInitialized()
+    {
+        ParentTabs?.RegisterTab(this);
+    }
+
+    public void Dispose()
+    {
+        ParentTabs?.UnregisterTab(this);
+    }
+}

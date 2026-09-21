@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using RapidRelief.Api.Features.Shelters.Data;
 using RapidRelief.Api.Features.Shelters.Domain;
-using RapidRelief.Api.Features.Stubs.SeedData;
+using RapidRelief.Api.Infrastructure.SeedData;
 
 namespace RapidRelief.Api.Tests.Shelters;
 

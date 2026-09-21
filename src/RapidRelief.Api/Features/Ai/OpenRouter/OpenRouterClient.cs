@@ -27,6 +27,28 @@ internal sealed class OpenRouterClient : IOpenRouterClient
 
     public async Task<string> SendAsync(string requestBody, bool isVision, CancellationToken ct = default)
     {
+        var maxAttempts = Math.Clamp(_config.GetValue("Ai:OpenRouter:MaxAttempts", 2), 1, 4);
+        var baseDelayMs = Math.Clamp(_config.GetValue("Ai:OpenRouter:RetryBaseDelayMs", 250), 0, 5_000);
+
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return await SendOnceAsync(requestBody, isVision, ct);
+            }
+            catch (AiProviderUnavailableException ex) when (attempt < maxAttempts && ex.IsTransient)
+            {
+                // Exponential backoff with jitter: a provider that just rate-limited us must not
+                // be hit again on the same millisecond by every queued incident.
+                var delay = baseDelayMs * (1 << (attempt - 1));
+                var jitter = Random.Shared.Next(0, Math.Max(1, delay / 2));
+                await Task.Delay(TimeSpan.FromMilliseconds(delay + jitter), ct);
+            }
+        }
+    }
+
+    private async Task<string> SendOnceAsync(string requestBody, bool isVision, CancellationToken ct)
+    {
         var apiKey = _config["Ai:OpenRouter:ApiKey"] ?? string.Empty;
         var timeoutSeconds = isVision
             ? _config.GetValue("Ai:OpenRouter:TimeoutSecondsVision", 20)
@@ -55,12 +77,13 @@ internal sealed class OpenRouterClient : IOpenRouterClient
         catch (OperationCanceledException)
         {
             throw new AiProviderUnavailableException(
-                $"OpenRouter {(isVision ? "vision" : "text")} request timed out after {timeoutSeconds} s");
+                $"OpenRouter {(isVision ? "vision" : "text")} request timed out after {timeoutSeconds} s",
+                isTransient: true);
         }
         catch (HttpRequestException ex)
         {
             // Metadata-only message; the original (host-level detail, no headers) rides as inner.
-            throw new AiProviderUnavailableException($"OpenRouter request failed: {ex.GetType().Name}", ex);
+            throw new AiProviderUnavailableException($"OpenRouter request failed: {ex.GetType().Name}", ex, isTransient: true);
         }
 
         using (response)
@@ -73,7 +96,11 @@ internal sealed class OpenRouterClient : IOpenRouterClient
 
             if (!response.IsSuccessStatusCode)
             {
-                throw new AiProviderUnavailableException($"OpenRouter returned HTTP {(int)response.StatusCode}");
+                var status = (int)response.StatusCode;
+                // Only overload and server-side faults are worth a second attempt; a 400 or a 402
+                // will fail identically and just delays the fallback the caller already has.
+                var transient = status == 429 || status >= 500;
+                throw new AiProviderUnavailableException($"OpenRouter returned HTTP {status}", transient);
             }
 
             string body;
@@ -88,7 +115,7 @@ internal sealed class OpenRouterClient : IOpenRouterClient
             catch (OperationCanceledException)
             {
                 throw new AiProviderUnavailableException(
-                    $"OpenRouter response read timed out after {timeoutSeconds} s");
+                    $"OpenRouter response read timed out after {timeoutSeconds} s", isTransient: true);
             }
 
             ThrowOnEmbeddedProviderFailure(body);

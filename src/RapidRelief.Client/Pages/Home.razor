@@ -1,8 +1,50 @@
-﻿@page "/"
+@page "/"
+@layout LandingLayout
+@namespace RapidRelief.Client.Pages
+@inject IJSRuntime JS
 
-<PageTitle>RapidRelief</PageTitle>
+<PageTitle>RapidRelief — AI Disaster Response & Emergency Management</PageTitle>
 
-<h1>RapidRelief</h1>
+@* 1. Hero Section with Media Placement *@
+<HeroSection />
 
-<p>AI Smart Disaster Response &amp; Emergency Management System.</p>
-<p>Platform foundation (F0) is under construction — feature pages arrive as vertical slices.</p>
+@* 2. Quick Actions for Urgent Needs *@
+<QuickActions />
+
+@* 3. Response Storytelling Timeline *@
+<HowItWorks />
+
+@* 4. Platform Capabilities Bento Grid *@
+<FeatureShowcase />
+
+@* 5. Geographic & Map Showcase *@
+<MapShowcase />
+
+@* 6. Emergency AI Assistant Simulator *@
+<AssistantShowcase />
+
+@* 7. Community & Responders Focus *@
+<HumanResponseSection />
+
+@* 8. System Impact Flow *@
+<ImpactFlow />
+
+@* 9. Final High-Contrast Call to Action *@
+<FinalCta />
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("rapidReliefLanding.init");
+            }
+            catch (JSException)
+            {
+                // Gracefully continue if JS interop is disabled or running in test/prerender context
+            }
+        }
+    }
+}

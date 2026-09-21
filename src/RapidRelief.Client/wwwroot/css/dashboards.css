@@ -1,0 +1,620 @@
+/* ============================================================================
+   RapidRelief — Role-Based Dashboards (Citizen /c, Rescuer /r, Government /g)
+   ============================================================================ */
+
+/* Legacy brand aliases, repointed at the §2 tokens in app.css. Every rule below
+   consumes these, so the identity changes here rather than in 600 declarations. */
+:root {
+  --rr-forest: var(--rr-accent);
+  --rr-forest-hover: var(--rr-accent-hover);
+  --rr-forest-soft: var(--rr-accent-soft);
+  --rr-mint: var(--rr-success);
+  --rr-mint-soft: var(--rr-success-soft);
+  --rr-sos-red: var(--rr-danger);
+  --rr-sos-glow: rgba(220, 38, 38, 0.32);
+  --rr-sos-soft: var(--rr-danger-soft);
+  --rr-orange: var(--rr-warning);
+  --rr-orange-soft: var(--rr-warning-soft);
+}
+
+/* Base Dashboard Container */
+.dash-layout {
+  padding: var(--space-6) var(--space-4) var(--space-12);
+  max-width: 82.5rem;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  animation: fadeInDash var(--rr-slow) var(--rr-ease);
+}
+
+@keyframes fadeInDash {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Dashboard Header Banner. Neutral: an operator's eye should be pulled by
+   severity in the content, not by the page furniture. */
+.dash-header-banner {
+  background: var(--rr-surface);
+  border: 1px solid var(--rr-border);
+  border-radius: var(--rr-radius-l);
+  padding: var(--space-6) var(--space-6);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  box-shadow: var(--rr-shadow);
+  position: relative;
+  overflow: hidden;
+}
+
+[data-theme='dark'] .dash-header-banner {
+  background: var(--rr-surface);
+  border-color: var(--rr-border);
+}
+
+.dash-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.dash-role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px 12px;
+  border-radius: var(--rr-radius-pill);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  width: fit-content;
+}
+
+.dash-role-badge.citizen {
+  background: var(--rr-forest-soft);
+  color: var(--rr-forest);
+  border: 1px solid var(--rr-accent-soft-border);
+}
+
+[data-theme='dark'] .dash-role-badge.citizen {
+  color: var(--rr-mint);
+  border-color: rgba(4, 120, 87, 0.4);
+}
+
+.dash-role-badge.rescuer {
+  background: var(--rr-orange-soft);
+  color: var(--rr-warning-soft-text);
+  border: 1px solid rgba(251, 140, 0, 0.35);
+}
+
+[data-theme='dark'] .dash-role-badge.rescuer {
+  color: var(--rr-warning-soft-text);
+}
+
+.dash-role-badge.government {
+  background: rgba(15, 23, 42, 0.08);
+  color: var(--rr-text);
+  border: 1px solid rgba(15, 23, 42, 0.28);
+}
+
+[data-theme='dark'] .dash-role-badge.government {
+  color: var(--rr-text-2);
+  background: rgba(203, 213, 225, 0.12);
+  border-color: rgba(203, 213, 225, 0.3);
+}
+
+.dash-title {
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--rr-text);
+  margin: 0;
+}
+
+.dash-subtitle {
+  font-size: 0.95rem;
+  color: var(--rr-text-2);
+  margin: 0;
+}
+
+.dash-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+/* Live Operational Status Chips */
+.live-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px 14px;
+  border-radius: var(--rr-radius-pill);
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 1px solid var(--rr-border);
+  background: var(--rr-surface);
+}
+
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--rr-mint);
+  box-shadow: 0 0 0 2px rgba(4, 120, 87, 0.3);
+  animation: pulseDot 2s infinite;
+}
+
+.live-dot.danger {
+  background: var(--rr-sos-red);
+  box-shadow: 0 0 0 2px var(--rr-danger-soft-border);
+}
+
+.live-dot.warning {
+  background: var(--rr-orange);
+  box-shadow: 0 0 0 2px rgba(251, 140, 0, 0.3);
+}
+
+@keyframes pulseDot {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
+
+/* Bento Grid System */
+.dash-bento-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: var(--space-5);
+}
+
+.dash-col-12 { grid-column: span 12; }
+.dash-col-8 { grid-column: span 8; }
+.dash-col-7 { grid-column: span 7; }
+.dash-col-6 { grid-column: span 6; }
+.dash-col-5 { grid-column: span 5; }
+.dash-col-4 { grid-column: span 4; }
+.dash-col-3 { grid-column: span 3; }
+
+@media (max-width: 1024px) {
+  .dash-col-8, .dash-col-7, .dash-col-6, .dash-col-5, .dash-col-4, .dash-col-3 {
+    grid-column: span 12;
+  }
+}
+
+/* Dashboard Cards */
+.dash-card {
+  background: var(--rr-surface);
+  border: 1px solid var(--rr-border);
+  border-radius: var(--rr-radius);
+  padding: var(--space-5);
+  box-shadow: var(--rr-shadow);
+  display: flex;
+  flex-direction: column;
+  transition: transform var(--rr-fast) var(--rr-ease), box-shadow var(--rr-fast) var(--rr-ease);
+}
+
+.dash-card:hover {
+  box-shadow: var(--rr-shadow-pop);
+}
+
+.dash-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+  gap: var(--space-2);
+}
+
+.dash-card-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--rr-text);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.dash-card-subtitle {
+  font-size: 0.85rem;
+  color: var(--rr-text-3);
+  margin: 0;
+}
+
+/* High-Contrast SOS Box (Citizen & Urgent) */
+.dash-sos-box {
+  background: linear-gradient(135deg, rgba(220, 38, 38, 0.12) 0%, rgba(220, 38, 38, 0.04) 100%);
+  border: 1.5px solid rgba(220, 38, 38, 0.35);
+  border-radius: var(--rr-radius-l);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  position: relative;
+  overflow: hidden;
+}
+
+[data-theme='dark'] .dash-sos-box {
+  background: linear-gradient(135deg, rgba(220, 38, 38, 0.22) 0%, rgba(11, 17, 32, 0.7) 100%);
+  border-color: rgba(220, 38, 38, 0.45);
+}
+
+.dash-sos-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.dash-sos-text h3 {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--rr-sos-red);
+  margin: 0 0 var(--space-1) 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.dash-sos-text p {
+  font-size: 0.92rem;
+  color: var(--rr-text-2);
+  margin: 0;
+  max-width: 540px;
+}
+
+.dash-sos-btn-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.btn-sos-trigger {
+  background: var(--rr-danger);
+  color: var(--rr-on-danger);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-md);
+  padding: var(--space-3) var(--space-6);
+  min-height: 2.75rem;
+  border-radius: var(--rr-radius-pill);
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  box-shadow: 0 4px 14px var(--rr-sos-glow);
+  cursor: pointer;
+  transition: background-color var(--rr-fast) var(--rr-ease);
+  text-decoration: none !important;
+}
+
+.btn-sos-trigger:hover {
+  background: var(--rr-danger-hover);
+  box-shadow: 0 6px 18px var(--rr-sos-glow);
+}
+
+.btn-sos-trigger:active {
+  filter: brightness(0.92);
+}
+
+.btn-sos-call {
+  background: var(--rr-surface);
+  color: var(--rr-danger-soft-text) !important;
+  border: 1.5px solid var(--rr-danger);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-base);
+  padding: var(--space-3) var(--space-5);
+  min-height: 2.75rem;
+  border-radius: var(--rr-radius-pill);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  transition: background-color var(--rr-fast) var(--rr-ease);
+  text-decoration: none !important;
+}
+
+.btn-sos-call:hover {
+  background: var(--rr-sos-soft);
+}
+
+/* KPI Metric Cards */
+.dash-kpi-card {
+  background: var(--rr-surface);
+  border: 1px solid var(--rr-border);
+  border-radius: var(--rr-radius);
+  padding: var(--space-4) var(--space-5);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: var(--rr-shadow);
+  transition: border-color var(--rr-fast) var(--rr-ease);
+}
+
+.dash-kpi-card:hover {
+  border-color: var(--rr-border-strong);
+}
+
+.dash-kpi-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.dash-kpi-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--rr-text-3);
+}
+
+.dash-kpi-value {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: var(--rr-text);
+  line-height: 1.1;
+}
+
+.dash-kpi-delta {
+  font-size: 0.78rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dash-kpi-delta.good { color: var(--rr-mint); }
+.dash-kpi-delta.warn { color: var(--rr-orange); }
+.dash-kpi-delta.danger { color: var(--rr-sos-red); }
+
+/* Neutral by default. Four saturated 48px tiles per row was decoration, and it
+   competed with the severity chips that actually carry meaning. */
+.dash-kpi-icon-wrap {
+  width: 3rem;
+  height: 3rem;
+  border-radius: var(--rr-radius-l);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--rr-surface-2);
+  color: var(--rr-text-2);
+}
+
+/* Only the band that can kill someone keeps its colour. */
+.dash-kpi-icon-wrap.red {
+  background: var(--rr-danger-soft);
+  color: var(--rr-danger-soft-text);
+}
+
+/* Interactive Dispatch / Ticket Item */
+.dash-item-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.dash-item-card {
+  background: var(--rr-surface-2);
+  border: 1px solid var(--rr-border);
+  border-radius: var(--rr-radius);
+  padding: var(--space-4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  transition: all var(--rr-fast) var(--rr-ease);
+}
+
+.dash-item-card:hover {
+  background: var(--rr-surface);
+  border-color: var(--rr-border-strong);
+}
+
+.dash-item-meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.dash-item-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.dash-item-title {
+  font-size: var(--text-base);
+  font-weight: var(--weight-bold);
+  color: var(--rr-text);
+}
+
+.dash-item-desc {
+  font-size: var(--text-sm);
+  color: var(--rr-text-2);
+  margin: 0;
+}
+
+.dash-item-sub {
+  font-size: var(--text-xs);
+  color: var(--rr-text-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.dash-item-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Tactical HUD / Rescuer Mission Box. Neutral by default; the .is-active
+   modifier is what says "a unit is deployed right now". The same emerald was
+   previously used for both "active deployment" and "no deployment", so the
+   colour carried no information at all. */
+.tactical-mission-hud {
+  background: var(--rr-surface);
+  border: 1px solid var(--rr-border);
+  border-radius: var(--rr-radius-l);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.tactical-mission-hud.is-active {
+  border-color: var(--rr-danger-soft-border);
+  box-shadow: inset 3px 0 0 var(--rr-danger);
+}
+
+[data-theme='dark'] .tactical-mission-hud {
+  background: var(--rr-surface);
+  border-color: var(--rr-border);
+}
+
+/* Consumers pass 4, 5 or 6 nodes; a hardcoded 4-column grid pushed the extras off
+   the right edge of a phone. Let the track wrap and let each node size to content. */
+.tactical-stepper {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  list-style: none;
+  padding: 0;
+}
+
+/* The state word carries the stage for anyone who cannot use the fill colour. */
+.stepper-state {
+  display: block;
+  margin-top: 0.125rem;
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-regular);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+@media (max-width: 480px) {
+  .tactical-stepper {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.stepper-node {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--rr-radius-s);
+  background: var(--rr-surface-2);
+  border: 1px solid var(--rr-border);
+  text-align: center;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--rr-text-2);
+  min-width: 0;
+  transition: all var(--rr-fast);
+}
+
+/* Declared after .completed so a node that is both (the final stage) still
+   reads as the current one — the previous order made stage 4 never look active. */
+.stepper-node.completed {
+  background: var(--rr-success-soft);
+  color: var(--rr-success-soft-text);
+  border-color: var(--rr-success-soft-border);
+}
+
+.stepper-node.active {
+  background: var(--rr-success);
+  color: var(--rr-on-success);
+  border-color: var(--rr-success);
+}
+
+/* Shelter Capacity Gauge / Progress Bar */
+.capacity-track {
+  width: 100%;
+  height: 8px;
+  background: var(--rr-surface-3);
+  border-radius: var(--rr-radius-pill);
+  overflow: hidden;
+  margin-top: 6px;
+}
+
+.capacity-fill {
+  height: 100%;
+  border-radius: var(--rr-radius-pill);
+  transition: width 0.5s ease;
+}
+
+.capacity-fill.green { background: var(--rr-mint); }
+.capacity-fill.orange { background: var(--rr-orange); }
+.capacity-fill.red { background: var(--rr-sos-red); }
+
+/* Quick Action Button Pill.
+   The visual definition of .btn-dash-primary / .btn-dash-outline lives in
+   components.css, which aliases them onto .rr-btn and loads later. The full
+   declarations that used to sit here were overridden property-by-property and
+   were pure dead weight. Only the pill radius, which is specific to the
+   dashboard chrome, is kept. */
+.btn-dash-primary,
+.btn-dash-outline {
+  border-radius: var(--rr-radius-pill);
+}
+
+/* Table styling for Government Dashboard */
+.dash-table-wrapper {
+  overflow-x: auto;
+  border-radius: var(--rr-radius);
+}
+
+.dash-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  text-align: left;
+}
+
+.dash-table th {
+  background: var(--rr-surface-2);
+  color: var(--rr-text-2);
+  font-weight: 700;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--rr-border);
+  text-transform: uppercase;
+  font-size: 0.76rem;
+  letter-spacing: 0.04em;
+}
+
+.dash-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--rr-border);
+  color: var(--rr-text);
+  vertical-align: middle;
+}
+
+.dash-table tr:hover td {
+  background: var(--rr-surface-2);
+}
+
+/* Modal and Alert styling */
+.dash-emergency-alert-card {
+  border-left: 4px solid var(--rr-sos-red);
+  background: var(--rr-surface);
+  border-radius: var(--rr-radius);
+  padding: var(--space-4) var(--space-5);
+  box-shadow: var(--rr-shadow);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.dash-emergency-alert-card .alert-icon {
+  color: var(--rr-sos-red);
+  margin-top: 2px;
+}

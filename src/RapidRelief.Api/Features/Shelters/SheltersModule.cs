@@ -28,6 +28,9 @@ public sealed class SheltersModule : IFeatureModule
         RapidRelief.Api.Features.Shelters.Endpoints.SheltersAiEndpoints.Map(endpoints);
     }
 
-    public Task MigrateAsync(IServiceProvider scopedServices, CancellationToken ct)
-        => scopedServices.GetRequiredService<OpsDbContext>().Database.MigrateAsync(ct);
+    public async Task MigrateAsync(IServiceProvider scopedServices, CancellationToken ct)
+    {
+        await scopedServices.GetRequiredService<OpsDbContext>().Database.MigrateAsync(ct);
+        await Services.ShelterSeeder.SeedAsync(scopedServices, ct);
+    }
 }

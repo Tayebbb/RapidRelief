@@ -2,14 +2,7 @@
 @using RapidRelief.Shared.Contracts.Common
 @using RapidRelief.Shared.Contracts.ReadModels
 
-@if (Shelters.Count > 0)
-{
-    <RapidMap InitialCenter="MapCenter" InitialZoom="13" Markers="_markers" />
-}
-else
-{
-    <RapidMap InitialCenter="MapCenter" InitialZoom="13" Markers="_markers" />
-}
+<RapidMap View="_map" InitialCenter="MapCenter" InitialZoom="13" />
 
 @code {
     [Parameter, EditorRequired]
@@ -18,18 +11,22 @@ else
     [Parameter]
     public GeoPoint? Center { get; set; }
 
-    private GeoPoint MapCenter => Center ?? new GeoPoint(23.8103, 90.4125);
+    [Parameter]
+    public GeoPoint? UserLocation { get; set; }
 
-    private IReadOnlyList<MapMarker> _markers = [];
+    [Parameter]
+    public double UserAccuracyMeters { get; set; }
+
+    private readonly MapView _map = new();
+
+    private GeoPoint MapCenter => Center ?? _map.FallbackCenter;
 
     protected override void OnParametersSet()
     {
-        _markers = Shelters.Select(s => new MapMarker(
-            s.Id.ToString(),
-            s.Location.Latitude,
-            s.Location.Longitude,
-            s.Name,
-            s.IsOpen ? "shelter-open" : "shelter-closed"
-        )).ToList();
+        // The shared adapter decides the pin style and the "N of M free" label, so a shelter
+        // looks and reads the same here as it does on the operational map.
+        _map.SetLayer(MapLayerId.Shelters, Shelters.ToPlacemarks());
+        _map.UserLocation = UserLocation;
+        _map.UserLocationAccuracyMeters = UserAccuracyMeters;
     }
 }

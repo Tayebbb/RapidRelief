@@ -1,7 +1,9 @@
 using System.Diagnostics;
+using System.Text.Json;
 using System.Threading.Channels;
 using Microsoft.EntityFrameworkCore;
 using RapidRelief.Api.Infrastructure.Persistence;
+using RapidRelief.Shared.Contracts.Enums;
 using RapidRelief.Shared.Contracts.Eventing;
 using RapidRelief.Shared.Contracts.Events;
 using RapidRelief.Shared.Contracts.ReadModels;
@@ -77,13 +79,33 @@ public sealed class AiAnalysisWorker : BackgroundService
 
         var outcome = await AnalyzeAsync(analysis, request, ct);
         var assessment = outcome.Assessment;
+        var findings = outcome.Findings;
 
-        Guid? duplicateOf = null;
+        DuplicateMatch? duplicate = null;
         if (!degraded)
         {
-            duplicateOf = await services.GetRequiredService<DuplicateDetector>().FindDuplicateAsync(
-                request.IncidentId, request.Location, request.ReportedType, request.ReportedAtUtc, ct);
+            duplicate = await services.GetRequiredService<DuplicateDetector>().FindMatchAsync(
+                request.IncidentId, request.Location, request.ReportedType, request.ReportedAtUtc,
+                request.Description, ct);
         }
+
+        var duplicateOf = duplicate?.IncidentId;
+
+        // Context the analysers cannot see: how crowded this area already is and whether anyone
+        // is actually free to go. Both fail soft — a priority score must always be computable.
+        var nearbyOpen = degraded ? 0 : await NearbyOpenIncidentsAsync(services, request, ct);
+        var responders = await ResponderAvailabilityAsync(services, request, ct);
+
+        var priority = IncidentPriorityEngine.Compute(new PriorityInputs(
+            findings.EstimatedSeverity,
+            request.IsSos,
+            findings.EstimatedPeopleAffected ?? request.AffectedPeopleCount,
+            findings.MedicalUrgency,
+            request.ReportedAtUtc,
+            _timeProvider.GetUtcNow(),
+            findings.Confidence,
+            nearbyOpen,
+            responders));
 
         var summary = assessment.Summary.Length <= 200 ? assessment.Summary : assessment.Summary[..200];
 
@@ -102,7 +124,7 @@ public sealed class AiAnalysisWorker : BackgroundService
                 IncidentId = request.IncidentId,
                 PredictedType = assessment.PredictedType,
                 EstimatedSeverity = assessment.EstimatedSeverity,
-                PriorityScore = assessment.PriorityScore,
+                PriorityScore = priority.Score,
                 Summary = summary,
                 PossibleDuplicateOfId = duplicateOf,
                 Provider = assessment.Provider,
@@ -110,11 +132,23 @@ public sealed class AiAnalysisWorker : BackgroundService
                 LatencyMs = outcome.LatencyMs,
                 TokensUsed = outcome.TokensUsed,
                 FinishReason = outcome.FinishReason,
+                Confidence = findings.Confidence,
+                Urgency = priority.Urgency,
+                PriorityBand = priority.Band,
+                EstimatedPeopleAffected = findings.EstimatedPeopleAffected,
+                MedicalUrgency = findings.MedicalUrgency,
+                DamageIndicatorsJson = JsonSerializer.Serialize(findings.DamageIndicators),
+                Reasoning = Clamp($"{findings.Reasoning} {priority.Explanation}", 600),
+                PriorityFactorsJson = JsonSerializer.Serialize(priority.Factors),
+                DegradedReason = outcome.DegradedReason,
+                DuplicateConfidence = duplicate?.Confidence,
+                DuplicateReason = duplicate?.Reason,
                 SnapshotLatitude = request.Location.Latitude,
                 SnapshotLongitude = request.Location.Longitude,
                 SnapshotType = request.ReportedType,
                 SnapshotReportedAtUtc = request.ReportedAtUtc,
                 SnapshotIsSos = request.IsSos,
+                SnapshotDescriptionKey = Clamp(IncidentSignalReader.Normalise(request.Description), 600),
                 CreatedAtUtc = _timeProvider.GetUtcNow(),
             });
             try
@@ -135,12 +169,51 @@ public sealed class AiAnalysisWorker : BackgroundService
         // exists — a shutdown cancellation in this gap would persist the assessment but lose
         // IncidentAssessed forever (no redelivery once the row blocks reprocessing).
         await bus.PublishAsync(new IncidentAssessed(request.IncidentId, assessment.EstimatedSeverity,
-            assessment.PriorityScore, summary, duplicateOf), CancellationToken.None);
+            priority.Score, summary, duplicateOf), CancellationToken.None);
         _logger.LogInformation(
-            "Incident {IncidentId} assessed by {Provider}: severity {Severity}, priority {Priority:F0}, duplicateOf {DuplicateOf}",
+            "Incident {IncidentId} assessed by {Provider}: severity {Severity}, priority {Priority:F0} ({Band}), duplicateOf {DuplicateOf}",
             request.IncidentId, assessment.Provider, (int)assessment.EstimatedSeverity,
-            assessment.PriorityScore, duplicateOf);
+            priority.Score, priority.Band, duplicateOf);
     }
+
+    /// <summary>Other open incidents within 2 km — a cluster means the area is deteriorating.</summary>
+    private async Task<int> NearbyOpenIncidentsAsync(
+        IServiceProvider services, AiAnalysisRequest request, CancellationToken ct)
+    {
+        try
+        {
+            var incidents = services.GetRequiredService<IIncidentReadService>();
+            var nearby = await incidents.GetIncidentsAsync(
+                new IncidentQuery(Status: null, Near: request.Location, RadiusKm: 2, PageSize: 25), ct);
+            return nearby.Items.Count(x => x.Id != request.IncidentId
+                && x.Status is not (IncidentStatus.Resolved or IncidentStatus.Rejected));
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            _logger.LogWarning(ex, "Nearby-incident lookup failed for {IncidentId} — scoring without it",
+                request.IncidentId);
+            return 0;
+        }
+    }
+
+    private async Task<ResponderAvailabilityDto> ResponderAvailabilityAsync(
+        IServiceProvider services, AiAnalysisRequest request, CancellationToken ct)
+    {
+        try
+        {
+            return await services.GetRequiredService<IResponderAvailabilityService>()
+                .GetAvailabilityAsync(request.Location, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            _logger.LogWarning(ex, "Responder availability lookup failed for {IncidentId} — scoring without it",
+                request.IncidentId);
+            return ResponderAvailabilityDto.Unknown;
+        }
+    }
+
+    private static string Clamp(string value, int max)
+        => value.Length <= max ? value : value[..max];
 
     /// <summary>Prefers the composite's telemetry-rich path; any substituted service still works.</summary>
     private static async Task<AiAnalysisOutcome> AnalyzeAsync(
@@ -154,7 +227,18 @@ public sealed class AiAnalysisWorker : BackgroundService
         var stopwatch = Stopwatch.StartNew();
         var dto = await analysis.AnalyzeIncidentAsync(request, ct);
         stopwatch.Stop();
+
+        // A substituted analyser only fills the frozen DTO, so the structured view is rebuilt
+        // from what it returned plus the deterministic reader — never left empty.
+        var signals = IncidentSignalReader.Read(request.Description);
+        var findings = new AiFindings(dto.PredictedType, dto.EstimatedSeverity, 0.5,
+            signals.DamageIndicators,
+            request.AffectedPeopleCount > 0 ? request.AffectedPeopleCount : signals.PeopleMentioned,
+            signals.MedicalUrgency, dto.Summary,
+            $"Assessed by {dto.Provider} without structured reasoning; evidence taken from the report text.");
+
         return new AiAnalysisOutcome(dto, ModelName: null,
-            (int)Math.Min(stopwatch.ElapsedMilliseconds, int.MaxValue), TokensUsed: null, FinishReason: null);
+            (int)Math.Min(stopwatch.ElapsedMilliseconds, int.MaxValue), TokensUsed: null,
+            FinishReason: null, findings, DegradedReason: null);
     }
 }

@@ -1,0 +1,189 @@
+@namespace RapidRelief.Client.Features.Landing.Components
+@inject HttpClient Http
+@implements IDisposable
+
+<section id="hero" class="landing-hero" aria-labelledby="hero-main-title">
+    <!-- Cinematic Full-Screen Background Slideshow cycling all disaster images -->
+    @if (_images.Length > 0)
+    {
+        <div class="hero-slides-container" aria-hidden="true">
+            @for (int i = 0; i < _images.Length; i++)
+            {
+                var imgUrl = _images[i];
+                var isActive = i == _currentIndex;
+                var isNext = i == (_currentIndex + 1) % _images.Length;
+                <div class="hero-slide-item @(isActive ? "is-active" : null)">
+                    @if (isActive || isNext || _loadedIndices.Contains(i))
+                    {
+                        <img class="hero-slide-img" 
+                             src="@imgUrl" 
+                             alt="Disaster response and emergency operations scene" 
+                             loading="@(i == 0 ? "eager" : "lazy")" 
+                             fetchpriority="@(i == 0 ? "high" : "auto")"
+                             @onerror="() => HandleImageError(imgUrl)" />
+                    }
+                </div>
+            }
+        </div>
+    }
+
+    <!-- Cinematic Multi-Layer Dark Overlays for Optimal Text Legibility -->
+    <div class="hero-overlay-dark" aria-hidden="true"></div>
+    <div class="hero-overlay-vignette" aria-hidden="true"></div>
+    <div class="hero-bottom-blend" aria-hidden="true"></div>
+
+    <!-- Centered Content Container in the Middle Part -->
+    <div class="hero-content-wrap">
+        <div class="hero-content-inner">
+            <!-- Brand Badge -->
+            <div class="hero-badge-row">
+                <span class="hero-pill-brand">
+                    <AppIcon Name="shield-plus" Size="14" />
+                    <span>Emergency Response, Connected</span>
+                </span>
+            </div>
+
+            <!-- Original Headline -->
+            <h1 id="hero-main-title" class="hero-headline">
+                Help reaches people <span class="hero-headline-accent">when it matters most.</span>
+            </h1>
+
+            <!-- Original Lede -->
+            <p class="hero-lede">
+                Report emergencies, find nearby shelters, receive AI safety guidance, and connect critical information with rescue teams — built to work reliably even when networks fail.
+            </p>
+
+            <!-- Original Action Buttons -->
+            <div class="hero-actions-group">
+                <a class="btn-hero-primary" href="shelters/finder">
+                    <span>Report an Emergency</span>
+                    <AppIcon Name="arrow-right" Size="17" />
+                </a>
+                <a class="btn-hero-secondary" href="#how-it-works">
+                    <AppIcon Name="clock" Size="17" />
+                    <span>See How It Works</span>
+                </a>
+            </div>
+
+            <!-- Original Trust Indicators -->
+            <div class="trust-indicators-row">
+                <div class="trust-item">
+                    <span class="trust-dot"></span>
+                    <span>Emergency Reporting</span>
+                </div>
+                <div class="trust-item">
+                    <span class="trust-dot"></span>
+                    <span>Nearby Shelter Finder</span>
+                </div>
+                <div class="trust-item">
+                    <span class="trust-dot"></span>
+                    <span>AI Safety Guidance</span>
+                </div>
+                <div class="trust-item">
+                    <span class="trust-dot"></span>
+                    <span>Live Response Updates</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+@code {
+    private int _currentIndex;
+    private CancellationTokenSource? _cts;
+    private readonly HashSet<int> _loadedIndices = [0];
+
+    // Initial fallback images; dynamically updated from /api/hero-images to match folder contents
+    private string[] _images =
+    [
+        "hero images/earthquake.jpg",
+        "hero images/tornado1.jpg",
+        "hero images/fire.jpg",
+        "hero images/flood1.jpg",
+        "hero images/tsunami.jpg",
+        "hero images/earthquake11.jpg",
+        "hero images/flood2.jpg",
+        "hero images/tornado2.jpg",
+        "hero images/flood3.jpg",
+        "hero images/flood4.jpg",
+        "hero images/flood5.jpg",
+        "hero images/flood6.jpg",
+        "hero images/flood9.jpg",
+        "hero images/pexels-kelly-4170441.jpg",
+        "hero images/pexels-kelly-4170459.jpg",
+        "hero images/pexels-pamanjoe-35872865.jpg",
+        "hero images/tsuami 2.jpg",
+        "hero images/tsunami1.jpg"
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var dynamicImages = await Http.GetFromJsonAsync<string[]>("api/hero-images");
+            if (dynamicImages is { Length: > 0 })
+            {
+                _images = dynamicImages;
+                _loadedIndices.Clear();
+                _loadedIndices.Add(0);
+                if (_currentIndex >= _images.Length)
+                {
+                    _currentIndex = 0;
+                }
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+        {
+            // Retain default fallback list if API call fails
+        }
+
+        StartSlideshowTimer();
+    }
+
+    private void StartSlideshowTimer()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+
+        var token = _cts.Token;
+        _ = Task.Run(async () =>
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5.5));
+            try
+            {
+                while (await timer.WaitForNextTickAsync(token))
+                {
+                    if (_images.Length > 0)
+                    {
+                        _currentIndex = (_currentIndex + 1) % _images.Length;
+                        _loadedIndices.Add(_currentIndex);
+                        await InvokeAsync(StateHasChanged);
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Normal shutdown
+            }
+        }, token);
+    }
+
+    private void HandleImageError(string failedUrl)
+    {
+        if (_images.Length <= 1) return;
+        _images = _images.Where(x => !string.Equals(x, failedUrl, StringComparison.OrdinalIgnoreCase)).ToArray();
+        if (_currentIndex >= _images.Length)
+        {
+            _currentIndex = 0;
+        }
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = null;
+    }
+}

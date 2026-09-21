@@ -1,0 +1,212 @@
+.hero {
+    padding: var(--space-8) 0 var(--space-6);
+    max-width: 46rem;
+}
+
+.hero-eyebrow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+}
+
+.hero-title {
+    font-size: clamp(1.9rem, 4.5vw, 2.75rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.12;
+    margin-bottom: var(--space-3);
+}
+
+.hero-accent {
+    color: var(--rr-primary);
+}
+
+.hero-lede {
+    color: var(--rr-text-2);
+    font-size: 1.05rem;
+    line-height: 1.65;
+    max-width: 54ch;
+    margin-bottom: var(--space-6);
+}
+
+.hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+    .hero-actions .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.55rem 1.1rem;
+    }
+
+.hero-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-weight: 550;
+    font-size: 0.9rem;
+}
+
+    .hero-link svg {
+        transition: transform var(--rr-fast) var(--rr-ease);
+    }
+
+    .hero-link:hover svg {
+        transform: translateX(3px);
+    }
+
+.emergency-strip {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    background: var(--rr-danger-soft);
+    border: 1px solid var(--rr-danger-soft-border);
+    border-radius: var(--rr-radius-l);
+    color: var(--rr-danger-soft-text);
+    padding: var(--space-4) var(--space-5);
+    margin-bottom: var(--space-10);
+    max-width: 46rem;
+}
+
+    .emergency-strip p {
+        margin: 0;
+        font-size: 0.92rem;
+        line-height: 1.55;
+    }
+
+    .emergency-strip strong {
+        display: block;
+        font-weight: 650;
+    }
+
+::deep .emergency-icon {
+    flex-shrink: 0;
+    margin-top: 0.2rem;
+}
+
+.action-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: var(--space-4);
+    margin-top: var(--space-4);
+}
+
+.action-card {
+    position: relative;
+    display: block;
+    background: var(--rr-surface);
+    border: 1px solid var(--rr-border);
+    border-radius: var(--rr-radius-l);
+    box-shadow: var(--rr-shadow);
+    padding: var(--space-5);
+    color: var(--rr-text);
+    text-decoration: none;
+    transition: border-color var(--rr-fast) var(--rr-ease), transform var(--rr-fast) var(--rr-ease),
+        box-shadow var(--rr-fast) var(--rr-ease);
+}
+
+    .action-card:hover {
+        text-decoration: none;
+        color: var(--rr-text);
+        border-color: var(--rr-border-strong);
+        transform: translateY(-2px);
+        box-shadow: var(--rr-shadow-pop);
+    }
+
+    .action-card h3 {
+        font-size: 1rem;
+        margin: var(--space-3) 0 var(--space-1);
+    }
+
+    .action-card p {
+        color: var(--rr-text-2);
+        font-size: 0.85rem;
+        line-height: 1.55;
+        margin: 0;
+        padding-right: var(--space-4);
+    }
+
+.action-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.6rem;
+    height: 2.6rem;
+    border-radius: var(--rr-radius);
+    background: var(--rr-info-soft);
+    color: var(--rr-info-soft-text);
+    border: 1px solid var(--rr-info-soft-border);
+}
+
+.action-go {
+    position: absolute;
+    right: var(--space-4);
+    bottom: var(--space-4);
+    color: var(--rr-text-3);
+    transition: color var(--rr-fast) var(--rr-ease), transform var(--rr-fast) var(--rr-ease);
+}
+
+.action-card:hover .action-go {
+    color: var(--rr-primary);
+    transform: translateX(3px);
+}
+
+.how-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: var(--space-4);
+    list-style: none;
+    margin: var(--space-4) 0 0;
+    padding: 0;
+    counter-reset: none;
+}
+
+.how-step {
+    background: var(--rr-surface);
+    border: 1px solid var(--rr-border);
+    border-radius: var(--rr-radius-l);
+    padding: var(--space-5);
+}
+
+    .how-step h3 {
+        font-size: 1rem;
+        margin: var(--space-3) 0 var(--space-1);
+    }
+
+    .how-step p {
+        color: var(--rr-text-2);
+        font-size: 0.85rem;
+        line-height: 1.55;
+        margin: 0;
+    }
+
+.how-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    border-radius: 50%;
+    background: var(--rr-surface-2);
+    border: 1px solid var(--rr-border-strong);
+    color: var(--rr-text-2);
+    font-size: 0.85rem;
+    font-weight: 650;
+}
+
+@media (max-width: 639.98px) {
+    .hero {
+        padding-top: var(--space-4);
+    }
+
+    .hero-actions .btn {
+        flex: 1 1 auto;
+        justify-content: center;
+    }
+}

@@ -30,6 +30,6 @@ node_modules/
 Thumbs.db
 .DS_Store
 
-# RapidRelief � uploaded files live outside git (blueprint B1)
+# RapidRelief — uploaded files live outside git (blueprint B1)
 App_Data/
 

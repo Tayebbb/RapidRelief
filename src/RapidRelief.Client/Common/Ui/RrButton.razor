@@ -1,0 +1,79 @@
+@namespace RapidRelief.Client.Common.Ui
+
+<button type="@Type"
+        class="@ComputedClass"
+        disabled="@(IsDisabled || IsLoading)"
+        aria-busy="@(IsLoading ? "true" : null)"
+        aria-label="@AriaLabel"
+        @onclick="OnClick"
+        @attributes="AdditionalAttributes">
+    @if (IsLoading)
+    {
+        <span class="rr-btn-spinner" aria-hidden="true">
+            <AppIcon Name="loader" Size="@IconSize" CssClass="rr-spin" />
+        </span>
+    }
+    else if (!string.IsNullOrWhiteSpace(IconStart))
+    {
+        <AppIcon Name="@IconStart" Size="@IconSize" CssClass="rr-btn-icon-start" />
+    }
+
+    @if (ChildContent is not null)
+    {
+        <span class="rr-btn-text">@ChildContent</span>
+    }
+
+    @if (!IsLoading && !string.IsNullOrWhiteSpace(IconEnd))
+    {
+        <AppIcon Name="@IconEnd" Size="@IconSize" CssClass="rr-btn-icon-end" />
+    }
+</button>
+
+@code {
+    [Parameter] public ButtonVariant Variant { get; set; } = ButtonVariant.Primary;
+    [Parameter] public ButtonSize Size { get; set; } = ButtonSize.Md;
+    [Parameter] public string Type { get; set; } = "button";
+    [Parameter] public bool IsLoading { get; set; }
+    [Parameter] public bool IsDisabled { get; set; }
+    [Parameter] public string? IconStart { get; set; }
+    [Parameter] public string? IconEnd { get; set; }
+    [Parameter] public string? AriaLabel { get; set; }
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public EventCallback<MouseEventArgs> OnClick { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private int IconSize => Size switch
+    {
+        ButtonSize.Sm => 14,
+        ButtonSize.Lg => 20,
+        _ => 16
+    };
+
+    private string ComputedClass
+    {
+        get
+        {
+            var variantClass = Variant switch
+            {
+                ButtonVariant.Secondary => "rr-btn-secondary",
+                ButtonVariant.Outline => "rr-btn-outline",
+                ButtonVariant.Danger => "rr-btn-danger",
+                ButtonVariant.Ghost => "rr-btn-ghost",
+                ButtonVariant.Link => "rr-btn-link",
+                _ => "rr-btn-primary"
+            };
+
+            var sizeClass = Size switch
+            {
+                ButtonSize.Sm => "rr-btn-sm",
+                ButtonSize.Lg => "rr-btn-lg",
+                _ => ""
+            };
+
+            var loadingClass = IsLoading ? "rr-btn-loading" : "";
+
+            return $"rr-btn {variantClass} {sizeClass} {loadingClass} {Class}".Trim();
+        }
+    }
+}
