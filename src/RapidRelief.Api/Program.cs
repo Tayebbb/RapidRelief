@@ -20,6 +20,53 @@ Log.Logger = new LoggerConfiguration()
 try
 {
     var builder = WebApplication.CreateBuilder(args);
+
+    // Local developer config overrides (.Local.json files are gitignored)
+    builder.Configuration
+        .AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true)
+        .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.Local.json", optional: true, reloadOnChange: true);
+
+    // Load .env if present (content root or workspace root)
+    var envCandidates = new[]
+    {
+        Path.Combine(builder.Environment.ContentRootPath, ".env"),
+        Path.Combine(Directory.GetParent(builder.Environment.ContentRootPath)?.FullName ?? "", ".env"),
+        Path.Combine(Directory.GetCurrentDirectory(), ".env"),
+    };
+    foreach (var envFile in envCandidates)
+    {
+        if (File.Exists(envFile))
+        {
+            foreach (var line in File.ReadAllLines(envFile))
+            {
+                var trimmed = line.Trim();
+                if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith('#')) continue;
+                var eqIdx = trimmed.IndexOf('=');
+                if (eqIdx > 0)
+                {
+                    var key = trimmed[..eqIdx].Trim();
+                    var val = trimmed[(eqIdx + 1)..].Trim().Trim('"', '\'');
+                    if (key == "OPENROUTER_API_KEY" && string.IsNullOrWhiteSpace(builder.Configuration["Ai:OpenRouter:ApiKey"]))
+                    {
+                        builder.Configuration["Ai:OpenRouter:ApiKey"] = val;
+                    }
+                    else if (string.IsNullOrWhiteSpace(builder.Configuration[key.Replace("__", ":")]))
+                    {
+                        builder.Configuration[key.Replace("__", ":")] = val;
+                    }
+                }
+            }
+            break;
+        }
+    }
+
+    // Direct environment variable fallback for OpenRouter API Key
+    var openRouterEnvKey = Environment.GetEnvironmentVariable("OPENROUTER_API_KEY");
+    if (!string.IsNullOrWhiteSpace(openRouterEnvKey) && string.IsNullOrWhiteSpace(builder.Configuration["Ai:OpenRouter:ApiKey"]))
+    {
+        builder.Configuration["Ai:OpenRouter:ApiKey"] = openRouterEnvKey;
+    }
+
     // preserveStaticLogger keeps each host's logger independent so multiple
     // WebApplicationFactory hosts in one test process never re-freeze the bootstrap logger.
     builder.Host.UseSerilog((context, services, configuration) =>
