@@ -1,3 +1,6 @@
+@namespace RapidRelief.Client.Layout
+@implements IDisposable
+
 <div class="nav-shell">
     <div class="nav-head">
         <a class="brand" href="@DashboardLink" @onclick="Navigated">
@@ -11,9 +14,91 @@
 
     @* Clicking any link closes the mobile drawer (same pattern as the template it replaces). *@
     <nav class="nav-body" @onclick="Navigated">
-        <!-- 1. CITIZEN ROLE EXCLUSIVE NAVIGATION -->
-        <AuthorizeView Roles="Citizen">
+        <AuthorizeView>
             <Authorized>
+                <!-- Government Command (Only for Government/Admin/Ngo) -->
+                <AuthorizeView Roles="Government,Admin,Ngo" Context="govContext">
+                    <Authorized>
+                        <button type="button" class="nav-section-btn" @onclick="ToggleGovSection" @onclick:stopPropagation="true"
+                                aria-expanded="@_govExpanded">
+                            <span>Government Command</span>
+                            <AppIcon Name="@(_govExpanded ? "chevron-down" : "chevron-right")" Size="14" />
+                        </button>
+                        @if (_govExpanded)
+                        {
+                            <NavLink class="nav-link" href="g" Match="NavLinkMatch.All">
+                                <AppIcon Name="shield" Size="19" /><span>Command Center</span>
+                            </NavLink>
+                            <NavLink class="nav-link" href="admin/command-center">
+                                <AppIcon Name="activity" Size="19" /><span>Command Overview</span>
+                            </NavLink>
+                            <NavLink class="nav-link" href="g/incidents">
+                                <AppIcon Name="layers" Size="19" /><span>Incident Management</span>
+                            </NavLink>
+                            <NavLink class="nav-link" href="g/duplicates">
+                                <AppIcon Name="copy" Size="19" /><span>Duplicate Review</span>
+                                <span class="nav-tag">AI</span>
+                            </NavLink>
+                            <NavLink class="nav-link" href="g/map">
+                                <AppIcon Name="map" Size="19" /><span>Operational Map</span>
+                            </NavLink>
+                            <NavLink class="nav-link" href="g/analytics">
+                                <AppIcon Name="activity" Size="19" /><span>Response Analytics</span>
+                            </NavLink>
+                            <NavLink class="nav-link" href="g/relief">
+                                <AppIcon Name="shield-plus" Size="19" /><span>Relief & Resources</span>
+                            </NavLink>
+                            <NavLink class="nav-link" href="g/teams">
+                                <AppIcon Name="navigation" Size="19" /><span>Rescue Teams</span>
+                            </NavLink>
+                            <NavLink class="nav-link" href="admin/shelters">
+                                <AppIcon Name="home" Size="19" /><span>Manage Shelters</span>
+                            </NavLink>
+                            <NavLink class="nav-link" href="alerts/compose">
+                                <AppIcon Name="alert-circle" Size="19" /><span>Broadcast Alerts</span>
+                            </NavLink>
+                            <NavLink class="nav-link" href="g/users">
+                                <AppIcon Name="user" Size="19" /><span>User Management</span>
+                            </NavLink>
+                            <NavLink class="nav-link" href="g/audit">
+                                <AppIcon Name="clock" Size="19" /><span>Audit Trail</span>
+                            </NavLink>
+                            <NavLink class="nav-link" href="livemap">
+                                <AppIcon Name="map" Size="19" /><span>Live Disaster Map</span>
+                                <span class="nav-tag">Live</span>
+                            </NavLink>
+                        }
+                    </Authorized>
+                </AuthorizeView>
+
+                <!-- Rescuer Operations (Only for Rescuer/Rescue) -->
+                <AuthorizeView Roles="Rescuer,Rescue" Context="rescuerContext">
+                    <Authorized>
+                        <button type="button" class="nav-section-btn" @onclick="ToggleRescuerSection" @onclick:stopPropagation="true"
+                                aria-expanded="@_rescuerExpanded">
+                            <span>Rescuer Operations</span>
+                            <AppIcon Name="@(_rescuerExpanded ? "chevron-down" : "chevron-right")" Size="14" />
+                        </button>
+                        @if (_rescuerExpanded)
+                        {
+                            <NavLink class="nav-link" href="r" Match="NavLinkMatch.All">
+                                <AppIcon Name="activity" Size="19" /><span>Rescuer HUD</span>
+                            </NavLink>
+                            <NavLink class="nav-link" href="livemap">
+                                <AppIcon Name="map" Size="19" /><span>Live Disaster Map</span>
+                                <span class="nav-tag">Live</span>
+                            </NavLink>
+                            <NavLink class="nav-link" href="shelter">
+                                <AppIcon Name="map-pin" Size="19" /><span>Shelters Overview</span>
+                            </NavLink>
+                            <NavLink class="nav-link" href="assistant">
+                                <AppIcon Name="chat" Size="19" /><span>AI Field Assistant</span>
+                            </NavLink>
+                        }
+                    </Authorized>
+                </AuthorizeView>
+
+                <!-- Citizen Portal (Collapsible: collapsed by default for Gov/Rescuer, expanded for Citizen) -->
                 <button type="button" class="nav-section-btn" @onclick="ToggleCitizenSection" @onclick:stopPropagation="true"
                         aria-expanded="@_citizenExpanded">
                     <span>Citizen Portal</span>
@@ -45,6 +130,7 @@
                     </NavLink>
                 }
 
+                <!-- Personal & Alerts -->
                 <button type="button" class="nav-section-btn" @onclick="TogglePersonalSection" @onclick:stopPropagation="true"
                         aria-expanded="@_personalExpanded">
                     <span>Personal & Alerts</span>
@@ -60,122 +146,6 @@
                     </NavLink>
                 }
             </Authorized>
-        </AuthorizeView>
-
-        <!-- 2. RESCUER ROLE EXCLUSIVE NAVIGATION -->
-        <AuthorizeView Roles="Rescuer,Rescue">
-            <Authorized>
-                <button type="button" class="nav-section-btn" @onclick="ToggleRescuerSection" @onclick:stopPropagation="true"
-                        aria-expanded="@_rescuerExpanded">
-                    <span>Rescuer Operations</span>
-                    <AppIcon Name="@(_rescuerExpanded ? "chevron-down" : "chevron-right")" Size="14" />
-                </button>
-                @if (_rescuerExpanded)
-                {
-                    <NavLink class="nav-link" href="r" Match="NavLinkMatch.All">
-                        <AppIcon Name="activity" Size="19" /><span>Rescuer HUD</span>
-                    </NavLink>
-                    <NavLink class="nav-link" href="livemap">
-                        <AppIcon Name="map" Size="19" /><span>Live Disaster Map</span>
-                        <span class="nav-tag">Live</span>
-                    </NavLink>
-                    <NavLink class="nav-link" href="shelter">
-                        <AppIcon Name="map-pin" Size="19" /><span>Shelters Overview</span>
-                    </NavLink>
-                    <NavLink class="nav-link" href="assistant">
-                        <AppIcon Name="chat" Size="19" /><span>AI Field Assistant</span>
-                    </NavLink>
-                }
-
-                <button type="button" class="nav-section-btn" @onclick="TogglePersonalSection" @onclick:stopPropagation="true"
-                        aria-expanded="@_personalExpanded">
-                    <span>Personal & Alerts</span>
-                    <AppIcon Name="@(_personalExpanded ? "chevron-down" : "chevron-right")" Size="14" />
-                </button>
-                @if (_personalExpanded)
-                {
-                    <NavLink class="nav-link" href="notifications">
-                        <AppIcon Name="bell" Size="19" /><span>Mission Alerts</span>
-                    </NavLink>
-                    <NavLink class="nav-link" href="profile">
-                        <AppIcon Name="user" Size="19" /><span>Rescuer Profile</span>
-                    </NavLink>
-                }
-            </Authorized>
-        </AuthorizeView>
-
-        <!-- 3. GOVERNMENT / ADMIN ROLE EXCLUSIVE NAVIGATION -->
-        <AuthorizeView Roles="Government,Admin,Ngo">
-            <Authorized>
-                <button type="button" class="nav-section-btn" @onclick="ToggleGovSection" @onclick:stopPropagation="true"
-                        aria-expanded="@_govExpanded">
-                    <span>Government Command</span>
-                    <AppIcon Name="@(_govExpanded ? "chevron-down" : "chevron-right")" Size="14" />
-                </button>
-                @if (_govExpanded)
-                {
-                    <NavLink class="nav-link" href="g" Match="NavLinkMatch.All">
-                        <AppIcon Name="shield" Size="19" /><span>Command Center</span>
-                    </NavLink>
-                    <NavLink class="nav-link" href="admin/command-center">
-                        <AppIcon Name="activity" Size="19" /><span>Command Overview</span>
-                    </NavLink>
-                    <NavLink class="nav-link" href="g/incidents">
-                        <AppIcon Name="layers" Size="19" /><span>Incident Management</span>
-                    </NavLink>
-                    <NavLink class="nav-link" href="g/duplicates">
-                        <AppIcon Name="copy" Size="19" /><span>Duplicate Review</span>
-                        <span class="nav-tag">AI</span>
-                    </NavLink>
-                    <NavLink class="nav-link" href="g/map">
-                        <AppIcon Name="map" Size="19" /><span>Operational Map</span>
-                    </NavLink>
-                    <NavLink class="nav-link" href="g/analytics">
-                        <AppIcon Name="activity" Size="19" /><span>Response Analytics</span>
-                    </NavLink>
-                    <NavLink class="nav-link" href="g/relief">
-                        <AppIcon Name="shield-plus" Size="19" /><span>Relief & Resources</span>
-                    </NavLink>
-                    <NavLink class="nav-link" href="g/teams">
-                        <AppIcon Name="navigation" Size="19" /><span>Rescue Teams</span>
-                    </NavLink>
-                    <NavLink class="nav-link" href="admin/shelters">
-                        <AppIcon Name="home" Size="19" /><span>Manage Shelters</span>
-                    </NavLink>
-                    <NavLink class="nav-link" href="alerts/compose">
-                        <AppIcon Name="alert-circle" Size="19" /><span>Broadcast Alerts</span>
-                    </NavLink>
-                    <NavLink class="nav-link" href="g/users">
-                        <AppIcon Name="user" Size="19" /><span>User Management</span>
-                    </NavLink>
-                    <NavLink class="nav-link" href="g/audit">
-                        <AppIcon Name="clock" Size="19" /><span>Audit Trail</span>
-                    </NavLink>
-                    <NavLink class="nav-link" href="livemap">
-                        <AppIcon Name="map" Size="19" /><span>Live Disaster Map</span>
-                        <span class="nav-tag">Live</span>
-                    </NavLink>
-                }
-
-                <button type="button" class="nav-section-btn" @onclick="TogglePersonalSection" @onclick:stopPropagation="true"
-                        aria-expanded="@_personalExpanded">
-                    <span>Personal & Alerts</span>
-                    <AppIcon Name="@(_personalExpanded ? "chevron-down" : "chevron-right")" Size="14" />
-                </button>
-                @if (_personalExpanded)
-                {
-                    <NavLink class="nav-link" href="notifications">
-                        <AppIcon Name="bell" Size="19" /><span>System Alerts</span>
-                    </NavLink>
-                    <NavLink class="nav-link" href="profile">
-                        <AppIcon Name="user" Size="19" /><span>Admin Profile</span>
-                    </NavLink>
-                }
-            </Authorized>
-        </AuthorizeView>
-
-        <!-- 4. ANONYMOUS / PUBLIC VISITORS NAVIGATION -->
-        <AuthorizeView>
             <NotAuthorized>
                 <button type="button" class="nav-section-btn" @onclick="ToggleEmergencySection" @onclick:stopPropagation="true"
                         aria-expanded="@_emergencyExpanded">
@@ -233,21 +203,50 @@
 
     protected override async Task OnInitializedAsync()
     {
+        AuthStateProvider.AuthenticationStateChanged += OnAuthStateChanged;
+        await UpdateNavStateAsync();
+    }
+
+    private void OnAuthStateChanged(Task<AuthenticationState> task)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            await UpdateNavStateAsync();
+            StateHasChanged();
+        });
+    }
+
+    private async Task UpdateNavStateAsync()
+    {
         try
         {
             var auth = await AuthStateProvider.GetAuthenticationStateAsync();
-            if (auth.User.Identity?.IsAuthenticated == true)
+            var user = auth.User;
+            if (user.Identity?.IsAuthenticated == true)
             {
-                DashboardLink = RapidRelief.Client.Common.Auth.AuthRouteHelper.GetDashboardRoute(auth.User);
+                DashboardLink = RapidRelief.Client.Common.Auth.AuthRouteHelper.GetDashboardRoute(user);
+                // Collapse citizen portal by default for Government and Rescuer roles
+                if (user.IsInRole(RapidRelief.Shared.Contracts.Enums.Roles.Government) ||
+                    user.IsInRole(RapidRelief.Shared.Contracts.Enums.Roles.Rescuer) ||
+                    user.IsInRole("Admin") || user.IsInRole("Rescue"))
+                {
+                    _citizenExpanded = false;
+                }
+                else
+                {
+                    _citizenExpanded = true;
+                }
             }
             else
             {
                 DashboardLink = "";
+                _citizenExpanded = true;
             }
         }
         catch
         {
             DashboardLink = "";
+            _citizenExpanded = true;
         }
     }
 
@@ -258,4 +257,9 @@
     private void ToggleEmergencySection() => _emergencyExpanded = !_emergencyExpanded;
 
     private Task Navigated() => OnNavigated.InvokeAsync();
+
+    public void Dispose()
+    {
+        AuthStateProvider.AuthenticationStateChanged -= OnAuthStateChanged;
+    }
 }
