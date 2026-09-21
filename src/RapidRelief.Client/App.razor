@@ -1,15 +1,22 @@
-﻿<Router AppAssembly="@typeof(App).Assembly">
+<Router AppAssembly="@typeof(App).Assembly">
     <Found Context="routeData">
         <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
             <NotAuthorized>
                 @if (context.User.Identity?.IsAuthenticated == true)
                 {
-                    <PageTitle>Not authorized</PageTitle>
-                    <div class="rr-empty rr-router-state" role="alert">
-                        <AppIcon Name="shield" Size="28" />
-                        <strong>You don't have access to this page</strong>
-                        <p>You're signed in, but this area needs a different role. An administrator can grant it.</p>
-                        <a class="btn btn-primary btn-sm" href="">Go to Home</a>
+                    <PageTitle>Not Authorized — RapidRelief</PageTitle>
+                    <div style="max-width: 600px; margin: 3rem auto; padding: 0 1rem;">
+                        <div class="rr-empty rr-router-state" role="alert" style="padding: 2.5rem 1.5rem; text-align: center;">
+                            <div class="rr-empty-icon-wrap" aria-hidden="true" style="margin-bottom: 0.75rem;">
+                                <AppIcon Name="shield" Size="36" />
+                            </div>
+                            <strong style="font-size: 1.25rem; display: block; margin-bottom: 0.5rem; color: var(--rr-text);">Access Restricted</strong>
+                            <p style="color: var(--rr-text-2); margin-bottom: 1.5rem; line-height: 1.5;">You are signed in, but this area requires specific permissions or a different role.</p>
+                            <div style="display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
+                                <a class="btn btn-primary btn-sm" href="">Return to Home</a>
+                                <a class="btn btn-secondary btn-sm" href="map">Disaster Map</a>
+                            </div>
+                        </div>
                     </div>
                 }
                 else
@@ -21,13 +28,22 @@
         <FocusOnNavigate RouteData="@routeData" Selector="h1" />
     </Found>
     <NotFound>
-        <PageTitle>Not found</PageTitle>
+        <PageTitle>Page Not Found — RapidRelief</PageTitle>
         <LayoutView Layout="@typeof(MainLayout)">
-            <div class="rr-empty rr-router-state" role="alert">
-                <AppIcon Name="map" Size="28" />
-                <strong>Nothing at this address</strong>
-                <p>The page may have moved, or the link is wrong. Head back home to find your way.</p>
-                <a class="btn btn-primary btn-sm" href="">Go to Home</a>
+            <div style="max-width: 650px; margin: 3rem auto; padding: 0 1rem;">
+                <div class="rr-empty rr-router-state" role="alert" style="padding: 2.5rem 1.5rem; text-align: center;">
+                    <div class="rr-empty-icon-wrap" aria-hidden="true" style="margin-bottom: 0.75rem;">
+                        <AppIcon Name="map" Size="36" />
+                    </div>
+                    <strong style="font-size: 1.35rem; display: block; margin-bottom: 0.5rem; color: var(--rr-text);">Page Not Found</strong>
+                    <p style="color: var(--rr-text-2); margin-bottom: 1.5rem; line-height: 1.5;">The requested page may have moved, been deleted, or the link may be incorrect. Use the quick links below to navigate back to safety.</p>
+                    <div style="display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
+                        <a class="btn btn-primary btn-sm" href="">Return to Home</a>
+                        <a class="btn btn-secondary btn-sm" href="map">Disaster Map</a>
+                        <a class="btn btn-secondary btn-sm" href="relief/request">Request Relief</a>
+                        <a class="btn btn-secondary btn-sm" href="shelters">Find Shelters</a>
+                    </div>
+                </div>
             </div>
         </LayoutView>
     </NotFound>
