@@ -74,39 +74,30 @@
                     <AppIcon Name="user" Size="19" /><span>Rescuer Profile</span>
                 </NavLink>
 
-                <!-- Collapsible Citizen Options for Rescuer -->
-                <div class="nav-collapse-section">
-                    <button type="button" class="nav-collapse-toggle @(_citizenCollapsed ? "" : "is-expanded")" 
-                            @onclick="ToggleCitizenMenu" @onclick:stopPropagation="true"
-                            aria-expanded="@(!_citizenCollapsed)" aria-controls="rescuer-citizen-menu">
-                        <span class="nav-collapse-label">
-                            <AppIcon Name="user" Size="16" />
-                            <span>Citizen Services</span>
-                        </span>
-                        <AppIcon Name="@(_citizenCollapsed ? "chevron-right" : "chevron-down")" Size="16" CssClass="nav-collapse-icon" />
+                <!-- Collapsible Citizen Portal -->
+                <div class="nav-section-collapsible">
+                    <button type="button" class="nav-section-btn" @onclick="ToggleCitizenMenu" @onclick:stopPropagation="true"
+                            aria-expanded="@(!_citizenCollapsed)">
+                        <span>Citizen Portal</span>
+                        <AppIcon Name="@(_citizenCollapsed ? "chevron-right" : "chevron-down")" Size="14" />
                     </button>
                     @if (!_citizenCollapsed)
                     {
-                        <div id="rescuer-citizen-menu" class="nav-collapse-body">
-                            <NavLink class="nav-link nav-link-sub" href="c" Match="NavLinkMatch.All">
-                                <AppIcon Name="layers" Size="17" /><span>Citizen Dashboard</span>
-                            </NavLink>
-                            <NavLink class="nav-link nav-link-sub" href="reports/new">
-                                <AppIcon Name="alert-circle" Size="17" /><span>Report Incident & SOS</span>
-                            </NavLink>
-                            <NavLink class="nav-link nav-link-sub" href="reports/my">
-                                <AppIcon Name="clock" Size="17" /><span>Track Reports</span>
-                            </NavLink>
-                            <NavLink class="nav-link nav-link-sub" href="shelter">
-                                <AppIcon Name="map-pin" Size="17" /><span>Find Shelter</span>
-                            </NavLink>
-                            <NavLink class="nav-link nav-link-sub" href="relief/request">
-                                <AppIcon Name="shield-plus" Size="17" /><span>Request Relief</span>
-                            </NavLink>
-                            <NavLink class="nav-link nav-link-sub" href="assistant">
-                                <AppIcon Name="chat" Size="17" /><span>AI Assistant</span>
-                            </NavLink>
-                        </div>
+                        <NavLink class="nav-link" href="c" Match="NavLinkMatch.All">
+                            <AppIcon Name="layers" Size="19" /><span>Citizen Dashboard</span>
+                        </NavLink>
+                        <NavLink class="nav-link" href="reports/new">
+                            <AppIcon Name="alert-circle" Size="19" /><span>Report Incident & SOS</span>
+                        </NavLink>
+                        <NavLink class="nav-link" href="reports/my">
+                            <AppIcon Name="clock" Size="19" /><span>Track My Reports</span>
+                        </NavLink>
+                        <NavLink class="nav-link" href="shelter">
+                            <AppIcon Name="map-pin" Size="19" /><span>Find Shelter</span>
+                        </NavLink>
+                        <NavLink class="nav-link" href="relief/request">
+                            <AppIcon Name="shield-plus" Size="19" /><span>Request Relief</span>
+                        </NavLink>
                     }
                 </div>
             </Authorized>
@@ -166,39 +157,30 @@
                     <AppIcon Name="user" Size="19" /><span>Admin Profile</span>
                 </NavLink>
 
-                <!-- Collapsible Citizen Options for Government -->
-                <div class="nav-collapse-section">
-                    <button type="button" class="nav-collapse-toggle @(_citizenCollapsed ? "" : "is-expanded")" 
-                            @onclick="ToggleCitizenMenu" @onclick:stopPropagation="true"
-                            aria-expanded="@(!_citizenCollapsed)" aria-controls="gov-citizen-menu">
-                        <span class="nav-collapse-label">
-                            <AppIcon Name="user" Size="16" />
-                            <span>Citizen Services</span>
-                        </span>
-                        <AppIcon Name="@(_citizenCollapsed ? "chevron-right" : "chevron-down")" Size="16" CssClass="nav-collapse-icon" />
+                <!-- Collapsible Citizen Portal -->
+                <div class="nav-section-collapsible">
+                    <button type="button" class="nav-section-btn" @onclick="ToggleCitizenMenu" @onclick:stopPropagation="true"
+                            aria-expanded="@(!_citizenCollapsed)">
+                        <span>Citizen Portal</span>
+                        <AppIcon Name="@(_citizenCollapsed ? "chevron-right" : "chevron-down")" Size="14" />
                     </button>
                     @if (!_citizenCollapsed)
                     {
-                        <div id="gov-citizen-menu" class="nav-collapse-body">
-                            <NavLink class="nav-link nav-link-sub" href="c" Match="NavLinkMatch.All">
-                                <AppIcon Name="layers" Size="17" /><span>Citizen Dashboard</span>
-                            </NavLink>
-                            <NavLink class="nav-link nav-link-sub" href="reports/new">
-                                <AppIcon Name="alert-circle" Size="17" /><span>Report Incident & SOS</span>
-                            </NavLink>
-                            <NavLink class="nav-link nav-link-sub" href="reports/my">
-                                <AppIcon Name="clock" Size="17" /><span>Track Reports</span>
-                            </NavLink>
-                            <NavLink class="nav-link nav-link-sub" href="shelter">
-                                <AppIcon Name="map-pin" Size="17" /><span>Find Shelter</span>
-                            </NavLink>
-                            <NavLink class="nav-link nav-link-sub" href="relief/request">
-                                <AppIcon Name="shield-plus" Size="17" /><span>Request Relief</span>
-                            </NavLink>
-                            <NavLink class="nav-link nav-link-sub" href="assistant">
-                                <AppIcon Name="chat" Size="17" /><span>AI Assistant</span>
-                            </NavLink>
-                        </div>
+                        <NavLink class="nav-link" href="c" Match="NavLinkMatch.All">
+                            <AppIcon Name="layers" Size="19" /><span>Citizen Dashboard</span>
+                        </NavLink>
+                        <NavLink class="nav-link" href="reports/new">
+                            <AppIcon Name="alert-circle" Size="19" /><span>Report Incident & SOS</span>
+                        </NavLink>
+                        <NavLink class="nav-link" href="reports/my">
+                            <AppIcon Name="clock" Size="19" /><span>Track My Reports</span>
+                        </NavLink>
+                        <NavLink class="nav-link" href="shelter">
+                            <AppIcon Name="map-pin" Size="19" /><span>Find Shelter</span>
+                        </NavLink>
+                        <NavLink class="nav-link" href="relief/request">
+                            <AppIcon Name="shield-plus" Size="19" /><span>Request Relief</span>
+                        </NavLink>
                     }
                 </div>
             </Authorized>
