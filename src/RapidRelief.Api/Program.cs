@@ -50,7 +50,7 @@ try
             var knownProxies = builder.Configuration.GetSection("Proxy:KnownProxies").Get<string[]>() ?? [];
             if (knownProxies.Length > 0)
             {
-                options.KnownNetworks.Clear();
+                options.KnownIPNetworks.Clear();
                 options.KnownProxies.Clear();
                 foreach (var proxy in knownProxies)
                 {
