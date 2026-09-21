@@ -73,33 +73,6 @@
                 <NavLink class="nav-link" href="profile">
                     <AppIcon Name="user" Size="19" /><span>Rescuer Profile</span>
                 </NavLink>
-
-                <!-- Collapsible Citizen Portal -->
-                <div class="nav-section-collapsible">
-                    <button type="button" class="nav-section-btn" @onclick="ToggleCitizenMenu" @onclick:stopPropagation="true"
-                            aria-expanded="@(!_citizenCollapsed)">
-                        <span>Citizen Portal</span>
-                        <AppIcon Name="@(_citizenCollapsed ? "chevron-right" : "chevron-down")" Size="14" />
-                    </button>
-                    @if (!_citizenCollapsed)
-                    {
-                        <NavLink class="nav-link" href="c" Match="NavLinkMatch.All">
-                            <AppIcon Name="layers" Size="19" /><span>Citizen Dashboard</span>
-                        </NavLink>
-                        <NavLink class="nav-link" href="reports/new">
-                            <AppIcon Name="alert-circle" Size="19" /><span>Report Incident & SOS</span>
-                        </NavLink>
-                        <NavLink class="nav-link" href="reports/my">
-                            <AppIcon Name="clock" Size="19" /><span>Track My Reports</span>
-                        </NavLink>
-                        <NavLink class="nav-link" href="shelter">
-                            <AppIcon Name="map-pin" Size="19" /><span>Find Shelter</span>
-                        </NavLink>
-                        <NavLink class="nav-link" href="relief/request">
-                            <AppIcon Name="shield-plus" Size="19" /><span>Request Relief</span>
-                        </NavLink>
-                    }
-                </div>
             </Authorized>
         </AuthorizeView>
 
@@ -156,33 +129,6 @@
                 <NavLink class="nav-link" href="profile">
                     <AppIcon Name="user" Size="19" /><span>Admin Profile</span>
                 </NavLink>
-
-                <!-- Collapsible Citizen Portal -->
-                <div class="nav-section-collapsible">
-                    <button type="button" class="nav-section-btn" @onclick="ToggleCitizenMenu" @onclick:stopPropagation="true"
-                            aria-expanded="@(!_citizenCollapsed)">
-                        <span>Citizen Portal</span>
-                        <AppIcon Name="@(_citizenCollapsed ? "chevron-right" : "chevron-down")" Size="14" />
-                    </button>
-                    @if (!_citizenCollapsed)
-                    {
-                        <NavLink class="nav-link" href="c" Match="NavLinkMatch.All">
-                            <AppIcon Name="layers" Size="19" /><span>Citizen Dashboard</span>
-                        </NavLink>
-                        <NavLink class="nav-link" href="reports/new">
-                            <AppIcon Name="alert-circle" Size="19" /><span>Report Incident & SOS</span>
-                        </NavLink>
-                        <NavLink class="nav-link" href="reports/my">
-                            <AppIcon Name="clock" Size="19" /><span>Track My Reports</span>
-                        </NavLink>
-                        <NavLink class="nav-link" href="shelter">
-                            <AppIcon Name="map-pin" Size="19" /><span>Find Shelter</span>
-                        </NavLink>
-                        <NavLink class="nav-link" href="relief/request">
-                            <AppIcon Name="shield-plus" Size="19" /><span>Request Relief</span>
-                        </NavLink>
-                    }
-                </div>
             </Authorized>
         </AuthorizeView>
 
@@ -230,7 +176,6 @@
     [Parameter] public EventCallback OnNavigated { get; set; }
     [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
     private string DashboardLink = "";
-    private bool _citizenCollapsed = true;
 
     protected override async Task OnInitializedAsync()
     {
@@ -251,8 +196,6 @@
             DashboardLink = "";
         }
     }
-
-    private void ToggleCitizenMenu() => _citizenCollapsed = !_citizenCollapsed;
 
     private Task Navigated() => OnNavigated.InvokeAsync();
 }
