@@ -1,6 +1,6 @@
 <div class="nav-shell">
     <div class="nav-head">
-        <a class="brand" href="" @onclick="Navigated">
+        <a class="brand" href="@DashboardLink" @onclick="Navigated">
             <AppLogo Size="32" CssClass="brand-logo-img" />
             <span class="brand-text">RapidRelief</span>
         </a>
@@ -11,9 +11,9 @@
 
     @* Clicking any link closes the mobile drawer (same pattern as the template it replaces). *@
     <nav class="nav-body" @onclick="Navigated">
-        <AuthorizeView>
+        <!-- 1. CITIZEN ROLE EXCLUSIVE NAVIGATION -->
+        <AuthorizeView Roles="Citizen">
             <Authorized>
-                <!-- Citizen Emergency Services -->
                 <span class="nav-section">Citizen Portal</span>
                 <NavLink class="nav-link" href="c" Match="NavLinkMatch.All">
                     <AppIcon Name="layers" Size="19" /><span>Dashboard</span>
@@ -33,6 +33,10 @@
                 <NavLink class="nav-link" href="assistant">
                     <AppIcon Name="chat" Size="19" /><span>AI Assistant</span>
                 </NavLink>
+                <NavLink class="nav-link" href="livemap">
+                    <AppIcon Name="map" Size="19" /><span>Live Disaster Map</span>
+                    <span class="nav-tag">Live</span>
+                </NavLink>
 
                 <span class="nav-section">Personal & Alerts</span>
                 <NavLink class="nav-link" href="notifications">
@@ -44,7 +48,72 @@
             </Authorized>
         </AuthorizeView>
 
-        <AuthorizeView Roles="Government">
+        <!-- 2. RESCUER ROLE EXCLUSIVE NAVIGATION -->
+        <AuthorizeView Roles="Rescuer,Rescue">
+            <Authorized>
+                <span class="nav-section">Rescuer Operations</span>
+                <NavLink class="nav-link" href="r" Match="NavLinkMatch.All">
+                    <AppIcon Name="activity" Size="19" /><span>Rescuer HUD</span>
+                </NavLink>
+                <NavLink class="nav-link" href="livemap">
+                    <AppIcon Name="map" Size="19" /><span>Live Disaster Map</span>
+                    <span class="nav-tag">Live</span>
+                </NavLink>
+                <NavLink class="nav-link" href="shelter">
+                    <AppIcon Name="map-pin" Size="19" /><span>Shelters Overview</span>
+                </NavLink>
+                <NavLink class="nav-link" href="assistant">
+                    <AppIcon Name="chat" Size="19" /><span>AI Field Assistant</span>
+                </NavLink>
+
+                <span class="nav-section">Personal & Alerts</span>
+                <NavLink class="nav-link" href="notifications">
+                    <AppIcon Name="bell" Size="19" /><span>Mission Alerts</span>
+                </NavLink>
+                <NavLink class="nav-link" href="profile">
+                    <AppIcon Name="user" Size="19" /><span>Rescuer Profile</span>
+                </NavLink>
+
+                <!-- Collapsible Citizen Options for Rescuer -->
+                <div class="nav-collapse-section">
+                    <button type="button" class="nav-collapse-toggle @(_citizenCollapsed ? "" : "is-expanded")" 
+                            @onclick="ToggleCitizenMenu" @onclick:stopPropagation="true"
+                            aria-expanded="@(!_citizenCollapsed)" aria-controls="rescuer-citizen-menu">
+                        <span class="nav-collapse-label">
+                            <AppIcon Name="user" Size="16" />
+                            <span>Citizen Services</span>
+                        </span>
+                        <AppIcon Name="@(_citizenCollapsed ? "chevron-right" : "chevron-down")" Size="16" CssClass="nav-collapse-icon" />
+                    </button>
+                    @if (!_citizenCollapsed)
+                    {
+                        <div id="rescuer-citizen-menu" class="nav-collapse-body">
+                            <NavLink class="nav-link nav-link-sub" href="c" Match="NavLinkMatch.All">
+                                <AppIcon Name="layers" Size="17" /><span>Citizen Dashboard</span>
+                            </NavLink>
+                            <NavLink class="nav-link nav-link-sub" href="reports/new">
+                                <AppIcon Name="alert-circle" Size="17" /><span>Report Incident & SOS</span>
+                            </NavLink>
+                            <NavLink class="nav-link nav-link-sub" href="reports/my">
+                                <AppIcon Name="clock" Size="17" /><span>Track Reports</span>
+                            </NavLink>
+                            <NavLink class="nav-link nav-link-sub" href="shelter">
+                                <AppIcon Name="map-pin" Size="17" /><span>Find Shelter</span>
+                            </NavLink>
+                            <NavLink class="nav-link nav-link-sub" href="relief/request">
+                                <AppIcon Name="shield-plus" Size="17" /><span>Request Relief</span>
+                            </NavLink>
+                            <NavLink class="nav-link nav-link-sub" href="assistant">
+                                <AppIcon Name="chat" Size="17" /><span>AI Assistant</span>
+                            </NavLink>
+                        </div>
+                    }
+                </div>
+            </Authorized>
+        </AuthorizeView>
+
+        <!-- 3. GOVERNMENT / ADMIN ROLE EXCLUSIVE NAVIGATION -->
+        <AuthorizeView Roles="Government,Admin,Ngo">
             <Authorized>
                 <span class="nav-section">Government Command</span>
                 <NavLink class="nav-link" href="g" Match="NavLinkMatch.All">
@@ -67,7 +136,7 @@
                     <AppIcon Name="activity" Size="19" /><span>Response Analytics</span>
                 </NavLink>
                 <NavLink class="nav-link" href="g/relief">
-                    <AppIcon Name="shield-plus" Size="19" /><span>Relief &amp; Resources</span>
+                    <AppIcon Name="shield-plus" Size="19" /><span>Relief & Resources</span>
                 </NavLink>
                 <NavLink class="nav-link" href="g/teams">
                     <AppIcon Name="navigation" Size="19" /><span>Rescue Teams</span>
@@ -88,16 +157,82 @@
                     <AppIcon Name="map" Size="19" /><span>Live Disaster Map</span>
                     <span class="nav-tag">Live</span>
                 </NavLink>
+
+                <span class="nav-section">Personal & Alerts</span>
+                <NavLink class="nav-link" href="notifications">
+                    <AppIcon Name="bell" Size="19" /><span>System Alerts</span>
+                </NavLink>
+                <NavLink class="nav-link" href="profile">
+                    <AppIcon Name="user" Size="19" /><span>Admin Profile</span>
+                </NavLink>
+
+                <!-- Collapsible Citizen Options for Government -->
+                <div class="nav-collapse-section">
+                    <button type="button" class="nav-collapse-toggle @(_citizenCollapsed ? "" : "is-expanded")" 
+                            @onclick="ToggleCitizenMenu" @onclick:stopPropagation="true"
+                            aria-expanded="@(!_citizenCollapsed)" aria-controls="gov-citizen-menu">
+                        <span class="nav-collapse-label">
+                            <AppIcon Name="user" Size="16" />
+                            <span>Citizen Services</span>
+                        </span>
+                        <AppIcon Name="@(_citizenCollapsed ? "chevron-right" : "chevron-down")" Size="16" CssClass="nav-collapse-icon" />
+                    </button>
+                    @if (!_citizenCollapsed)
+                    {
+                        <div id="gov-citizen-menu" class="nav-collapse-body">
+                            <NavLink class="nav-link nav-link-sub" href="c" Match="NavLinkMatch.All">
+                                <AppIcon Name="layers" Size="17" /><span>Citizen Dashboard</span>
+                            </NavLink>
+                            <NavLink class="nav-link nav-link-sub" href="reports/new">
+                                <AppIcon Name="alert-circle" Size="17" /><span>Report Incident & SOS</span>
+                            </NavLink>
+                            <NavLink class="nav-link nav-link-sub" href="reports/my">
+                                <AppIcon Name="clock" Size="17" /><span>Track Reports</span>
+                            </NavLink>
+                            <NavLink class="nav-link nav-link-sub" href="shelter">
+                                <AppIcon Name="map-pin" Size="17" /><span>Find Shelter</span>
+                            </NavLink>
+                            <NavLink class="nav-link nav-link-sub" href="relief/request">
+                                <AppIcon Name="shield-plus" Size="17" /><span>Request Relief</span>
+                            </NavLink>
+                            <NavLink class="nav-link nav-link-sub" href="assistant">
+                                <AppIcon Name="chat" Size="17" /><span>AI Assistant</span>
+                            </NavLink>
+                        </div>
+                    }
+                </div>
             </Authorized>
         </AuthorizeView>
 
-        <AuthorizeView Roles="Rescuer">
-            <Authorized>
-                <span class="nav-section">Rescuer Operations</span>
-                <NavLink class="nav-link" href="r">
-                    <AppIcon Name="activity" Size="19" /><span>Rescuer HUD</span>
+        <!-- 4. ANONYMOUS / PUBLIC VISITORS NAVIGATION -->
+        <AuthorizeView>
+            <NotAuthorized>
+                <span class="nav-section">Emergency Services</span>
+                <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                    <AppIcon Name="home" Size="19" /><span>Home</span>
                 </NavLink>
-            </Authorized>
+                <NavLink class="nav-link" href="livemap">
+                    <AppIcon Name="map" Size="19" /><span>Live Disaster Map</span>
+                    <span class="nav-tag">Live</span>
+                </NavLink>
+                <NavLink class="nav-link" href="shelter">
+                    <AppIcon Name="map-pin" Size="19" /><span>Find Shelter</span>
+                </NavLink>
+                <NavLink class="nav-link" href="relief/request">
+                    <AppIcon Name="shield-plus" Size="19" /><span>Request Relief</span>
+                </NavLink>
+                <NavLink class="nav-link" href="reports/new">
+                    <AppIcon Name="alert-circle" Size="19" /><span>Report Incident</span>
+                </NavLink>
+
+                <span class="nav-section">Account Access</span>
+                <NavLink class="nav-link" href="auth/signin">
+                    <AppIcon Name="user" Size="19" /><span>Sign In</span>
+                </NavLink>
+                <NavLink class="nav-link" href="auth/signup">
+                    <AppIcon Name="user-plus" Size="19" /><span>Sign Up</span>
+                </NavLink>
+            </NotAuthorized>
         </AuthorizeView>
     </nav>
 
@@ -112,20 +247,30 @@
 @code {
     [Parameter] public EventCallback OnNavigated { get; set; }
     [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
-    private string DashboardLink = "c";
+    private string DashboardLink = "";
+    private bool _citizenCollapsed = true;
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
             var auth = await AuthStateProvider.GetAuthenticationStateAsync();
-            DashboardLink = RapidRelief.Client.Common.Auth.AuthRouteHelper.GetDashboardRoute(auth.User);
+            if (auth.User.Identity?.IsAuthenticated == true)
+            {
+                DashboardLink = RapidRelief.Client.Common.Auth.AuthRouteHelper.GetDashboardRoute(auth.User);
+            }
+            else
+            {
+                DashboardLink = "";
+            }
         }
         catch
         {
-            DashboardLink = "c";
+            DashboardLink = "";
         }
     }
+
+    private void ToggleCitizenMenu() => _citizenCollapsed = !_citizenCollapsed;
 
     private Task Navigated() => OnNavigated.InvokeAsync();
 }

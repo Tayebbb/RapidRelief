@@ -157,3 +157,78 @@
         padding-top: calc(var(--space-3) + env(safe-area-inset-top));
     }
 }
+
+/* Collapsible Citizen Navigation for Gov / Rescuer */
+.nav-collapse-section {
+    margin-top: var(--space-2);
+    border-top: 1px solid var(--rr-border);
+    padding-top: var(--space-2);
+}
+
+.nav-collapse-toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 2.5rem;
+    padding: var(--space-2) var(--space-3);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--rr-radius-s);
+    color: var(--rr-text-2);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    cursor: pointer;
+    text-align: left;
+    transition: background-color var(--rr-fast) var(--rr-ease), color var(--rr-fast) var(--rr-ease), border-color var(--rr-fast) var(--rr-ease);
+}
+
+.nav-collapse-toggle:hover {
+    background: var(--rr-surface-2);
+    color: var(--rr-text);
+}
+
+.nav-collapse-toggle.is-expanded {
+    background: var(--rr-surface-2);
+    color: var(--rr-text);
+    font-weight: 600;
+}
+
+.nav-collapse-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.nav-collapse-label svg {
+    color: var(--rr-text-3);
+    transition: color var(--rr-fast) var(--rr-ease);
+}
+
+.nav-collapse-toggle:hover .nav-collapse-label svg,
+.nav-collapse-toggle.is-expanded .nav-collapse-label svg {
+    color: var(--rr-primary);
+}
+
+.nav-collapse-icon {
+    color: var(--rr-text-3);
+    transition: transform var(--rr-fast) var(--rr-ease), color var(--rr-fast) var(--rr-ease);
+}
+
+.nav-collapse-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 4px;
+    padding-left: var(--space-2);
+    border-left: 2px solid var(--rr-border);
+    margin-left: var(--space-3);
+}
+
+::deep .nav-link-sub {
+    min-height: 2.35rem;
+    font-size: var(--text-sm);
+    color: var(--rr-text-2);
+    padding: var(--space-1) var(--space-2);
+}
+
