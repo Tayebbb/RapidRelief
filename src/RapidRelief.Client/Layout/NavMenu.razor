@@ -14,144 +14,193 @@
         <!-- 1. CITIZEN ROLE EXCLUSIVE NAVIGATION -->
         <AuthorizeView Roles="Citizen">
             <Authorized>
-                <span class="nav-section">Citizen Portal</span>
-                <NavLink class="nav-link" href="c" Match="NavLinkMatch.All">
-                    <AppIcon Name="layers" Size="19" /><span>Dashboard</span>
-                </NavLink>
-                <NavLink class="nav-link" href="reports/new">
-                    <AppIcon Name="alert-circle" Size="19" /><span>Report Incident & SOS</span>
-                </NavLink>
-                <NavLink class="nav-link" href="reports/my">
-                    <AppIcon Name="clock" Size="19" /><span>Track My Reports</span>
-                </NavLink>
-                <NavLink class="nav-link" href="shelter">
-                    <AppIcon Name="map-pin" Size="19" /><span>Find Shelter</span>
-                </NavLink>
-                <NavLink class="nav-link" href="relief/request">
-                    <AppIcon Name="shield-plus" Size="19" /><span>Request Relief</span>
-                </NavLink>
-                <NavLink class="nav-link" href="assistant">
-                    <AppIcon Name="chat" Size="19" /><span>AI Assistant</span>
-                </NavLink>
-                <NavLink class="nav-link" href="livemap">
-                    <AppIcon Name="map" Size="19" /><span>Live Disaster Map</span>
-                    <span class="nav-tag">Live</span>
-                </NavLink>
+                <button type="button" class="nav-section-btn" @onclick="ToggleCitizenSection" @onclick:stopPropagation="true"
+                        aria-expanded="@_citizenExpanded">
+                    <span>Citizen Portal</span>
+                    <AppIcon Name="@(_citizenExpanded ? "chevron-down" : "chevron-right")" Size="14" />
+                </button>
+                @if (_citizenExpanded)
+                {
+                    <NavLink class="nav-link" href="c" Match="NavLinkMatch.All">
+                        <AppIcon Name="layers" Size="19" /><span>Dashboard</span>
+                    </NavLink>
+                    <NavLink class="nav-link" href="reports/new">
+                        <AppIcon Name="alert-circle" Size="19" /><span>Report Incident & SOS</span>
+                    </NavLink>
+                    <NavLink class="nav-link" href="reports/my">
+                        <AppIcon Name="clock" Size="19" /><span>Track My Reports</span>
+                    </NavLink>
+                    <NavLink class="nav-link" href="shelter">
+                        <AppIcon Name="map-pin" Size="19" /><span>Find Shelter</span>
+                    </NavLink>
+                    <NavLink class="nav-link" href="relief/request">
+                        <AppIcon Name="shield-plus" Size="19" /><span>Request Relief</span>
+                    </NavLink>
+                    <NavLink class="nav-link" href="assistant">
+                        <AppIcon Name="chat" Size="19" /><span>AI Assistant</span>
+                    </NavLink>
+                    <NavLink class="nav-link" href="livemap">
+                        <AppIcon Name="map" Size="19" /><span>Live Disaster Map</span>
+                        <span class="nav-tag">Live</span>
+                    </NavLink>
+                }
 
-                <span class="nav-section">Personal & Alerts</span>
-                <NavLink class="nav-link" href="notifications">
-                    <AppIcon Name="bell" Size="19" /><span>Emergency Alerts</span>
-                </NavLink>
-                <NavLink class="nav-link" href="profile">
-                    <AppIcon Name="user" Size="19" /><span>Profile & Contacts</span>
-                </NavLink>
+                <button type="button" class="nav-section-btn" @onclick="TogglePersonalSection" @onclick:stopPropagation="true"
+                        aria-expanded="@_personalExpanded">
+                    <span>Personal & Alerts</span>
+                    <AppIcon Name="@(_personalExpanded ? "chevron-down" : "chevron-right")" Size="14" />
+                </button>
+                @if (_personalExpanded)
+                {
+                    <NavLink class="nav-link" href="notifications">
+                        <AppIcon Name="bell" Size="19" /><span>Emergency Alerts</span>
+                    </NavLink>
+                    <NavLink class="nav-link" href="profile">
+                        <AppIcon Name="user" Size="19" /><span>Profile & Contacts</span>
+                    </NavLink>
+                }
             </Authorized>
         </AuthorizeView>
 
         <!-- 2. RESCUER ROLE EXCLUSIVE NAVIGATION -->
         <AuthorizeView Roles="Rescuer,Rescue">
             <Authorized>
-                <span class="nav-section">Rescuer Operations</span>
-                <NavLink class="nav-link" href="r" Match="NavLinkMatch.All">
-                    <AppIcon Name="activity" Size="19" /><span>Rescuer HUD</span>
-                </NavLink>
-                <NavLink class="nav-link" href="livemap">
-                    <AppIcon Name="map" Size="19" /><span>Live Disaster Map</span>
-                    <span class="nav-tag">Live</span>
-                </NavLink>
-                <NavLink class="nav-link" href="shelter">
-                    <AppIcon Name="map-pin" Size="19" /><span>Shelters Overview</span>
-                </NavLink>
-                <NavLink class="nav-link" href="assistant">
-                    <AppIcon Name="chat" Size="19" /><span>AI Field Assistant</span>
-                </NavLink>
+                <button type="button" class="nav-section-btn" @onclick="ToggleRescuerSection" @onclick:stopPropagation="true"
+                        aria-expanded="@_rescuerExpanded">
+                    <span>Rescuer Operations</span>
+                    <AppIcon Name="@(_rescuerExpanded ? "chevron-down" : "chevron-right")" Size="14" />
+                </button>
+                @if (_rescuerExpanded)
+                {
+                    <NavLink class="nav-link" href="r" Match="NavLinkMatch.All">
+                        <AppIcon Name="activity" Size="19" /><span>Rescuer HUD</span>
+                    </NavLink>
+                    <NavLink class="nav-link" href="livemap">
+                        <AppIcon Name="map" Size="19" /><span>Live Disaster Map</span>
+                        <span class="nav-tag">Live</span>
+                    </NavLink>
+                    <NavLink class="nav-link" href="shelter">
+                        <AppIcon Name="map-pin" Size="19" /><span>Shelters Overview</span>
+                    </NavLink>
+                    <NavLink class="nav-link" href="assistant">
+                        <AppIcon Name="chat" Size="19" /><span>AI Field Assistant</span>
+                    </NavLink>
+                }
 
-                <span class="nav-section">Personal & Alerts</span>
-                <NavLink class="nav-link" href="notifications">
-                    <AppIcon Name="bell" Size="19" /><span>Mission Alerts</span>
-                </NavLink>
-                <NavLink class="nav-link" href="profile">
-                    <AppIcon Name="user" Size="19" /><span>Rescuer Profile</span>
-                </NavLink>
+                <button type="button" class="nav-section-btn" @onclick="TogglePersonalSection" @onclick:stopPropagation="true"
+                        aria-expanded="@_personalExpanded">
+                    <span>Personal & Alerts</span>
+                    <AppIcon Name="@(_personalExpanded ? "chevron-down" : "chevron-right")" Size="14" />
+                </button>
+                @if (_personalExpanded)
+                {
+                    <NavLink class="nav-link" href="notifications">
+                        <AppIcon Name="bell" Size="19" /><span>Mission Alerts</span>
+                    </NavLink>
+                    <NavLink class="nav-link" href="profile">
+                        <AppIcon Name="user" Size="19" /><span>Rescuer Profile</span>
+                    </NavLink>
+                }
             </Authorized>
         </AuthorizeView>
 
         <!-- 3. GOVERNMENT / ADMIN ROLE EXCLUSIVE NAVIGATION -->
         <AuthorizeView Roles="Government,Admin,Ngo">
             <Authorized>
-                <span class="nav-section">Government Command</span>
-                <NavLink class="nav-link" href="g" Match="NavLinkMatch.All">
-                    <AppIcon Name="shield" Size="19" /><span>Command Center</span>
-                </NavLink>
-                <NavLink class="nav-link" href="admin/command-center">
-                    <AppIcon Name="activity" Size="19" /><span>Command Overview</span>
-                </NavLink>
-                <NavLink class="nav-link" href="g/incidents">
-                    <AppIcon Name="layers" Size="19" /><span>Incident Management</span>
-                </NavLink>
-                <NavLink class="nav-link" href="g/duplicates">
-                    <AppIcon Name="copy" Size="19" /><span>Duplicate Review</span>
-                    <span class="nav-tag">AI</span>
-                </NavLink>
-                <NavLink class="nav-link" href="g/map">
-                    <AppIcon Name="map" Size="19" /><span>Operational Map</span>
-                </NavLink>
-                <NavLink class="nav-link" href="g/analytics">
-                    <AppIcon Name="activity" Size="19" /><span>Response Analytics</span>
-                </NavLink>
-                <NavLink class="nav-link" href="g/relief">
-                    <AppIcon Name="shield-plus" Size="19" /><span>Relief & Resources</span>
-                </NavLink>
-                <NavLink class="nav-link" href="g/teams">
-                    <AppIcon Name="navigation" Size="19" /><span>Rescue Teams</span>
-                </NavLink>
-                <NavLink class="nav-link" href="admin/shelters">
-                    <AppIcon Name="home" Size="19" /><span>Manage Shelters</span>
-                </NavLink>
-                <NavLink class="nav-link" href="alerts/compose">
-                    <AppIcon Name="alert-circle" Size="19" /><span>Broadcast Alerts</span>
-                </NavLink>
-                <NavLink class="nav-link" href="g/users">
-                    <AppIcon Name="user" Size="19" /><span>User Management</span>
-                </NavLink>
-                <NavLink class="nav-link" href="g/audit">
-                    <AppIcon Name="clock" Size="19" /><span>Audit Trail</span>
-                </NavLink>
-                <NavLink class="nav-link" href="livemap">
-                    <AppIcon Name="map" Size="19" /><span>Live Disaster Map</span>
-                    <span class="nav-tag">Live</span>
-                </NavLink>
+                <button type="button" class="nav-section-btn" @onclick="ToggleGovSection" @onclick:stopPropagation="true"
+                        aria-expanded="@_govExpanded">
+                    <span>Government Command</span>
+                    <AppIcon Name="@(_govExpanded ? "chevron-down" : "chevron-right")" Size="14" />
+                </button>
+                @if (_govExpanded)
+                {
+                    <NavLink class="nav-link" href="g" Match="NavLinkMatch.All">
+                        <AppIcon Name="shield" Size="19" /><span>Command Center</span>
+                    </NavLink>
+                    <NavLink class="nav-link" href="admin/command-center">
+                        <AppIcon Name="activity" Size="19" /><span>Command Overview</span>
+                    </NavLink>
+                    <NavLink class="nav-link" href="g/incidents">
+                        <AppIcon Name="layers" Size="19" /><span>Incident Management</span>
+                    </NavLink>
+                    <NavLink class="nav-link" href="g/duplicates">
+                        <AppIcon Name="copy" Size="19" /><span>Duplicate Review</span>
+                        <span class="nav-tag">AI</span>
+                    </NavLink>
+                    <NavLink class="nav-link" href="g/map">
+                        <AppIcon Name="map" Size="19" /><span>Operational Map</span>
+                    </NavLink>
+                    <NavLink class="nav-link" href="g/analytics">
+                        <AppIcon Name="activity" Size="19" /><span>Response Analytics</span>
+                    </NavLink>
+                    <NavLink class="nav-link" href="g/relief">
+                        <AppIcon Name="shield-plus" Size="19" /><span>Relief & Resources</span>
+                    </NavLink>
+                    <NavLink class="nav-link" href="g/teams">
+                        <AppIcon Name="navigation" Size="19" /><span>Rescue Teams</span>
+                    </NavLink>
+                    <NavLink class="nav-link" href="admin/shelters">
+                        <AppIcon Name="home" Size="19" /><span>Manage Shelters</span>
+                    </NavLink>
+                    <NavLink class="nav-link" href="alerts/compose">
+                        <AppIcon Name="alert-circle" Size="19" /><span>Broadcast Alerts</span>
+                    </NavLink>
+                    <NavLink class="nav-link" href="g/users">
+                        <AppIcon Name="user" Size="19" /><span>User Management</span>
+                    </NavLink>
+                    <NavLink class="nav-link" href="g/audit">
+                        <AppIcon Name="clock" Size="19" /><span>Audit Trail</span>
+                    </NavLink>
+                    <NavLink class="nav-link" href="livemap">
+                        <AppIcon Name="map" Size="19" /><span>Live Disaster Map</span>
+                        <span class="nav-tag">Live</span>
+                    </NavLink>
+                }
 
-                <span class="nav-section">Personal & Alerts</span>
-                <NavLink class="nav-link" href="notifications">
-                    <AppIcon Name="bell" Size="19" /><span>System Alerts</span>
-                </NavLink>
-                <NavLink class="nav-link" href="profile">
-                    <AppIcon Name="user" Size="19" /><span>Admin Profile</span>
-                </NavLink>
+                <button type="button" class="nav-section-btn" @onclick="TogglePersonalSection" @onclick:stopPropagation="true"
+                        aria-expanded="@_personalExpanded">
+                    <span>Personal & Alerts</span>
+                    <AppIcon Name="@(_personalExpanded ? "chevron-down" : "chevron-right")" Size="14" />
+                </button>
+                @if (_personalExpanded)
+                {
+                    <NavLink class="nav-link" href="notifications">
+                        <AppIcon Name="bell" Size="19" /><span>System Alerts</span>
+                    </NavLink>
+                    <NavLink class="nav-link" href="profile">
+                        <AppIcon Name="user" Size="19" /><span>Admin Profile</span>
+                    </NavLink>
+                }
             </Authorized>
         </AuthorizeView>
 
         <!-- 4. ANONYMOUS / PUBLIC VISITORS NAVIGATION -->
         <AuthorizeView>
             <NotAuthorized>
-                <span class="nav-section">Emergency Services</span>
-                <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                    <AppIcon Name="home" Size="19" /><span>Home</span>
-                </NavLink>
-                <NavLink class="nav-link" href="livemap">
-                    <AppIcon Name="map" Size="19" /><span>Live Disaster Map</span>
-                    <span class="nav-tag">Live</span>
-                </NavLink>
-                <NavLink class="nav-link" href="shelter">
-                    <AppIcon Name="map-pin" Size="19" /><span>Find Shelter</span>
-                </NavLink>
-                <NavLink class="nav-link" href="relief/request">
-                    <AppIcon Name="shield-plus" Size="19" /><span>Request Relief</span>
-                </NavLink>
-                <NavLink class="nav-link" href="reports/new">
-                    <AppIcon Name="alert-circle" Size="19" /><span>Report Incident</span>
-                </NavLink>
+                <button type="button" class="nav-section-btn" @onclick="ToggleEmergencySection" @onclick:stopPropagation="true"
+                        aria-expanded="@_emergencyExpanded">
+                    <span>Emergency Services</span>
+                    <AppIcon Name="@(_emergencyExpanded ? "chevron-down" : "chevron-right")" Size="14" />
+                </button>
+                @if (_emergencyExpanded)
+                {
+                    <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                        <AppIcon Name="home" Size="19" /><span>Home</span>
+                    </NavLink>
+                    <NavLink class="nav-link" href="livemap">
+                        <AppIcon Name="map" Size="19" /><span>Live Disaster Map</span>
+                        <span class="nav-tag">Live</span>
+                    </NavLink>
+                    <NavLink class="nav-link" href="shelter">
+                        <AppIcon Name="map-pin" Size="19" /><span>Find Shelter</span>
+                    </NavLink>
+                    <NavLink class="nav-link" href="relief/request">
+                        <AppIcon Name="shield-plus" Size="19" /><span>Request Relief</span>
+                    </NavLink>
+                    <NavLink class="nav-link" href="reports/new">
+                        <AppIcon Name="alert-circle" Size="19" /><span>Report Incident</span>
+                    </NavLink>
+                }
 
                 <span class="nav-section">Account Access</span>
                 <NavLink class="nav-link" href="auth/signin">
@@ -176,6 +225,11 @@
     [Parameter] public EventCallback OnNavigated { get; set; }
     [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
     private string DashboardLink = "";
+    private bool _citizenExpanded = true;
+    private bool _personalExpanded = true;
+    private bool _rescuerExpanded = true;
+    private bool _govExpanded = true;
+    private bool _emergencyExpanded = true;
 
     protected override async Task OnInitializedAsync()
     {
@@ -196,6 +250,12 @@
             DashboardLink = "";
         }
     }
+
+    private void ToggleCitizenSection() => _citizenExpanded = !_citizenExpanded;
+    private void TogglePersonalSection() => _personalExpanded = !_personalExpanded;
+    private void ToggleRescuerSection() => _rescuerExpanded = !_rescuerExpanded;
+    private void ToggleGovSection() => _govExpanded = !_govExpanded;
+    private void ToggleEmergencySection() => _emergencyExpanded = !_emergencyExpanded;
 
     private Task Navigated() => OnNavigated.InvokeAsync();
 }

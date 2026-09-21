@@ -158,6 +158,39 @@
     }
 }
 
+.nav-section-btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--rr-text-3);
+    font-size: 0.68rem;
+    font-weight: 650;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: var(--space-4) var(--space-3) var(--space-1);
+    user-select: none;
+    text-align: left;
+    transition: color var(--rr-fast) var(--rr-ease);
+}
+
+.nav-section-btn:hover {
+    color: var(--rr-text);
+}
+
+.nav-section-btn svg {
+    color: var(--rr-text-3);
+    transition: transform var(--rr-fast) var(--rr-ease), color var(--rr-fast) var(--rr-ease);
+}
+
+.nav-section-btn:hover svg {
+    color: var(--rr-text);
+}
+
+
 
 
 
