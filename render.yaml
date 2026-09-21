@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: rapidrelief
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: Proxy__Enabled
+        value: "true"
+      - key: ConnectionStrings__Postgres
+        fromDatabase:
+          name: rapidrelief-db
+          property: connectionString
+      - key: Jwt__SigningKey
+        generateValue: true
+      - key: Jwt__Issuer
+        value: RapidRelief
+      - key: Jwt__Audience
+        value: RapidRelief
+      - key: Auth__SeedDemoUsers
+        value: "false"
+      - key: Ai__OpenRouter__ApiKey
+        sync: false
+
+databases:
+  - name: rapidrelief-db
+    plan: free
+    databaseName: rapidrelief
+    user: rapidrelief
