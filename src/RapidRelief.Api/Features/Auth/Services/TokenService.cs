@@ -48,6 +48,8 @@ public sealed class TokenService : ITokenService
         {
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new(ClaimTypes.Name, user.Email ?? string.Empty),
+            new(ClaimTypes.Email, user.Email ?? string.Empty),
+            new("display_name", user.DisplayName ?? string.Empty),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
         };
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));

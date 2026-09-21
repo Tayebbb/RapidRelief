@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using FluentValidation;
 using Microsoft.AspNetCore.Identity;
+using RapidRelief.Api.Features.Auth.Data;
 using RapidRelief.Api.Features.Auth.Domain;
 using RapidRelief.Api.Features.Auth.Services;
 using RapidRelief.Api.Infrastructure.Persistence;
@@ -229,6 +230,7 @@ public static class AuthEndpoints
         ClaimsPrincipal principal,
         UserManager<AppUser> userManager,
         DatabaseHealth databaseHealth,
+        AuthDbContext db,
         CancellationToken ct)
     {
         if (databaseHealth.PostgresAvailable != true)
@@ -240,6 +242,32 @@ public static class AuthEndpoints
         if (user is null)
         {
             return UserNotFound();
+        }
+
+        if (string.IsNullOrWhiteSpace(user.DisplayName) ||
+            user.DisplayName.Equals("Google User", StringComparison.OrdinalIgnoreCase) ||
+            user.DisplayName.Equals("Google-user", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(user.Email, "google-user@rr.dev", StringComparison.OrdinalIgnoreCase))
+        {
+            var neonProfile = await TryGetNeonGoogleProfileAsync(db, user.Email, ct);
+            if (neonProfile is not null)
+            {
+                var changed = false;
+                if (!string.IsNullOrWhiteSpace(neonProfile.Value.Name) && user.DisplayName != neonProfile.Value.Name)
+                {
+                    user.DisplayName = neonProfile.Value.Name;
+                    changed = true;
+                }
+                if (!string.IsNullOrWhiteSpace(neonProfile.Value.Image) && string.IsNullOrEmpty(user.PhotoPath))
+                {
+                    user.PhotoPath = neonProfile.Value.Image;
+                    changed = true;
+                }
+                if (changed)
+                {
+                    await userManager.UpdateAsync(user);
+                }
+            }
         }
 
         var profile = BuildProfile(user, (await userManager.GetRolesAsync(user)).ToList());
@@ -556,6 +584,7 @@ public static class AuthEndpoints
         ITokenService tokenService,
         IEventBus eventBus,
         DatabaseHealth databaseHealth,
+        AuthDbContext db,
         HttpContext httpContext,
         IHostEnvironment env,
         CancellationToken ct)
@@ -575,21 +604,47 @@ public static class AuthEndpoints
             return DatabaseUnavailable();
         }
 
-        if (string.IsNullOrWhiteSpace(request.Email))
+        var effectiveEmail = request.Email?.Trim() ?? string.Empty;
+        var effectiveDisplayName = request.DisplayName?.Trim();
+        var effectivePhoto = request.PhotoUrl;
+
+        // Resolve authentic Google account profile from neon_auth tables
+        var neonProfile = await TryGetNeonGoogleProfileAsync(db, effectiveEmail, ct);
+        if (neonProfile is not null)
+        {
+            if (string.IsNullOrWhiteSpace(effectiveEmail) || effectiveEmail.Equals("google-user@rr.dev", StringComparison.OrdinalIgnoreCase))
+            {
+                effectiveEmail = neonProfile.Value.Email ?? effectiveEmail;
+            }
+
+            if (string.IsNullOrWhiteSpace(effectiveDisplayName) ||
+                effectiveDisplayName.Equals("Google User", StringComparison.OrdinalIgnoreCase) ||
+                effectiveDisplayName.Equals("Google-user", StringComparison.OrdinalIgnoreCase))
+            {
+                effectiveDisplayName = neonProfile.Value.Name ?? effectiveDisplayName;
+            }
+
+            effectivePhoto ??= neonProfile.Value.Image;
+        }
+
+        if (string.IsNullOrWhiteSpace(effectiveEmail))
         {
             return Results.BadRequest("Email is required");
         }
 
         var assignedRole = ResolveRegistrationRole(request.Role, env);
 
-        var user = await userManager.FindByEmailAsync(request.Email);
+        var user = await userManager.FindByEmailAsync(effectiveEmail);
         if (user is null)
         {
             user = new AppUser
             {
-                UserName = request.Email,
-                Email = request.Email,
-                DisplayName = string.IsNullOrWhiteSpace(request.DisplayName) ? request.Email.Split('@')[0] : request.DisplayName,
+                UserName = effectiveEmail,
+                Email = effectiveEmail,
+                DisplayName = string.IsNullOrWhiteSpace(effectiveDisplayName)
+                    ? (effectiveEmail.Contains('@') ? effectiveEmail.Split('@')[0] : effectiveEmail)
+                    : effectiveDisplayName,
+                PhotoPath = effectivePhoto,
                 EmailConfirmed = true,
             };
             var createResult = await userManager.CreateAsync(user);
@@ -609,6 +664,28 @@ public static class AuthEndpoints
         }
         else
         {
+            var changed = false;
+            if (!string.IsNullOrWhiteSpace(effectiveDisplayName) &&
+                (string.IsNullOrWhiteSpace(user.DisplayName) ||
+                 user.DisplayName.Equals("Google User", StringComparison.OrdinalIgnoreCase) ||
+                 user.DisplayName.Equals("Google-user", StringComparison.OrdinalIgnoreCase) ||
+                 user.DisplayName != effectiveDisplayName))
+            {
+                user.DisplayName = effectiveDisplayName;
+                changed = true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(effectivePhoto) && user.PhotoPath != effectivePhoto)
+            {
+                user.PhotoPath = effectivePhoto;
+                changed = true;
+            }
+
+            if (changed)
+            {
+                await userManager.UpdateAsync(user);
+            }
+
             var userRoles = await userManager.GetRolesAsync(user);
             if (userRoles.Count == 0)
             {
@@ -628,6 +705,64 @@ public static class AuthEndpoints
         var roles = (await userManager.GetRolesAsync(user)).ToArray();
         var session = await MintSessionAsync(user, roles, tokenService, httpContext, env, ct);
         return Results.Ok(new ApiEnvelope<AuthSessionDto>(session));
+    }
+
+    private static async Task<(string? Name, string? Email, string? Image)?> TryGetNeonGoogleProfileAsync(
+        AuthDbContext db,
+        string? requestEmail,
+        CancellationToken ct)
+    {
+        try
+        {
+            var conn = Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.GetDbConnection(db.Database);
+            if (conn.State != System.Data.ConnectionState.Open)
+            {
+                await conn.OpenAsync(ct);
+            }
+
+            using var cmd = conn.CreateCommand();
+
+            if (!string.IsNullOrWhiteSpace(requestEmail) && !requestEmail.Equals("google-user@rr.dev", StringComparison.OrdinalIgnoreCase))
+            {
+                cmd.CommandText = "SELECT name, email, image FROM neon_auth.user WHERE LOWER(email) = LOWER(@email) LIMIT 1;";
+                var p = cmd.CreateParameter();
+                p.ParameterName = "@email";
+                p.Value = requestEmail;
+                cmd.Parameters.Add(p);
+
+                using var reader = await cmd.ExecuteReaderAsync(ct);
+                if (await reader.ReadAsync(ct))
+                {
+                    var name = reader.IsDBNull(0) ? null : reader.GetString(0);
+                    var email = reader.IsDBNull(1) ? null : reader.GetString(1);
+                    var image = reader.IsDBNull(2) ? null : reader.GetString(2);
+                    return (name, email, image);
+                }
+            }
+
+            cmd.Parameters.Clear();
+            cmd.CommandText = @"
+                SELECT u.name, u.email, u.image
+                FROM neon_auth.session s
+                JOIN neon_auth.user u ON s.""userId"" = u.id
+                ORDER BY s.""createdAt"" DESC
+                LIMIT 1;";
+
+            using var sessionReader = await cmd.ExecuteReaderAsync(ct);
+            if (await sessionReader.ReadAsync(ct))
+            {
+                var name = sessionReader.IsDBNull(0) ? null : sessionReader.GetString(0);
+                var email = sessionReader.IsDBNull(1) ? null : sessionReader.GetString(1);
+                var image = sessionReader.IsDBNull(2) ? null : sessionReader.GetString(2);
+                return (name, email, image);
+            }
+        }
+        catch
+        {
+            // Fall back safely if neon_auth schema is not available (e.g. SQLite tests or offline)
+        }
+
+        return null;
     }
 
     internal static IResult DatabaseUnavailable() => Results.Problem(

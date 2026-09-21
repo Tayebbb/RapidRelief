@@ -20,6 +20,7 @@
 @inject OutboxService Outbox
 @inject LiveUpdateService Live
 @inject IJSRuntime Js
+@inject HttpClient Http
 @implements IDisposable
 
 <PageTitle>Emergency — RapidRelief</PageTitle>
@@ -234,7 +235,39 @@
     {
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
         var user = auth.User;
-        _userName = FriendlyName(user.FindFirst("unique_name")?.Value ?? user.FindFirst(ClaimTypes.Name)?.Value);
+        var claimName = user.FindFirst("display_name")?.Value;
+        if (string.IsNullOrWhiteSpace(claimName) ||
+            claimName.Equals("Google User", StringComparison.OrdinalIgnoreCase) ||
+            claimName.Equals("Google-user", StringComparison.OrdinalIgnoreCase))
+        {
+            claimName = FriendlyName(user.FindFirst("unique_name")?.Value ?? user.FindFirst(ClaimTypes.Name)?.Value);
+        }
+
+        _userName = claimName;
+
+        if (string.IsNullOrWhiteSpace(_userName) ||
+            _userName.Equals("Google User", StringComparison.OrdinalIgnoreCase) ||
+            _userName.Equals("Google-user", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var profileResp = await Http.GetFromJsonAsync<RapidRelief.Shared.Contracts.Common.ApiEnvelope<RapidRelief.Client.Features.Auth.UserProfileDto>>("api/auth/profile");
+                if (profileResp?.Data?.DisplayName is { Length: > 0 } dp &&
+                    !dp.Equals("Google User", StringComparison.OrdinalIgnoreCase) &&
+                    !dp.Equals("Google-user", StringComparison.OrdinalIgnoreCase))
+                {
+                    _userName = dp;
+                }
+                else
+                {
+                    _userName = null;
+                }
+            }
+            catch
+            {
+                _userName = null;
+            }
+        }
 
         await RefreshAsync();
         _loading = false;
@@ -251,10 +284,22 @@
             return null;
         }
 
+        if (claim.Equals("Google User", StringComparison.OrdinalIgnoreCase) ||
+            claim.Equals("Google-user", StringComparison.OrdinalIgnoreCase) ||
+            claim.StartsWith("google-user@", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
         var name = claim.Contains('@', StringComparison.Ordinal)
             ? claim[..claim.IndexOf('@', StringComparison.Ordinal)]
             : claim;
-        name = name.Replace('.', ' ').Replace('_', ' ').Trim();
+        name = name.Replace('.', ' ').Replace('_', ' ').Replace('-', ' ').Trim();
+
+        if (name.Equals("google user", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
 
         return name.Length == 0
             ? null

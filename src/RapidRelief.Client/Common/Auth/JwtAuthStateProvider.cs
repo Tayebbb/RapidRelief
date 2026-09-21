@@ -71,6 +71,11 @@ public sealed class JwtAuthStateProvider : AuthenticationStateProvider
                 claims.Add(new Claim(ClaimTypes.NameIdentifier, userId));
             }
 
+            if (TryGetString(root, "display_name", out var displayName))
+            {
+                claims.Add(new Claim("display_name", displayName));
+            }
+
             if (TryGetString(root, "unique_name", out var name) || TryGetString(root, "email", out name))
             {
                 claims.Add(new Claim(ClaimTypes.Name, name));

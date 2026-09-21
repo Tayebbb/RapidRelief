@@ -1,15 +1,20 @@
 @namespace RapidRelief.Client.Common.Auth
+@using System.Security.Claims
 @using RapidRelief.Client.Features.Auth
 @inject AuthApi Auth
 @inject NavigationManager Navigation
+@inject HttpClient Http
 
 <AuthorizeView>
     <Authorized>
-        <span class="rr-user-chip" title="@context.User.Identity?.Name">
+        @{
+            var displayName = ResolveDisplayName(context.User);
+        }
+        <span class="rr-user-chip" title="@displayName">
             <span class="rr-user-avatar" aria-hidden="true">
                 <AppIcon Name="user" Size="14" />
             </span>
-            <span class="rr-user-name">@context.User.Identity?.Name</span>
+            <span class="rr-user-name">@displayName</span>
         </span>
         <button class="rr-icon-btn" type="button" @onclick="SignOutAsync" disabled="@_signingOut"
                 title="Sign out" aria-label="Sign out">
@@ -23,6 +28,58 @@
 
 @code {
     private bool _signingOut;
+    private static string? _cachedProfileName;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (string.IsNullOrEmpty(_cachedProfileName))
+        {
+            try
+            {
+                var resp = await Http.GetFromJsonAsync<RapidRelief.Shared.Contracts.Common.ApiEnvelope<UserProfileDto>>("api/auth/profile");
+                if (!string.IsNullOrWhiteSpace(resp?.Data?.DisplayName) &&
+                    !resp.Data.DisplayName.Equals("Google User", StringComparison.OrdinalIgnoreCase) &&
+                    !resp.Data.DisplayName.Equals("Google-user", StringComparison.OrdinalIgnoreCase))
+                {
+                    _cachedProfileName = resp.Data.DisplayName;
+                    StateHasChanged();
+                }
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private static string ResolveDisplayName(ClaimsPrincipal user)
+    {
+        if (!string.IsNullOrWhiteSpace(_cachedProfileName))
+        {
+            return _cachedProfileName;
+        }
+
+        var dn = user.FindFirst("display_name")?.Value;
+        if (!string.IsNullOrWhiteSpace(dn) &&
+            !dn.Equals("Google User", StringComparison.OrdinalIgnoreCase) &&
+            !dn.Equals("Google-user", StringComparison.OrdinalIgnoreCase))
+        {
+            return dn;
+        }
+
+        var identityName = user.Identity?.Name;
+        if (!string.IsNullOrWhiteSpace(identityName))
+        {
+            if (identityName.Equals("Google User", StringComparison.OrdinalIgnoreCase) ||
+                identityName.Equals("Google-user", StringComparison.OrdinalIgnoreCase) ||
+                identityName.Equals("google-user@rr.dev", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Citizen";
+            }
+            return identityName;
+        }
+
+        return "Citizen";
+    }
 
     private async Task SignOutAsync()
     {
@@ -34,6 +91,7 @@
         _signingOut = true;
         try
         {
+            _cachedProfileName = null;
             await Auth.LogoutAsync();
             Navigation.NavigateTo("/");
         }

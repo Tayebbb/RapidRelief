@@ -330,7 +330,7 @@
     protected override async Task OnInitializedAsync()
     {
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
-        _userName = auth.User.FindFirst("unique_name")?.Value ?? auth.User.FindFirst(ClaimTypes.Name)?.Value ?? "Rescuer";
+        _userName = auth.User.FindFirst("display_name")?.Value ?? auth.User.FindFirst("unique_name")?.Value ?? auth.User.FindFirst(ClaimTypes.Name)?.Value ?? "Rescuer";
 
         // A live push beats a poll: refresh the moment dispatch touches this unit.
         Notifications.Pushed += OnPushed;

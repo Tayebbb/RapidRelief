@@ -18,6 +18,7 @@ using RapidRelief.Client.Features.Relief;
 using RapidRelief.Client.Features.Reports;
 using RapidRelief.Client.Features.Rescue;
 using RapidRelief.Client.Features.Shelters;
+using RapidRelief.Client.Features.CommandCenter;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
@@ -68,6 +69,9 @@ builder.Services.AddSingleton(sp => new NotificationHubClient(
 
 // F3 Client
 builder.Services.AddScoped(sp => new SheltersClient(sp.GetRequiredService<HttpClient>()));
+
+// F7 Client
+builder.Services.AddScoped(sp => new CommandCenterClient(sp.GetRequiredService<HttpClient>()));
 
 // F2 incident ingestion + F5 rescue operations ride the main Bearer / X-Dev-Role chain.
 builder.Services.AddScoped(sp => new IncidentsClient(sp.GetRequiredService<HttpClient>()));
