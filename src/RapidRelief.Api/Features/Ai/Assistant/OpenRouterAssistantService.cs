@@ -35,7 +35,9 @@ internal sealed class OpenRouterAssistantService : IAssistantService
     {
         var stopwatch = Stopwatch.StartNew();
 
-        var apiKey = _config["Ai:OpenRouter:ApiKey"];
+        var apiKey = _config["Ai:OpenRouter:ApiKey"]
+            ?? _config["OPENROUTER_API_KEY"]
+            ?? Environment.GetEnvironmentVariable("OPENROUTER_API_KEY");
         if (string.IsNullOrWhiteSpace(apiKey))
         {
             // A missing key never crashes and never counts against the breaker (D-028 rule).

@@ -27,7 +27,10 @@ internal sealed class OpenRouterClient : IOpenRouterClient
 
     public async Task<string> SendAsync(string requestBody, bool isVision, CancellationToken ct = default)
     {
-        var apiKey = _config["Ai:OpenRouter:ApiKey"] ?? string.Empty;
+        var apiKey = _config["Ai:OpenRouter:ApiKey"]
+            ?? _config["OPENROUTER_API_KEY"]
+            ?? Environment.GetEnvironmentVariable("OPENROUTER_API_KEY")
+            ?? string.Empty;
         var timeoutSeconds = isVision
             ? _config.GetValue("Ai:OpenRouter:TimeoutSecondsVision", 20)
             : _config.GetValue("Ai:OpenRouter:TimeoutSecondsText", 10);
