@@ -1,6 +1,6 @@
 @page "/admin/command-center"
 @page "/g/overview"
-@attribute [Authorize(Roles = RapidRelief.Shared.Contracts.Enums.Roles.Admin)]
+@attribute [Authorize(Roles = "Government,Admin")]
 
 @using RapidRelief.Shared.Contracts.ReadModels
 @inject CommandCenterClient Client

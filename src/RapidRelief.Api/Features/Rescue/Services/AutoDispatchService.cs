@@ -226,13 +226,14 @@ public sealed class AutoDispatchService : IAutoDispatchService
 
         var payload = new
         {
-            title = $"URGENT: AI Auto-Dispatched to {incident.Type}",
+            title = $"New mission: {mission.MissionTitle}",
             missionId = mission.Id,
             incidentId = mission.IncidentId,
             priority = mission.Priority,
             isSos = incident.IsSos,
             latitude = incident.Location.Latitude,
             longitude = incident.Location.Longitude,
+            autoDispatched = true,
         };
 
         foreach (var memberId in memberIds.Distinct().Where(x => x != Guid.Empty))

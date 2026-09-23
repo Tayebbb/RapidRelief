@@ -11,7 +11,7 @@
 @using RapidRelief.Client.Common.Ui
 @using RapidRelief.Client.Features.Reports
 @using RapidRelief.Client.Features.Rescue
-@attribute [Authorize(Roles = "Rescuer,Government")]
+@attribute [Authorize(Roles = "Rescuer,Rescue,Government,Admin")]
 @inject IncidentsClient Incidents
 @inject RescueClient Rescue
 @inject AiClient Ai
@@ -24,7 +24,7 @@
 <div class="dash-layout">
     <div class="dash-header-banner">
         <div class="dash-title-group">
-            <div class="dash-role-badge rescuer">
+            <div class="dash-role-badge @(_isGovernment ? "government" : "rescuer")">
                 <AppIcon Name="layers" Size="14" />
                 <span>Incident detail</span>
             </div>
@@ -37,7 +37,14 @@
             </p>
         </div>
         <div class="dash-header-actions">
-            <a href="r" class="btn-dash-outline"><AppIcon Name="arrow-right" Size="16" /><span>Back to operations</span></a>
+            @if (_isGovernment)
+            {
+                <a href="g/incidents" class="btn-dash-outline"><AppIcon Name="arrow-right" Size="16" /><span>Back to incidents</span></a>
+            }
+            else
+            {
+                <a href="r" class="btn-dash-outline"><AppIcon Name="arrow-right" Size="16" /><span>Back to operations</span></a>
+            }
         </div>
     </div>
 
@@ -251,7 +258,7 @@
         if (AuthState is not null)
         {
             var state = await AuthState;
-            _isGovernment = state.User.IsInRole("Government");
+            _isGovernment = state.User.IsInRole("Government") || state.User.IsInRole("Admin");
         }
 
         await LoadAsync();

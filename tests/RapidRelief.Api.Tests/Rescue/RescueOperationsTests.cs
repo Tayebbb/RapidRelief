@@ -35,6 +35,7 @@ public sealed class RescueOperationsTests : IClassFixture<TestingWebAppFactory>
 
     private async Task ResetAsync()
     {
+        _factory.Services.GetRequiredService<RapidRelief.Api.Infrastructure.Persistence.DatabaseHealth>().PostgresAvailable = true;
         using var scope = _factory.Services.CreateScope();
         var incidents = scope.ServiceProvider.GetRequiredService<IncidentsDbContext>();
         var rescue = scope.ServiceProvider.GetRequiredService<RescueDbContext>();
@@ -309,14 +310,16 @@ public sealed class RescueOperationsTests : IClassFixture<TestingWebAppFactory>
     public async Task Responders_see_the_callback_number_and_the_assigned_team_gets_notified()
     {
         await ResetAsync();
-        var incidentId = await ReportAsync(sos: true, Severity.Catastrophic, "detail");
+        var incidentId = await ReportAsync(sos: false, Severity.Moderate, "detail");
 
         var forResponder = (await Client(Roles.Rescuer)
             .GetFromJsonAsync<ApiEnvelope<IncidentView>>($"{IncidentsPath}/{incidentId}"))!.Data!;
         Assert.Equal("+8801711234567", forResponder.ContactPhone);
 
         var teamId = await CreateTeamAsync("Notify crew", "WaterRescue", FakeAuthHandler.SeedUserIds[Roles.Rescuer]);
-        await Client(Roles.Government).PostAsJsonAsync($"{RescuePath}/missions", new { incidentId, teamId });
+        _factory.Services.GetRequiredService<RapidRelief.Api.Infrastructure.Persistence.DatabaseHealth>().PostgresAvailable = true;
+        var missionRes = await Client(Roles.Government).PostAsJsonAsync($"{RescuePath}/missions", new { incidentId, teamId });
+        Assert.Equal(HttpStatusCode.Created, missionRes.StatusCode);
 
         using var scope = _factory.Services.CreateScope();
         var rescuerId = FakeAuthHandler.SeedUserIds[Roles.Rescuer];

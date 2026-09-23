@@ -98,37 +98,41 @@
                     </Authorized>
                 </AuthorizeView>
 
-                <!-- Citizen Portal (Collapsible: collapsed by default for Gov/Rescuer, expanded for Citizen) -->
-                <button type="button" class="nav-section-btn" @onclick="ToggleCitizenSection" @onclick:stopPropagation="true"
-                        aria-expanded="@_citizenExpanded">
-                    <span>Citizen Portal</span>
-                    <AppIcon Name="@(_citizenExpanded ? "chevron-down" : "chevron-right")" Size="14" />
-                </button>
-                @if (_citizenExpanded)
-                {
-                    <NavLink class="nav-link" href="c" Match="NavLinkMatch.All">
-                        <AppIcon Name="layers" Size="19" /><span>Dashboard</span>
-                    </NavLink>
-                    <NavLink class="nav-link" href="reports/new">
-                        <AppIcon Name="alert-circle" Size="19" /><span>Report Incident & SOS</span>
-                    </NavLink>
-                    <NavLink class="nav-link" href="reports/my">
-                        <AppIcon Name="clock" Size="19" /><span>Track My Reports</span>
-                    </NavLink>
-                    <NavLink class="nav-link" href="shelter">
-                        <AppIcon Name="map-pin" Size="19" /><span>Find Shelter</span>
-                    </NavLink>
-                    <NavLink class="nav-link" href="relief/request">
-                        <AppIcon Name="shield-plus" Size="19" /><span>Request Relief</span>
-                    </NavLink>
-                    <NavLink class="nav-link" href="assistant">
-                        <AppIcon Name="chat" Size="19" /><span>AI Assistant</span>
-                    </NavLink>
-                    <NavLink class="nav-link" href="livemap">
-                        <AppIcon Name="map" Size="19" /><span>Live Disaster Map</span>
-                        <span class="nav-tag">Live</span>
-                    </NavLink>
-                }
+                <!-- Citizen Portal (Only for Citizen) -->
+                <AuthorizeView Roles="Citizen" Context="citizenContext">
+                    <Authorized>
+                        <button type="button" class="nav-section-btn" @onclick="ToggleCitizenSection" @onclick:stopPropagation="true"
+                                aria-expanded="@_citizenExpanded">
+                            <span>Citizen Portal</span>
+                            <AppIcon Name="@(_citizenExpanded ? "chevron-down" : "chevron-right")" Size="14" />
+                        </button>
+                        @if (_citizenExpanded)
+                        {
+                            <NavLink class="nav-link" href="c" Match="NavLinkMatch.All">
+                                <AppIcon Name="layers" Size="19" /><span>Dashboard</span>
+                            </NavLink>
+                            <NavLink class="nav-link" href="reports/new">
+                                <AppIcon Name="alert-circle" Size="19" /><span>Report Incident & SOS</span>
+                            </NavLink>
+                            <NavLink class="nav-link" href="reports/my">
+                                <AppIcon Name="clock" Size="19" /><span>Track My Reports</span>
+                            </NavLink>
+                            <NavLink class="nav-link" href="shelter">
+                                <AppIcon Name="map-pin" Size="19" /><span>Find Shelter</span>
+                            </NavLink>
+                            <NavLink class="nav-link" href="relief/request">
+                                <AppIcon Name="shield-plus" Size="19" /><span>Request Relief</span>
+                            </NavLink>
+                            <NavLink class="nav-link" href="assistant">
+                                <AppIcon Name="chat" Size="19" /><span>AI Assistant</span>
+                            </NavLink>
+                            <NavLink class="nav-link" href="livemap">
+                                <AppIcon Name="map" Size="19" /><span>Live Disaster Map</span>
+                                <span class="nav-tag">Live</span>
+                            </NavLink>
+                        }
+                    </Authorized>
+                </AuthorizeView>
 
                 <!-- Personal & Alerts -->
                 <button type="button" class="nav-section-btn" @onclick="TogglePersonalSection" @onclick:stopPropagation="true"
@@ -225,28 +229,15 @@
             if (user.Identity?.IsAuthenticated == true)
             {
                 DashboardLink = RapidRelief.Client.Common.Auth.AuthRouteHelper.GetDashboardRoute(user);
-                // Collapse citizen portal by default for Government and Rescuer roles
-                if (user.IsInRole(RapidRelief.Shared.Contracts.Enums.Roles.Government) ||
-                    user.IsInRole(RapidRelief.Shared.Contracts.Enums.Roles.Rescuer) ||
-                    user.IsInRole("Admin") || user.IsInRole("Rescue"))
-                {
-                    _citizenExpanded = false;
-                }
-                else
-                {
-                    _citizenExpanded = true;
-                }
             }
             else
             {
                 DashboardLink = "";
-                _citizenExpanded = true;
             }
         }
         catch
         {
             DashboardLink = "";
-            _citizenExpanded = true;
         }
     }
 

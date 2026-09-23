@@ -12,7 +12,8 @@
 @using RapidRelief.Client.Common.Offline
 @using RapidRelief.Client.Common.Ui
 @using RapidRelief.Client.Features.Reports
-@attribute [Authorize]
+@attribute [Authorize(Roles = "Citizen")]
+@inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
 @inject GeolocationService Geo
 @inject IncidentsClient Incidents
@@ -274,6 +275,22 @@
 
     protected override async Task OnInitializedAsync()
     {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = auth.User;
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            if (user.IsInRole(RapidRelief.Shared.Contracts.Enums.Roles.Government) || user.IsInRole("Admin") || user.IsInRole("Ngo"))
+            {
+                Navigation.NavigateTo("g/incidents", replace: true);
+                return;
+            }
+            if (user.IsInRole(RapidRelief.Shared.Contracts.Enums.Roles.Rescuer) || user.IsInRole("Rescue"))
+            {
+                Navigation.NavigateTo("r", replace: true);
+                return;
+            }
+        }
+
         // Location is the one field a citizen cannot type under stress — get it before they ask.
         await AutoDetectLocation();
     }

@@ -129,7 +129,9 @@
                             <span class="rr-chip rr-chip-success rr-chip-sm">@UserRole</span>
                         </div>
                     </div>
+                    <a class="btn btn-primary btn-sm w-100" href="@DashboardLink" @onclick="CloseMobileMenu">Dashboard</a>
                     <a class="btn btn-outline-secondary btn-sm w-100" href="profile" @onclick="CloseMobileMenu">Profile</a>
+                    <a class="btn btn-outline-secondary btn-sm w-100" href="notifications" @onclick="CloseMobileMenu">Alerts</a>
                     <button class="btn btn-outline-danger btn-sm w-100" type="button" @onclick="SignOutAsync">Sign Out</button>
                 </Authorized>
                 <NotAuthorized>

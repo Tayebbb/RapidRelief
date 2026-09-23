@@ -12,7 +12,7 @@
 @using RapidRelief.Client.Common.Realtime
 @using RapidRelief.Client.Common.Ui
 @using RapidRelief.Client.Features.Rescue
-@attribute [Authorize(Roles = "Rescuer,Government")]
+@attribute [Authorize(Roles = "Rescuer,Rescue")]
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
 @inject RescueClient Rescue
@@ -332,7 +332,22 @@
     protected override async Task OnInitializedAsync()
     {
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
-        _userName = auth.User.FindFirst("display_name")?.Value ?? auth.User.FindFirst("unique_name")?.Value ?? auth.User.FindFirst(ClaimTypes.Name)?.Value ?? "Rescuer";
+        var user = auth.User;
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            if (user.IsInRole(RapidRelief.Shared.Contracts.Enums.Roles.Government) || user.IsInRole("Admin") || user.IsInRole("Ngo"))
+            {
+                Navigation.NavigateTo("g", replace: true);
+                return;
+            }
+            if (user.IsInRole(RapidRelief.Shared.Contracts.Enums.Roles.Citizen))
+            {
+                Navigation.NavigateTo("c", replace: true);
+                return;
+            }
+        }
+
+        _userName = user.FindFirst("display_name")?.Value ?? user.FindFirst("unique_name")?.Value ?? user.FindFirst(ClaimTypes.Name)?.Value ?? "Rescuer";
 
         // A live push beats a poll: refresh the moment dispatch touches this unit.
         Notifications.Pushed += OnPushed;

@@ -13,8 +13,9 @@
                             <strong style="font-size: 1.25rem; display: block; margin-bottom: 0.5rem; color: var(--rr-text);">Access Restricted</strong>
                             <p style="color: var(--rr-text-2); margin-bottom: 1.5rem; line-height: 1.5;">You are signed in, but this area requires specific permissions or a different role.</p>
                             <div style="display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
-                                <a class="btn btn-primary btn-sm" href="">Return to Home</a>
-                                <a class="btn btn-secondary btn-sm" href="map">Disaster Map</a>
+                                <a class="btn btn-primary btn-sm" href="@RapidRelief.Client.Common.Auth.AuthRouteHelper.GetDashboardRoute(context.User)">Go to Your Portal</a>
+                                <a class="btn btn-secondary btn-sm" href="">Return to Home</a>
+                                <a class="btn btn-outline-secondary btn-sm" href="livemap">Disaster Map</a>
                             </div>
                         </div>
                     </div>
@@ -39,9 +40,9 @@
                     <p style="color: var(--rr-text-2); margin-bottom: 1.5rem; line-height: 1.5;">The requested page may have moved, been deleted, or the link may be incorrect. Use the quick links below to navigate back to safety.</p>
                     <div style="display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
                         <a class="btn btn-primary btn-sm" href="">Return to Home</a>
-                        <a class="btn btn-secondary btn-sm" href="map">Disaster Map</a>
+                        <a class="btn btn-secondary btn-sm" href="livemap">Disaster Map</a>
                         <a class="btn btn-secondary btn-sm" href="relief/request">Request Relief</a>
-                        <a class="btn btn-secondary btn-sm" href="shelters">Find Shelters</a>
+                        <a class="btn btn-secondary btn-sm" href="shelter">Find Shelters</a>
                     </div>
                 </div>
             </div>

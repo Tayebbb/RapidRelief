@@ -13,7 +13,7 @@
 @using RapidRelief.Client.Features.Alerts.Components
 @using RapidRelief.Client.Features.Relief
 @using RapidRelief.Client.Features.Reports
-@attribute [Authorize]
+@attribute [Authorize(Roles = "Citizen")]
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
 @inject IncidentsClient Incidents
@@ -237,6 +237,20 @@
     {
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
         var user = auth.User;
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            if (user.IsInRole(RapidRelief.Shared.Contracts.Enums.Roles.Government) || user.IsInRole("Admin") || user.IsInRole("Ngo"))
+            {
+                Navigation.NavigateTo("g", replace: true);
+                return;
+            }
+            if (user.IsInRole(RapidRelief.Shared.Contracts.Enums.Roles.Rescuer) || user.IsInRole("Rescue"))
+            {
+                Navigation.NavigateTo("r", replace: true);
+                return;
+            }
+        }
+
         var claimName = user.FindFirst("display_name")?.Value;
         if (string.IsNullOrWhiteSpace(claimName) ||
             claimName.Equals("Google User", StringComparison.OrdinalIgnoreCase) ||
