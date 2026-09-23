@@ -20,6 +20,13 @@ public sealed class RescueModule : IFeatureModule
 
         // Displaces the stub so priority scoring and the assistant see real rescue capacity.
         services.AddScoped<IResponderAvailabilityService, Services.ResponderAvailabilityService>();
+
+        // Government AI Auto-Dispatch Engine
+        services.AddSingleton(Services.AutoDispatchOptions.Read(config));
+        services.AddScoped<Services.IAutoDispatchService, Services.AutoDispatchService>();
+        services.AddScoped<Handlers.AutoDispatchIncidentAssessedHandler>();
+        services.AddScoped<RapidRelief.Shared.Contracts.Eventing.IEventHandler<RapidRelief.Shared.Contracts.Events.IncidentAssessed>>(sp =>
+            sp.GetRequiredService<Handlers.AutoDispatchIncidentAssessedHandler>());
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
