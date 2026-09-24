@@ -24,7 +24,7 @@ internal sealed record AssistantReadResult(
 
 /// <summary>
 /// Extracts prose from a chat-completions response (choices[0].message.content, string-only
-/// stance) and applies the D-050 policy with the D-064 OpenRouter signals: "stop" → Ok,
+/// stance) and applies the D-050 policy with the D-064 FreeLlmPool signals: "stop" → Ok,
 /// "length" → Ok + truncated, "content_filter" → Blocked, "error" → Invalid (client
 /// backstop — counts), missing/other → Blocked, no choices → Invalid. Captures
 /// usage.total_tokens and response.model (D-061).

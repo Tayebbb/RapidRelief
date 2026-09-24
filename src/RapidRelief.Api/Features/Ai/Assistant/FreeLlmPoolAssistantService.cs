@@ -1,28 +1,29 @@
 using System.Diagnostics;
-using RapidRelief.Api.Features.Ai.OpenRouter;
+using RapidRelief.Api.Features.Ai.FreeLlmPool;
 
 namespace RapidRelief.Api.Features.Ai.Assistant;
 
 /// <summary>
-/// D-050 provider chain: empty key or open breaker → canned; blocked answers (HTTP 403 or
-/// finish_reason content_filter) and empty-after-sanitize answers → canned WITHOUT counting
-/// against the shared breaker; transport/parse failures → canned and counted. Never throws
-/// for answer failures. Logs metadata only — never the question or the answer.
+/// D-050 provider chain: blank Ai:FreeLlmPool:BaseUrl (D-113 ops kill switch) or open breaker
+/// → canned; blocked answers (HTTP 403 or finish_reason content_filter) and
+/// empty-after-sanitize answers → canned WITHOUT counting against the shared breaker;
+/// transport/parse failures → canned and counted. Never throws for answer failures. Logs
+/// metadata only — never the question or the answer.
 /// </summary>
-internal sealed class OpenRouterAssistantService : IAssistantService
+internal sealed class FreeLlmPoolAssistantService : IAssistantService
 {
-    private readonly IOpenRouterClient _client;
+    private readonly IFreeLlmPoolClient _client;
     private readonly AiCircuitBreaker _breaker;
     private readonly AssistantOptions _options;
     private readonly IConfiguration _config;
-    private readonly ILogger<OpenRouterAssistantService> _logger;
+    private readonly ILogger<FreeLlmPoolAssistantService> _logger;
 
-    public OpenRouterAssistantService(
-        IOpenRouterClient client,
+    public FreeLlmPoolAssistantService(
+        IFreeLlmPoolClient client,
         AiCircuitBreaker breaker,
         AssistantOptions options,
         IConfiguration config,
-        ILogger<OpenRouterAssistantService> logger)
+        ILogger<FreeLlmPoolAssistantService> logger)
     {
         _client = client;
         _breaker = breaker;
@@ -35,11 +36,12 @@ internal sealed class OpenRouterAssistantService : IAssistantService
     {
         var stopwatch = Stopwatch.StartNew();
 
-        var apiKey = _config["Ai:OpenRouter:ApiKey"];
-        if (string.IsNullOrWhiteSpace(apiKey))
+        var baseUrl = _config["Ai:FreeLlmPool:BaseUrl"];
+        if (string.IsNullOrWhiteSpace(baseUrl))
         {
-            // A missing key never crashes and never counts against the breaker (D-028 rule).
-            return Canned(ask, stopwatch, "NoApiKey");
+            // D-113: blank BaseUrl is the operator kill switch — never crashes and never counts
+            // against the breaker (D-028 rule, now keyed off BaseUrl instead of ApiKey).
+            return Canned(ask, stopwatch, "NoBaseUrl");
         }
 
         if (!_breaker.TryEnter())
@@ -49,7 +51,7 @@ internal sealed class OpenRouterAssistantService : IAssistantService
 
         try
         {
-            var requestBody = AssistantPromptBuilder.Build(ask, _options, TextModels());
+            var requestBody = AssistantPromptBuilder.Build(ask, _options, TextModel());
             var responseBody = await _client.SendAsync(requestBody, isVision: false, ct);
             var read = AssistantResponseReader.Read(responseBody);
 
@@ -76,12 +78,12 @@ internal sealed class OpenRouterAssistantService : IAssistantService
             stopwatch.Stop();
             _breaker.RecordSuccess();
             // Metadata only — never the question or the answer text (F8 carry-out).
-            // Model = response.model, the actually routed model (D-061).
+            // Model = response.model, the actually routed model.
             _logger.LogInformation(
-                "Assistant answered via OpenRouter: model {Model}, {LatencyMs} ms, {Tokens} tokens, finish {FinishReason}, question length {QuestionLength}",
+                "Assistant answered via FreeLlmPool: model {Model}, {LatencyMs} ms, {Tokens} tokens, finish {FinishReason}, question length {QuestionLength}",
                 read.ModelName, stopwatch.ElapsedMilliseconds, read.TotalTokenCount, read.FinishReason, ask.Question.Length);
 
-            return new AssistantAnswer(sanitized.Text, "OpenRouter", read.Truncated,
+            return new AssistantAnswer(sanitized.Text, "FreeLlmPool", read.Truncated,
                 LatencyMs(stopwatch), read.TotalTokenCount, read.FinishReason);
         }
         catch (AiProviderBlockedException)
@@ -100,19 +102,15 @@ internal sealed class OpenRouterAssistantService : IAssistantService
         {
             _breaker.RecordFailure();
             _logger.LogWarning(
-                "Assistant OpenRouter path failed ({ExceptionType}) after {LatencyMs} ms on model {Model} — answering canned guidance: {Reason}",
-                ex.GetType().Name, stopwatch.ElapsedMilliseconds, TextModels()[0], ex.Message);
+                "Assistant FreeLlmPool path failed ({ExceptionType}) after {LatencyMs} ms on model {Model} — answering canned guidance: {Reason}",
+                ex.GetType().Name, stopwatch.ElapsedMilliseconds, TextModel(), ex.Message);
             return Canned(ask, stopwatch, "Exception");
         }
     }
 
-    /// <summary>F16 always uses the D-061 text pair; empty fallback ⇒ single-element array.</summary>
-    private IReadOnlyList<string> TextModels()
-    {
-        var primary = _config["Ai:OpenRouter:TextModel"] ?? "z-ai/glm-5.2:free";
-        var fallback = _config["Ai:OpenRouter:TextFallbackModel"];
-        return string.IsNullOrWhiteSpace(fallback) ? [primary] : [primary, fallback];
-    }
+    /// <summary>F16 always uses the D-113 text routing alias; empty config ⇒ "quality".</summary>
+    private string TextModel()
+        => _config["Ai:FreeLlmPool:TextModel"] is { Length: > 0 } configured ? configured : "quality";
 
     private AssistantAnswer Canned(AssistantAsk ask, Stopwatch stopwatch, string reason, string? finishReason = null)
     {

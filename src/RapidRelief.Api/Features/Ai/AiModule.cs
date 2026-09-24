@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using RapidRelief.Api.Features.Ai.Assistant;
 using RapidRelief.Api.Features.Ai.Data;
 using RapidRelief.Api.Features.Ai.Endpoints;
-using RapidRelief.Api.Features.Ai.OpenRouter;
+using RapidRelief.Api.Features.Ai.FreeLlmPool;
 using RapidRelief.Api.Features.Ai.Pipeline;
 using RapidRelief.Api.Infrastructure.Modules;
 using RapidRelief.Shared.Contracts.Eventing;
@@ -13,7 +13,7 @@ using RapidRelief.Shared.Contracts.Services;
 namespace RapidRelief.Api.Features.Ai;
 
 /// <summary>
-/// Tayeb's F8 lane (D-028): the composite OpenRouter-with-fallback displaces the direct
+/// Tayeb's F8 lane (D-028): the composite FreeLlmPool-with-fallback displaces the direct
 /// rule-based binding, while the rule-based service stays registered concretely forever
 /// (§4.5/§4.8). Plain Add* — this remains the real-service slot (Order 0).
 /// </summary>
@@ -27,23 +27,26 @@ public sealed class AiModule : IFeatureModule
         services.TryAddSingleton(TimeProvider.System);
 
         services.AddSingleton<RuleBasedAiAnalysisService>();
-        services.AddSingleton<IAiAnalysisService, OpenRouterAiAnalysisService>();
+        services.AddSingleton<IAiAnalysisService, FreeLlmPoolAiAnalysisService>();
         services.AddSingleton(sp => new AiCircuitBreaker(
             sp.GetRequiredService<TimeProvider>(),
-            config.GetValue("Ai:OpenRouter:BreakerFailures", 3),
-            TimeSpan.FromMinutes(config.GetValue("Ai:OpenRouter:BreakerOpenMinutes", 2.0))));
+            config.GetValue("Ai:FreeLlmPool:BreakerFailures", 3),
+            TimeSpan.FromMinutes(config.GetValue("Ai:FreeLlmPool:BreakerOpenMinutes", 2.0))));
 
-        // D-060: fixed outbound URL, Infinite timeout (D-026 linked-CTS per call).
-        services.AddHttpClient("openrouter", client =>
+        // D-113: BaseAddress read from config (deployment topology varies), Infinite timeout
+        // (D-026 linked-CTS per call). Falls back to the local default when blank so a fresh
+        // checkout still boots against the docker-compose sidecar (D-115).
+        services.AddHttpClient("freellmpool", client =>
         {
-            client.BaseAddress = new Uri("https://openrouter.ai/");
+            var baseUrl = config["Ai:FreeLlmPool:BaseUrl"];
+            client.BaseAddress = new Uri(string.IsNullOrWhiteSpace(baseUrl) ? "http://localhost:8080/" : baseUrl);
             client.Timeout = Timeout.InfiniteTimeSpan;
         });
-        services.AddSingleton<IOpenRouterClient, OpenRouterClient>();
+        services.AddSingleton<IFreeLlmPoolClient, FreeLlmPoolClient>();
 
         // F16 (D-047): same feature, same external dependency, same shared breaker.
         services.AddSingleton(AssistantOptions.Read(config));
-        services.AddSingleton<IAssistantService, OpenRouterAssistantService>();
+        services.AddSingleton<IAssistantService, FreeLlmPoolAssistantService>();
         services.AddHostedService<AssistantRetentionWorker>();
 
         services.AddSingleton(sp => AiChannel.Create(

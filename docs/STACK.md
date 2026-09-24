@@ -31,7 +31,7 @@
                │                               │
 ┌──────────────▼────────────────┐ ┌────────────▼────────────────┐
 │  PostgreSQL (Database Layer)  │ │      AI Analysis Pipeline   │
-│   EF Core 8 (Npgsql)          │ │  OpenRouter (DeepSeek/Meta) │
+│   EF Core 8 (Npgsql)          │ │  freellmpool (free pool)   │
 │   Per-Slice DbContexts        │ │  + Rule-Based Fallback      │
 └───────────────────────────────┘ └─────────────────────────────┘
 ```
@@ -78,7 +78,7 @@
 
 | Technology | Role & Usage | Why It Was Chosen |
 | :--- | :--- | :--- |
-| **OpenRouter API** | Cloud LLM gateway pinned to free-tier models: text `z-ai/glm-5.2:free` → `nvidia/nemotron-3-super-120b-a12b:free`, vision `google/gemma-4-31b-it:free` → `minimax/minimax-m3:free` (D-061). Opt-in via `Ai:OpenRouter:ApiKey`. | One API for many providers, in-body model fallback, and zero vendor lock-in. |
+| **freellmpool** | Self-hosted, OpenAI-compatible LLM gateway (`ghcr.io/0xzr/freellmpool`, run as a docker-compose sidecar) pooling 22 free-tier providers behind one endpoint; RapidRelief sends a single `model` routing alias (`"quality"` by default) per request and lets freellmpool pick and fail over across providers internally (D-113). Works with **no API key** against its keyless providers (Pollinations, OVHcloud, Kilo Gateway, LLM7); `Ai:FreeLlmPool:ApiKey`/`BaseUrl` are configurable for a paid/hosted instance. | One local endpoint for many free providers, automatic multi-provider failover, and zero vendor account/credits dependency. |
 | **Rule-Based Fallback Engine** | Permanent offline/fallback AI classifier and chatbot engine. | Guarantees the system operates 100% reliably even if the internet drops, API keys expire, or rate limits are reached. |
 
 ---

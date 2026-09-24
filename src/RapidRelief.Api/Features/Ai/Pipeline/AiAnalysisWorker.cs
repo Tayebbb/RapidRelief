@@ -219,7 +219,7 @@ public sealed class AiAnalysisWorker : BackgroundService
     private static async Task<AiAnalysisOutcome> AnalyzeAsync(
         IAiAnalysisService analysis, AiAnalysisRequest request, CancellationToken ct)
     {
-        if (analysis is OpenRouterAiAnalysisService composite)
+        if (analysis is FreeLlmPoolAiAnalysisService composite)
         {
             return await composite.AnalyzeWithMetadataAsync(request, ct);
         }

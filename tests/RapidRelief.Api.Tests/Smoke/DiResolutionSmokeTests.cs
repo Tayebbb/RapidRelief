@@ -44,9 +44,9 @@ public sealed class DiResolutionSmokeTests : IClassFixture<TestingWebAppFactory>
         // F13
         Assert.IsType<FakeRegistryReadService>(scope.ServiceProvider.GetRequiredService<IRegistryReadService>());
         Assert.IsType<IdentityUserAdminService>(services.GetRequiredService<IUserAdminService>());
-        // F8: the OpenRouter-with-fallback composite displaces the direct rule-based binding
+        // F8: the FreeLlmPool-with-fallback composite displaces the direct rule-based binding
         // (D-028); the rule-based service stays resolvable concretely — the fallback never dies (§4.5).
-        Assert.IsType<OpenRouterAiAnalysisService>(services.GetRequiredService<IAiAnalysisService>());
+        Assert.IsType<FreeLlmPoolAiAnalysisService>(services.GetRequiredService<IAiAnalysisService>());
         Assert.IsType<RuleBasedAiAnalysisService>(services.GetRequiredService<RuleBasedAiAnalysisService>());
         // F9: the SignalR notifier displaces the no-op in Mode=Hub/PollingOnly (D-032); the
         // no-op stays resolvable concretely and is the binding again in Mode=Off (§4.5).

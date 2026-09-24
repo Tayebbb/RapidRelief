@@ -1,9 +1,9 @@
 using System.Text.Json;
 using RapidRelief.Shared.Contracts.Enums;
 
-namespace RapidRelief.Api.Features.Ai.OpenRouter;
+namespace RapidRelief.Api.Features.Ai.FreeLlmPool;
 
-/// <summary>Validated assessment extracted from an OpenRouter chat-completions response.</summary>
+/// <summary>Validated assessment extracted from a freellmpool chat-completions response.</summary>
 internal sealed record ParsedAssessment(
     DisasterType PredictedType,
     int Severity,
@@ -39,7 +39,7 @@ internal sealed record AiParseResult(AiParseStatus Status, ParsedAssessment? Par
 /// JSON is useless); "content_filter" → Blocked; "error" → Invalid (client backstop);
 /// missing/other → Invalid. Captures usage.total_tokens and response.model (D-061).
 /// </summary>
-internal static class OpenRouterResponseParser
+internal static class FreeLlmPoolResponseParser
 {
     private const int MaxSummaryLength = 200;
     private const int MaxReasoningLength = 240;

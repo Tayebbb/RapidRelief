@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using RapidRelief.Api.Features.Ai.OpenRouter;
+using RapidRelief.Api.Features.Ai.FreeLlmPool;
 using RapidRelief.Api.Features.Incidents.Data;
 using RapidRelief.Api.Features.Incidents.Domain;
 using RapidRelief.Api.Infrastructure.Auth;
@@ -23,7 +23,7 @@ public sealed class AssistantRoleScopeTests
     private const string Base = "/api/ai/assistant";
 
     /// <summary>Captures the outbound prompt so the test can inspect exactly what was disclosed.</summary>
-    private sealed class RecordingRouterClient : IOpenRouterClient
+    private sealed class RecordingRouterClient : IFreeLlmPoolClient
     {
         public readonly List<string> Bodies = new();
 
@@ -44,14 +44,15 @@ public sealed class AssistantRoleScopeTests
 
         public Harness()
         {
-            // A key makes the composite take the provider path; the recorder stands in for it.
+            // A non-blank BaseUrl makes the composite take the provider path (D-113); the
+            // recorder stands in for the real client.
             Factory = _root.WithWebHostBuilder(builder =>
             {
-                builder.UseSetting("Ai:OpenRouter:ApiKey", "sk-role-scope-test");
+                builder.UseSetting("Ai:FreeLlmPool:BaseUrl", "http://localhost:8080/");
                 builder.ConfigureServices(services =>
                 {
-                    services.RemoveAll<IOpenRouterClient>();
-                    services.AddSingleton<IOpenRouterClient>(Router);
+                    services.RemoveAll<IFreeLlmPoolClient>();
+                    services.AddSingleton<IFreeLlmPoolClient>(Router);
                 });
             });
         }

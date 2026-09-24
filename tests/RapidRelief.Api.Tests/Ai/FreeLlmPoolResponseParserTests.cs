@@ -1,5 +1,5 @@
 using System.Text.Json;
-using RapidRelief.Api.Features.Ai.OpenRouter;
+using RapidRelief.Api.Features.Ai.FreeLlmPool;
 using RapidRelief.Shared.Contracts.Enums;
 
 namespace RapidRelief.Api.Tests.Ai;
@@ -9,9 +9,9 @@ namespace RapidRelief.Api.Tests.Ai;
 /// exact enum names, severity 1–5, clamp-not-reject for summary/confidence — plus the
 /// tri-state finish policy: "stop" validates, "length" → Invalid (truncated JSON is useless),
 /// "content_filter" → Blocked (never counts), "error" → Invalid (client backstop),
-/// missing/other → Invalid. Captures usage.total_tokens and response.model (D-061).
+/// missing/other → Invalid. Captures usage.total_tokens and response.model.
 /// </summary>
-public sealed class OpenRouterResponseParserTests
+public sealed class FreeLlmPoolResponseParserTests
 {
     /// <summary>Builds a canned chat-completions response body around the inner assessment JSON.</summary>
     private static string Body(string innerJson, string finishReason = "stop", int? totalTokens = 57,
@@ -31,7 +31,7 @@ public sealed class OpenRouterResponseParserTests
     [Fact]
     public void Valid_response_parses_with_all_fields_including_the_routed_model()
     {
-        var result = OpenRouterResponseParser.Parse(Body(Inner()));
+        var result = FreeLlmPoolResponseParser.Parse(Body(Inner()));
 
         Assert.Equal(AiParseStatus.Ok, result.Status);
         Assert.NotNull(result.Parsed);
@@ -41,13 +41,13 @@ public sealed class OpenRouterResponseParserTests
         Assert.Equal(0.9, result.Parsed.Confidence);
         Assert.Equal("stop", result.Parsed.FinishReason);
         Assert.Equal(57, result.Parsed.TotalTokenCount);
-        Assert.Equal("z-ai/glm-5.2:free", result.Parsed.ModelName); // D-061: the ACTUAL routed model
+        Assert.Equal("z-ai/glm-5.2:free", result.Parsed.ModelName); // The ACTUAL routed model
     }
 
     [Fact]
     public void Missing_usage_and_model_still_parse_with_null_telemetry()
     {
-        var result = OpenRouterResponseParser.Parse(Body(Inner(), totalTokens: null, model: null));
+        var result = FreeLlmPoolResponseParser.Parse(Body(Inner(), totalTokens: null, model: null));
 
         Assert.Equal(AiParseStatus.Ok, result.Status);
         Assert.Null(result.Parsed!.TotalTokenCount);
@@ -61,7 +61,7 @@ public sealed class OpenRouterResponseParserTests
     [InlineData("[1,2,3]")]
     public void Malformed_or_choiceless_outer_body_is_invalid(string body)
     {
-        var result = OpenRouterResponseParser.Parse(body);
+        var result = FreeLlmPoolResponseParser.Parse(body);
 
         Assert.Equal(AiParseStatus.Invalid, result.Status);
         Assert.False(string.IsNullOrWhiteSpace(result.RejectReason));
@@ -70,7 +70,7 @@ public sealed class OpenRouterResponseParserTests
     [Fact]
     public void A_non_object_first_choice_is_invalid_instead_of_throwing()
     {
-        var result = OpenRouterResponseParser.Parse("{\"choices\":[123]}");
+        var result = FreeLlmPoolResponseParser.Parse("{\"choices\":[123]}");
 
         Assert.Equal(AiParseStatus.Invalid, result.Status);
         Assert.False(string.IsNullOrWhiteSpace(result.RejectReason));
@@ -84,7 +84,7 @@ public sealed class OpenRouterResponseParserTests
     public void Missing_or_non_string_content_is_invalid(string body)
     {
         // String-only stance: docs guarantee a string for non-streaming; anything else counts.
-        var result = OpenRouterResponseParser.Parse(body);
+        var result = FreeLlmPoolResponseParser.Parse(body);
 
         Assert.Equal(AiParseStatus.Invalid, result.Status);
     }
@@ -92,7 +92,7 @@ public sealed class OpenRouterResponseParserTests
     [Fact]
     public void Inner_text_that_is_not_json_is_invalid()
     {
-        Assert.Equal(AiParseStatus.Invalid, OpenRouterResponseParser.Parse(Body("I think this is a fire.")).Status);
+        Assert.Equal(AiParseStatus.Invalid, FreeLlmPoolResponseParser.Parse(Body("I think this is a fire.")).Status);
     }
 
     [Theory]
@@ -101,7 +101,7 @@ public sealed class OpenRouterResponseParserTests
     [InlineData("3")]        // numeric strings must not sneak through Enum.TryParse
     public void Invalid_predicted_type_is_invalid(string predictedType)
     {
-        var result = OpenRouterResponseParser.Parse(Body(Inner(predictedType: predictedType)));
+        var result = FreeLlmPoolResponseParser.Parse(Body(Inner(predictedType: predictedType)));
 
         Assert.Equal(AiParseStatus.Invalid, result.Status);
         Assert.NotNull(result.RejectReason);
@@ -114,7 +114,7 @@ public sealed class OpenRouterResponseParserTests
     [InlineData("3.5")]
     public void Out_of_range_or_non_integer_severity_is_invalid(string severity)
     {
-        Assert.Equal(AiParseStatus.Invalid, OpenRouterResponseParser.Parse(Body(Inner(severity: severity))).Status);
+        Assert.Equal(AiParseStatus.Invalid, FreeLlmPoolResponseParser.Parse(Body(Inner(severity: severity))).Status);
     }
 
     [Theory]
@@ -124,7 +124,7 @@ public sealed class OpenRouterResponseParserTests
     [InlineData("weird")]
     public void Non_stop_finish_reasons_are_invalid(string finishReason)
     {
-        var result = OpenRouterResponseParser.Parse(Body(Inner(), finishReason: finishReason));
+        var result = FreeLlmPoolResponseParser.Parse(Body(Inner(), finishReason: finishReason));
 
         Assert.Equal(AiParseStatus.Invalid, result.Status);
         Assert.False(string.IsNullOrWhiteSpace(result.RejectReason));
@@ -135,14 +135,14 @@ public sealed class OpenRouterResponseParserTests
     {
         const string body = "{\"choices\":[{\"message\":{\"content\":\"{}\"}}]}";
 
-        Assert.Equal(AiParseStatus.Invalid, OpenRouterResponseParser.Parse(body).Status);
+        Assert.Equal(AiParseStatus.Invalid, FreeLlmPoolResponseParser.Parse(body).Status);
     }
 
     [Fact]
     public void A_content_filter_finish_reason_is_blocked_not_invalid()
     {
         // D-064: a moderation verdict must NOT count against the shared breaker.
-        var result = OpenRouterResponseParser.Parse(Body(Inner(), finishReason: "content_filter"));
+        var result = FreeLlmPoolResponseParser.Parse(Body(Inner(), finishReason: "content_filter"));
 
         Assert.Equal(AiParseStatus.Blocked, result.Status);
         Assert.Null(result.Parsed);
@@ -154,7 +154,7 @@ public sealed class OpenRouterResponseParserTests
     {
         const string noSummary = "{\"predictedType\":\"Fire\",\"severity\":4,\"confidence\":0.9}";
 
-        Assert.Equal(AiParseStatus.Invalid, OpenRouterResponseParser.Parse(Body(noSummary)).Status);
+        Assert.Equal(AiParseStatus.Invalid, FreeLlmPoolResponseParser.Parse(Body(noSummary)).Status);
     }
 
     [Fact]
@@ -162,7 +162,7 @@ public sealed class OpenRouterResponseParserTests
     {
         var longSummary = new string('x', 250);
 
-        var result = OpenRouterResponseParser.Parse(Body(Inner(summary: longSummary)));
+        var result = FreeLlmPoolResponseParser.Parse(Body(Inner(summary: longSummary)));
 
         Assert.Equal(AiParseStatus.Ok, result.Status);
         Assert.Equal(200, result.Parsed!.Summary.Length);
@@ -172,7 +172,7 @@ public sealed class OpenRouterResponseParserTests
     [Fact]
     public void Control_characters_are_stripped_from_the_summary()
     {
-        var result = OpenRouterResponseParser.Parse(Body(Inner(summary: "line1\nline2\ttab\u0000end")));
+        var result = FreeLlmPoolResponseParser.Parse(Body(Inner(summary: "line1\nline2\ttab\u0000end")));
 
         Assert.Equal(AiParseStatus.Ok, result.Status);
         Assert.Equal("line1line2tabend", result.Parsed!.Summary);
@@ -184,7 +184,7 @@ public sealed class OpenRouterResponseParserTests
     [InlineData("-0.5", 0.0)]
     public void Out_of_range_confidence_is_clamped_not_rejected(string confidence, double expected)
     {
-        var result = OpenRouterResponseParser.Parse(Body(Inner(confidence: confidence)));
+        var result = FreeLlmPoolResponseParser.Parse(Body(Inner(confidence: confidence)));
 
         Assert.Equal(AiParseStatus.Ok, result.Status);
         Assert.Equal(expected, result.Parsed!.Confidence);
@@ -193,7 +193,7 @@ public sealed class OpenRouterResponseParserTests
     [Fact]
     public void Full_realistic_chat_completions_response_shape_parses_with_extra_fields_ignored()
     {
-        // Real OpenRouter envelope: id/provider/created/object, native_finish_reason, logprobs
+        // Real OpenAI-compatible envelope: id/provider/created/object, native_finish_reason, logprobs
         // and the full usage breakdown must all be tolerated; only choices[0].message.content,
         // finish_reason, usage.total_tokens and model are consumed.
         const string realBody = """
@@ -226,7 +226,7 @@ public sealed class OpenRouterResponseParserTests
             }
             """;
 
-        var result = OpenRouterResponseParser.Parse(realBody);
+        var result = FreeLlmPoolResponseParser.Parse(realBody);
 
         Assert.Equal(AiParseStatus.Ok, result.Status);
         Assert.Equal(DisasterType.Flood, result.Parsed!.PredictedType);
@@ -243,7 +243,7 @@ public sealed class OpenRouterResponseParserTests
     {
         var hostile = "EVIL\r\nFAKE-LOG <script>alert(1)</script> " + new string('A', 100);
 
-        var result = OpenRouterResponseParser.Parse(Body(Inner(), finishReason: hostile));
+        var result = FreeLlmPoolResponseParser.Parse(Body(Inner(), finishReason: hostile));
 
         Assert.Equal(AiParseStatus.Invalid, result.Status);
         Assert.NotNull(result.RejectReason);

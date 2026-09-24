@@ -159,7 +159,7 @@ Eight issues were found and **all eight were fixed** (§3), each with a regressi
 ## 6. Before you deploy publicly
 
 1. **Rotate the Neon database password.** It is in git history.
-2. Set `Jwt__SigningKey` (≥32 bytes), `ConnectionStrings__Postgres` and `Ai__OpenRouter__ApiKey` as environment variables. Startup fails fast without a real signing key outside Development.
+2. Set `Jwt__SigningKey` (≥32 bytes), `ConnectionStrings__Postgres` and (optionally) `Ai__FreeLlmPool__ApiKey`/`Ai__FreeLlmPool__BaseUrl` as environment variables — freellmpool's default providers are keyless, so the API key is only needed for a paid/proxy-keyed instance. Startup fails fast without a real signing key outside Development.
 3. Set `ASPNETCORE_ENVIRONMENT=Production`. Three mitigations depend on it.
 4. Set `AllowedHosts` and, if proxied, `Proxy:Enabled` + `Proxy:KnownProxies`.
 5. Run `dotnet list package --vulnerable`.

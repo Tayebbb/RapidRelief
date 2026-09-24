@@ -8,4 +8,12 @@ services:
     ports: ["127.0.0.1:${POSTGRES_PORT:-5432}:5432"]
     volumes: [pgdata:/var/lib/postgresql/data]
     healthcheck: { test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rapidrelief}"], interval: 5s, retries: 10 }
-volumes: { pgdata: }
+  # Keyless start only (Pollinations, OVHcloud, Kilo Gateway, LLM7 need no credentials per
+  # freellmpool's own README). Provider keys (GROQ_API_KEY etc., see freellmpool's README
+  # table) can be added later as environment: entries to unlock more capacity, but are optional.
+  freellmpool:
+    image: ghcr.io/0xzr/freellmpool:0.13.0
+    ports: ["127.0.0.1:${FREELLMPOOL_PORT:-8080}:8080"]
+    volumes: [freellmpool-data:/home/freellmpool/.config/freellmpool]
+    healthcheck: { test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"], interval: 10s, timeout: 5s, retries: 10 }
+volumes: { pgdata: , freellmpool-data: }

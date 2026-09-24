@@ -38,6 +38,13 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
         // Keep uploads out of the repo tree and make the oversize test cheap (64 KiB cap).
         builder.UseSetting("FileStorage:Root", _storageRoot);
         builder.UseSetting("FileStorage:MaxSizeBytes", "65536");
+        // D-108: appsettings.json's Ai:FreeLlmPool:BaseUrl now points at a real local sidecar
+        // (http://localhost:8080/) instead of the old inert blank OpenRouter API key, so a plain
+        // boot here would otherwise try a real network call and only fall back on failure/timeout.
+        // Blank it by default so Testing gets the deterministic pure rule-based path unless a
+        // test explicitly re-enables it (e.g. AssistantRoleScopeTests re-sets a non-blank BaseUrl
+        // via WithWebHostBuilder, which runs after this and wins).
+        builder.UseSetting("Ai:FreeLlmPool:BaseUrl", "");
         builder.ConfigureServices(services =>
         {
             AddSqliteContext<SampleDbContext>(services);

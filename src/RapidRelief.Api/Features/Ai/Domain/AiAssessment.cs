@@ -24,7 +24,7 @@ public sealed class AiAssessment
 
     public Guid? PossibleDuplicateOfId { get; set; }
 
-    /// <summary>"OpenRouter" | "RuleBased".</summary>
+    /// <summary>"FreeLlmPool" | "RuleBased".</summary>
     public string Provider { get; set; } = string.Empty;
 
     public string? ModelName { get; set; }

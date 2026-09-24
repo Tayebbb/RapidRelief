@@ -7,7 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using RapidRelief.Api.Features.Ai;
 using RapidRelief.Api.Features.Ai.Data;
-using RapidRelief.Api.Features.Ai.OpenRouter;
+using RapidRelief.Api.Features.Ai.FreeLlmPool;
 using RapidRelief.Api.Features.Incidents.Data;
 using RapidRelief.Api.Infrastructure.Auth;
 using RapidRelief.Shared.Contracts.Common;
@@ -32,7 +32,7 @@ public sealed class AiDecisionSupportTests
         public override DateTimeOffset GetUtcNow() => now;
     }
 
-    private sealed class ScriptedClient(Func<int, Task<string>> respond) : IOpenRouterClient
+    private sealed class ScriptedClient(Func<int, Task<string>> respond) : IFreeLlmPoolClient
     {
         public int Calls { get; private set; }
 
@@ -57,16 +57,16 @@ public sealed class AiDecisionSupportTests
         public Task DeleteAsync(string path, CancellationToken ct = default) => Task.CompletedTask;
     }
 
-    private static OpenRouterAiAnalysisService Service(IOpenRouterClient client, string apiKey = "sk-test")
+    private static FreeLlmPoolAiAnalysisService Service(IFreeLlmPoolClient client, string baseUrl = "http://localhost:8080/")
     {
         var clock = new FixedTimeProvider(Now);
         var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?> { ["Ai:OpenRouter:ApiKey"] = apiKey })
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Ai:FreeLlmPool:BaseUrl"] = baseUrl })
             .Build();
-        return new OpenRouterAiAnalysisService(
+        return new FreeLlmPoolAiAnalysisService(
             new RuleBasedAiAnalysisService(clock), client, new NullFileStorage(),
             new AiCircuitBreaker(clock, 3, TimeSpan.FromMinutes(2)), clock, config,
-            NullLogger<OpenRouterAiAnalysisService>.Instance);
+            NullLogger<FreeLlmPoolAiAnalysisService>.Instance);
     }
 
     private static AiAnalysisRequest Request(
@@ -101,7 +101,7 @@ public sealed class AiDecisionSupportTests
         var client = new ScriptedClient(_ => Task.FromResult(ValidResponse(RichInner)));
         var outcome = await Service(client).AnalyzeWithMetadataAsync(Request());
 
-        Assert.Equal("OpenRouter", outcome.Assessment.Provider);
+        Assert.Equal("FreeLlmPool", outcome.Assessment.Provider);
         Assert.Equal(DisasterType.Flood, outcome.Findings.PredictedType);
         Assert.Equal(Severity.Severe, outcome.Findings.EstimatedSeverity);
         Assert.Equal(0.82, outcome.Findings.Confidence, 3);
@@ -163,7 +163,7 @@ public sealed class AiDecisionSupportTests
 
         var outcome = await Service(client).AnalyzeWithMetadataAsync(Request(description: "Smoke and injured people inside"));
 
-        Assert.Equal("OpenRouter", outcome.Assessment.Provider);
+        Assert.Equal("FreeLlmPool", outcome.Assessment.Provider);
         Assert.Equal(DisasterType.Fire, outcome.Findings.PredictedType);
         Assert.True(outcome.Findings.MedicalUrgency, "text evidence must still flag the medical urgency");
         Assert.NotEmpty(outcome.Findings.DamageIndicators);
@@ -176,7 +176,7 @@ public sealed class AiDecisionSupportTests
     public async Task A_provider_timeout_still_produces_an_assessment()
     {
         var client = new ScriptedClient(_ =>
-            Task.FromException<string>(new AiProviderUnavailableException("OpenRouter text request timed out after 10 s", isTransient: true)));
+            Task.FromException<string>(new AiProviderUnavailableException("FreeLlmPool text request timed out after 10 s", isTransient: true)));
 
         var outcome = await Service(client).AnalyzeWithMetadataAsync(Request());
 
@@ -189,7 +189,7 @@ public sealed class AiDecisionSupportTests
     public async Task A_quota_failure_degrades_without_losing_the_report()
     {
         var client = new ScriptedClient(_ =>
-            Task.FromException<string>(new AiProviderUnavailableException("OpenRouter returned HTTP 429", isTransient: true)));
+            Task.FromException<string>(new AiProviderUnavailableException("FreeLlmPool returned HTTP 429", isTransient: true)));
 
         var outcome = await Service(client).AnalyzeWithMetadataAsync(Request());
 
@@ -198,11 +198,11 @@ public sealed class AiDecisionSupportTests
     }
 
     [Fact]
-    public async Task With_no_api_key_the_provider_is_never_called_and_the_reason_says_so()
+    public async Task With_a_blank_base_url_the_provider_is_never_called_and_the_reason_says_so()
     {
         var client = new ScriptedClient(_ => Task.FromResult(ValidResponse(RichInner)));
 
-        var outcome = await Service(client, apiKey: string.Empty).AnalyzeWithMetadataAsync(Request());
+        var outcome = await Service(client, baseUrl: string.Empty).AnalyzeWithMetadataAsync(Request());
 
         Assert.Equal(0, client.Calls);
         Assert.Equal("RuleBased", outcome.Assessment.Provider);
@@ -213,7 +213,7 @@ public sealed class AiDecisionSupportTests
     public async Task A_blocked_input_degrades_without_counting_against_the_breaker()
     {
         var client = new ScriptedClient(_ =>
-            Task.FromException<string>(new AiProviderBlockedException("OpenRouter flagged the input (HTTP 403)")));
+            Task.FromException<string>(new AiProviderBlockedException("FreeLlmPool flagged the input (HTTP 403)")));
         var service = Service(client);
 
         var first = await service.AnalyzeWithMetadataAsync(Request());
@@ -238,7 +238,7 @@ public sealed class AiDecisionSupportTests
         var outcome = await Service(client).AnalyzeWithMetadataAsync(
             Request(photos: ["uploads/missing.jpg"]));
 
-        Assert.Equal("OpenRouter", outcome.Assessment.Provider);
+        Assert.Equal("FreeLlmPool", outcome.Assessment.Provider);
         Assert.False(client.LastBodyWasVision);
         Assert.Contains("No photo was available", outcome.Findings.Reasoning);
     }

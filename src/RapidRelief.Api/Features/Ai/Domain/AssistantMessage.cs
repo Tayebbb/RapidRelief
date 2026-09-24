@@ -24,7 +24,7 @@ public sealed class AssistantMessage
 
     public string Text { get; set; } = string.Empty;
 
-    /// <summary>"OpenRouter" | "Canned"; null on user rows.</summary>
+    /// <summary>"FreeLlmPool" | "Canned"; null on user rows.</summary>
     public string? Provider { get; set; }
 
     public DateTimeOffset CreatedAtUtc { get; set; }

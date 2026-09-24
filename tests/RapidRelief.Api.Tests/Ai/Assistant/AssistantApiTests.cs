@@ -64,7 +64,7 @@ public sealed class AssistantApiTests
         };
 
     private static AssistantMessageResponse ServerAnswer(Guid sessionId, string text = "Move to higher ground.")
-        => new(sessionId, new AssistantAnswerDto(text, "OpenRouter", Truncated: false, DateTimeOffset.UtcNow),
+        => new(sessionId, new AssistantAnswerDto(text, "FreeLlmPool", Truncated: false, DateTimeOffset.UtcNow),
             Degraded: false, Persisted: true);
 
     [Fact]
@@ -79,7 +79,7 @@ public sealed class AssistantApiTests
         Assert.Null(result.Notice);
         Assert.Equal(sessionId, result.SessionId);
         Assert.Equal("Move to higher ground.", result.Answer.Text);
-        Assert.Equal("OpenRouter", result.Answer.Provider);
+        Assert.Equal("FreeLlmPool", result.Answer.Provider);
         Assert.True(result.Persisted);
         Assert.False(result.Degraded);
     }
@@ -217,7 +217,7 @@ public sealed class AssistantApiTests
 
         var result = await api.SendAsync(null, "there is a fire", null, null);
 
-        Assert.NotEqual("OpenRouter", result.Answer.Provider);
+        Assert.NotEqual("FreeLlmPool", result.Answer.Provider);
         Assert.False(result.Persisted);
     }
 

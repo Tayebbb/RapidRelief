@@ -8,10 +8,11 @@ using System.Text.RegularExpressions;
 namespace RapidRelief.Api.Features.Ai.Assistant;
 
 /// <summary>
-/// Builds the multi-turn chat-completions body for the assistant (D-049: no safety knobs,
-/// no response_format — prose only). The D-061 text-pair models array rides in the body;
-/// reasoning is disabled on every request. Injected context rides on the LAST user turn: it
-/// is the freshest data and costs no per-turn token duplication.
+/// Builds the multi-turn OpenAI-compatible chat-completions body for the assistant (D-049: no
+/// safety knobs, no response_format — prose only). The D-113 single model string rides in the
+/// body (no models[] array, no reasoning extension — freellmpool is plain OpenAI-compatible).
+/// Injected context rides on the LAST user turn: it is the freshest data and costs no per-turn
+/// token duplication.
 /// </summary>
 internal static partial class AssistantPromptBuilder
 {
@@ -33,7 +34,7 @@ internal static partial class AssistantPromptBuilder
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
-    public static string Build(AssistantAsk ask, AssistantOptions options, IReadOnlyList<string> models)
+    public static string Build(AssistantAsk ask, AssistantOptions options, string model)
     {
         var messages = new JsonArray
         {
@@ -48,14 +49,13 @@ internal static partial class AssistantPromptBuilder
         messages.Add(Turn("user", $"{Context(ask.Context)}\n{Fence(ask.Question)}"));
 
         // Key order is insertion order — pinned by the goldens. No response_format, no provider
-        // (prose mode); reasoning disabled on every request (D-061).
+        // block, no reasoning extension (prose mode; D-113 plain OpenAI-compatible shape).
         var body = new JsonObject
         {
-            ["models"] = new JsonArray(models.Select(m => (JsonNode)m).ToArray()),
+            ["model"] = model,
             ["messages"] = messages,
             ["temperature"] = 0,
             ["max_tokens"] = options.MaxOutputTokens,
-            ["reasoning"] = new JsonObject { ["enabled"] = false },
         };
         return body.ToJsonString(SerializerOptions);
     }

@@ -3,7 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using RapidRelief.Api.Features.Ai;
-using RapidRelief.Api.Features.Ai.OpenRouter;
+using RapidRelief.Api.Features.Ai.FreeLlmPool;
 using RapidRelief.Shared.Contracts.Common;
 using RapidRelief.Shared.Contracts.Enums;
 using RapidRelief.Shared.Contracts.ReadModels;
@@ -12,14 +12,16 @@ using RapidRelief.Shared.Contracts.Services;
 namespace RapidRelief.Api.Tests.Ai;
 
 /// <summary>
-/// The D-028 provider chain under OpenRouter: every failure mode yields Provider=="RuleBased"
-/// and NEVER throws; a valid response yields Provider=="OpenRouter" with telemetry populated
-/// (ModelName = response.model per D-061); the breaker only counts genuine provider attempts —
-/// a D-064 block (403 or content_filter) falls back WITHOUT counting. D-024 photo handling
-/// (first photo as a data-URL image part, any photo problem → text-only) and end-to-end runs
-/// through the REAL OpenRouterClient against a fake HttpMessageHandler.
+/// The D-028 provider chain under FreeLlmPool: every failure mode yields Provider=="RuleBased"
+/// and NEVER throws; a valid response yields Provider=="FreeLlmPool" with telemetry populated
+/// (ModelName = response.model); the breaker only counts genuine provider attempts — a D-064
+/// block (403 or content_filter) falls back WITHOUT counting. D-113: a blank
+/// Ai:FreeLlmPool:BaseUrl is now the short-circuit gate (not the API key — freellmpool can
+/// legitimately answer with zero key via its keyless providers). D-024 photo handling (first
+/// photo as a data-URL image part, any photo problem → text-only) and end-to-end runs through
+/// the REAL FreeLlmPoolClient against a fake HttpMessageHandler.
 /// </summary>
-public sealed class OpenRouterAiAnalysisServiceTests
+public sealed class FreeLlmPoolAiAnalysisServiceTests
 {
     private static readonly DateTimeOffset Now = new(2026, 9, 1, 12, 0, 0, TimeSpan.Zero);
 
@@ -35,7 +37,7 @@ public sealed class OpenRouterAiAnalysisServiceTests
         public void Advance(TimeSpan by) => _now += by;
     }
 
-    private sealed class FakeOpenRouterClient : IOpenRouterClient
+    private sealed class FakeFreeLlmPoolClient : IFreeLlmPoolClient
     {
         public int Calls;
         public Exception? Throws;
@@ -107,31 +109,30 @@ public sealed class OpenRouterAiAnalysisServiceTests
         return $"{{\"model\":{JsonSerializer.Serialize(model)},\"choices\":[{{\"message\":{{\"role\":\"assistant\",\"content\":{JsonSerializer.Serialize(inner)}}},\"finish_reason\":{JsonSerializer.Serialize(finishReason)}}}],\"usage\":{{\"total_tokens\":57}}}}";
     }
 
-    private static OpenRouterAiAnalysisService Create(
-        IOpenRouterClient client, out AiCircuitBreaker breaker, string apiKey = "test-key",
-        IFileStorage? fileStorage = null, ILogger<OpenRouterAiAnalysisService>? logger = null,
+    private static FreeLlmPoolAiAnalysisService Create(
+        IFreeLlmPoolClient client, out AiCircuitBreaker breaker, string baseUrl = "http://localhost:8080/",
+        IFileStorage? fileStorage = null, ILogger<FreeLlmPoolAiAnalysisService>? logger = null,
         TimeProvider? clock = null)
     {
         clock ??= new FixedTimeProvider(Now);
         breaker = new AiCircuitBreaker(clock, 3, TimeSpan.FromMinutes(2));
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["Ai:OpenRouter:ApiKey"] = apiKey,
-            ["Ai:OpenRouter:TextModel"] = "z-ai/glm-5.2:free",
-            ["Ai:OpenRouter:TextFallbackModel"] = "nvidia/nemotron-3-super-120b-a12b:free",
-            ["Ai:OpenRouter:VisionModel"] = "google/gemma-4-31b-it:free",
-            ["Ai:OpenRouter:VisionFallbackModel"] = "minimax/minimax-m3:free",
+            ["Ai:FreeLlmPool:BaseUrl"] = baseUrl,
+            ["Ai:FreeLlmPool:TextModel"] = "z-ai/glm-5.2:free",
+            ["Ai:FreeLlmPool:VisionModel"] = "google/gemma-4-31b-it:free",
         }).Build();
-        return new OpenRouterAiAnalysisService(new RuleBasedAiAnalysisService(clock), client,
+        return new FreeLlmPoolAiAnalysisService(new RuleBasedAiAnalysisService(clock), client,
             fileStorage ?? new FakeFileStorage(), breaker, clock, config,
-            logger ?? NullLogger<OpenRouterAiAnalysisService>.Instance);
+            logger ?? NullLogger<FreeLlmPoolAiAnalysisService>.Instance);
     }
 
     [Fact]
-    public async Task Missing_api_key_short_circuits_to_rule_based_without_calling_the_client()
+    public async Task Blank_base_url_short_circuits_to_rule_based_without_calling_the_client()
     {
-        var client = new FakeOpenRouterClient { Response = ValidBody() };
-        var service = Create(client, out var breaker, apiKey: "");
+        // D-113: a blank BaseUrl is the operator kill switch (replaces the old blank-ApiKey gate).
+        var client = new FakeFreeLlmPoolClient { Response = ValidBody() };
+        var service = Create(client, out var breaker, baseUrl: "");
 
         var outcome = await service.AnalyzeWithMetadataAsync(Request());
 
@@ -143,10 +144,10 @@ public sealed class OpenRouterAiAnalysisServiceTests
     }
 
     [Fact]
-    public async Task Repeated_missing_key_calls_never_open_the_breaker()
+    public async Task Repeated_blank_base_url_calls_never_open_the_breaker()
     {
-        var client = new FakeOpenRouterClient { Response = ValidBody() };
-        var service = Create(client, out var breaker, apiKey: "");
+        var client = new FakeFreeLlmPoolClient { Response = ValidBody() };
+        var service = Create(client, out var breaker, baseUrl: "");
 
         for (var i = 0; i < 5; i++)
         {
@@ -168,7 +169,7 @@ public sealed class OpenRouterAiAnalysisServiceTests
     [MemberData(nameof(ProviderPathExceptions))]
     public async Task Client_exceptions_fall_back_to_rule_based_and_never_throw(Exception exception)
     {
-        var client = new FakeOpenRouterClient { Throws = exception };
+        var client = new FakeFreeLlmPoolClient { Throws = exception };
         var service = Create(client, out _);
 
         var outcome = await service.AnalyzeWithMetadataAsync(Request());
@@ -183,7 +184,7 @@ public sealed class OpenRouterAiAnalysisServiceTests
     [InlineData("{\"choices\":[]}")]
     public async Task Malformed_response_body_falls_back_to_rule_based(string body)
     {
-        var client = new FakeOpenRouterClient { Response = body };
+        var client = new FakeFreeLlmPoolClient { Response = body };
         var service = Create(client, out _);
 
         var outcome = await service.AnalyzeWithMetadataAsync(Request());
@@ -194,7 +195,7 @@ public sealed class OpenRouterAiAnalysisServiceTests
     [Fact]
     public async Task Wrong_enum_value_falls_back_to_rule_based()
     {
-        var client = new FakeOpenRouterClient { Response = ValidBody(predictedType: "Tsunami") };
+        var client = new FakeFreeLlmPoolClient { Response = ValidBody(predictedType: "Tsunami") };
         var service = Create(client, out _);
 
         var outcome = await service.AnalyzeWithMetadataAsync(Request());
@@ -205,7 +206,7 @@ public sealed class OpenRouterAiAnalysisServiceTests
     [Fact]
     public async Task Out_of_range_severity_falls_back_to_rule_based()
     {
-        var client = new FakeOpenRouterClient { Response = ValidBody(severity: 7) };
+        var client = new FakeFreeLlmPoolClient { Response = ValidBody(severity: 7) };
         var service = Create(client, out _);
 
         var outcome = await service.AnalyzeWithMetadataAsync(Request());
@@ -217,7 +218,7 @@ public sealed class OpenRouterAiAnalysisServiceTests
     public async Task A_length_finish_reason_falls_back_to_rule_based_and_counts()
     {
         // Truncated JSON is useless — an Invalid outcome that must count (D-063).
-        var client = new FakeOpenRouterClient { Response = ValidBody(finishReason: "length") };
+        var client = new FakeFreeLlmPoolClient { Response = ValidBody(finishReason: "length") };
         var service = Create(client, out var breaker);
 
         var outcome1 = await service.AnalyzeWithMetadataAsync(Request());
@@ -236,7 +237,7 @@ public sealed class OpenRouterAiAnalysisServiceTests
     {
         // D-064: a moderation verdict is a normal outcome — five in a row must leave the
         // breaker closed and keep calling the provider.
-        var client = new FakeOpenRouterClient { Response = ValidBody(finishReason: "content_filter") };
+        var client = new FakeFreeLlmPoolClient { Response = ValidBody(finishReason: "content_filter") };
         var service = Create(client, out var breaker);
 
         for (var i = 0; i < 5; i++)
@@ -253,7 +254,7 @@ public sealed class OpenRouterAiAnalysisServiceTests
     public async Task A_403_block_falls_back_without_counting_a_breaker_failure()
     {
         // D-064: HTTP 403 = input moderation — same no-count rule as content_filter.
-        var client = new FakeOpenRouterClient { Throws = new AiProviderBlockedException("OpenRouter flagged the input (HTTP 403)") };
+        var client = new FakeFreeLlmPoolClient { Throws = new AiProviderBlockedException("FreeLlmPool flagged the input (HTTP 403)") };
         var service = Create(client, out var breaker);
 
         for (var i = 0; i < 5; i++)
@@ -270,7 +271,7 @@ public sealed class OpenRouterAiAnalysisServiceTests
     public async Task A_block_during_the_half_open_probe_releases_the_probe_instead_of_wedging_the_breaker()
     {
         var clock = new AdvanceableTimeProvider(Now);
-        var client = new FakeOpenRouterClient { Throws = new AiProviderUnavailableException("down") };
+        var client = new FakeFreeLlmPoolClient { Throws = new AiProviderUnavailableException("down") };
         var service = Create(client, out _, clock: clock);
         for (var i = 0; i < 3; i++)
         {
@@ -285,19 +286,19 @@ public sealed class OpenRouterAiAnalysisServiceTests
         client.Response = ValidBody();
         var recovered = await service.AnalyzeWithMetadataAsync(Request());
 
-        Assert.Equal("OpenRouter", recovered.Assessment.Provider); // a NEW probe got through
+        Assert.Equal("FreeLlmPool", recovered.Assessment.Provider); // a NEW probe got through
     }
 
     [Fact]
-    public async Task Valid_response_yields_openrouter_provider_with_telemetry()
+    public async Task Valid_response_yields_freellmpool_provider_with_telemetry()
     {
-        var client = new FakeOpenRouterClient { Response = ValidBody(model: "nvidia/nemotron-3-super-120b-a12b:free") };
+        var client = new FakeFreeLlmPoolClient { Response = ValidBody(model: "nvidia/nemotron-3-super-120b-a12b:free") };
         var service = Create(client, out _);
         var request = Request(isSos: true);
 
         var outcome = await service.AnalyzeWithMetadataAsync(request);
 
-        Assert.Equal("OpenRouter", outcome.Assessment.Provider);
+        Assert.Equal("FreeLlmPool", outcome.Assessment.Provider);
         Assert.Equal(DisasterType.Fire, outcome.Assessment.PredictedType);
         Assert.Equal(Severity.Severe, outcome.Assessment.EstimatedSeverity);
         Assert.Equal("Warehouse fire with heavy smoke.", outcome.Assessment.Summary);
@@ -306,7 +307,7 @@ public sealed class OpenRouterAiAnalysisServiceTests
         // Same shared formula as the rule-based path: 20*4 + 25 + 15*(1-1/6) = 117.5 → 100.
         Assert.Equal(PriorityFormula.Compute(Severity.Severe, true, request.ReportedAtUtc, Now),
             outcome.Assessment.PriorityScore);
-        // D-061: ModelName is the ACTUAL routed model from response.model, not the config echo.
+        // ModelName is the ACTUAL routed model from response.model, not the config echo.
         Assert.Equal("nvidia/nemotron-3-super-120b-a12b:free", outcome.ModelName);
         Assert.Equal(57, outcome.TokensUsed);
         Assert.Equal("stop", outcome.FinishReason);
@@ -314,28 +315,27 @@ public sealed class OpenRouterAiAnalysisServiceTests
     }
 
     [Fact]
-    public async Task Text_requests_carry_the_text_model_pair_and_the_strict_schema()
+    public async Task Text_requests_carry_the_configured_text_model_and_json_object_format()
     {
-        var client = new FakeOpenRouterClient { Response = ValidBody() };
+        var client = new FakeFreeLlmPoolClient { Response = ValidBody() };
         var service = Create(client, out _);
 
         await service.AnalyzeWithMetadataAsync(Request());
 
         using var body = JsonDocument.Parse(client.LastRequestBody!);
         var root = body.RootElement;
-        Assert.Equal(
-            new[] { "z-ai/glm-5.2:free", "nvidia/nemotron-3-super-120b-a12b:free" },
-            root.GetProperty("models").EnumerateArray().Select(m => m.GetString()).ToArray());
-        Assert.Equal("json_schema", root.GetProperty("response_format").GetProperty("type").GetString());
-        Assert.True(root.GetProperty("provider").GetProperty("require_parameters").GetBoolean());
-        Assert.False(root.GetProperty("reasoning").GetProperty("enabled").GetBoolean());
-        Assert.False(root.TryGetProperty("model", out _));
+        // D-113: a single model string, not an OpenRouter-style models[] array.
+        Assert.Equal("z-ai/glm-5.2:free", root.GetProperty("model").GetString());
+        Assert.False(root.TryGetProperty("models", out _));
+        Assert.Equal("json_object", root.GetProperty("response_format").GetProperty("type").GetString());
+        Assert.False(root.TryGetProperty("provider", out _));
+        Assert.False(root.TryGetProperty("reasoning", out _));
     }
 
     [Fact]
     public async Task Three_failures_open_the_breaker_and_the_client_is_skipped()
     {
-        var client = new FakeOpenRouterClient { Throws = new AiProviderUnavailableException("down") };
+        var client = new FakeFreeLlmPoolClient { Throws = new AiProviderUnavailableException("down") };
         var service = Create(client, out _);
 
         for (var i = 0; i < 3; i++)
@@ -353,7 +353,7 @@ public sealed class OpenRouterAiAnalysisServiceTests
     [Fact]
     public async Task Success_between_failures_keeps_the_breaker_closed()
     {
-        var client = new FakeOpenRouterClient { Throws = new AiProviderUnavailableException("down") };
+        var client = new FakeFreeLlmPoolClient { Throws = new AiProviderUnavailableException("down") };
         var service = Create(client, out _);
 
         await service.AnalyzeWithMetadataAsync(Request());
@@ -374,7 +374,7 @@ public sealed class OpenRouterAiAnalysisServiceTests
     [Fact]
     public async Task Caller_cancellation_propagates_instead_of_falling_back()
     {
-        var client = new FakeOpenRouterClient { Response = ValidBody() };
+        var client = new FakeFreeLlmPoolClient { Response = ValidBody() };
         var service = Create(client, out _);
         using var cts = new CancellationTokenSource();
         cts.Cancel();
@@ -387,7 +387,7 @@ public sealed class OpenRouterAiAnalysisServiceTests
     public async Task Cancellation_during_the_half_open_probe_does_not_wedge_the_breaker()
     {
         var clock = new AdvanceableTimeProvider(Now);
-        var client = new FakeOpenRouterClient { Throws = new AiProviderUnavailableException("down") };
+        var client = new FakeFreeLlmPoolClient { Throws = new AiProviderUnavailableException("down") };
         var service = Create(client, out _, clock: clock);
         for (var i = 0; i < 3; i++)
         {
@@ -405,34 +405,32 @@ public sealed class OpenRouterAiAnalysisServiceTests
         client.Response = ValidBody();
         var outcome = await service.AnalyzeWithMetadataAsync(Request());
 
-        Assert.Equal("OpenRouter", outcome.Assessment.Provider); // a NEW probe reached the provider
+        Assert.Equal("FreeLlmPool", outcome.Assessment.Provider); // a NEW probe reached the provider
         Assert.Equal(5, client.Calls); // 3 failures + cancelled probe + successful probe
     }
 
-    // ---- D-024 photo handling (data-URL image part, D-062 vision pair) ----
+    // ---- D-024 photo handling (data-URL image part, D-113 json_object on both paths) ----
 
     private static readonly byte[] JpegBytes = [0xFF, 0xD8, 0xFF, 0xE0, 0x52, 0x52, 0x2D, 0x46, 0x38];
 
     private const string DataUrlPrefix = "data:image/jpeg;base64,";
 
     [Fact]
-    public async Task Readable_photo_is_sent_as_a_data_url_part_with_the_vision_timeout_and_vision_models()
+    public async Task Readable_photo_is_sent_as_a_data_url_part_with_the_vision_timeout_and_vision_model()
     {
         var storage = new FakeFileStorage { Files = { ["photos/incident.jpg"] = JpegBytes } };
-        var client = new FakeOpenRouterClient { Response = ValidBody() };
+        var client = new FakeFreeLlmPoolClient { Response = ValidBody() };
         var service = Create(client, out _, fileStorage: storage);
 
         var outcome = await service.AnalyzeWithMetadataAsync(
             Request(photoPaths: ["photos/incident.jpg"]));
 
-        Assert.Equal("OpenRouter", outcome.Assessment.Provider);
+        Assert.Equal("FreeLlmPool", outcome.Assessment.Provider);
         Assert.True(client.LastIsVision);
         using var body = JsonDocument.Parse(client.LastRequestBody!);
         var root = body.RootElement;
-        // D-061: the vision pair rides in the body when a photo is attached.
-        Assert.Equal(
-            new[] { "google/gemma-4-31b-it:free", "minimax/minimax-m3:free" },
-            root.GetProperty("models").EnumerateArray().Select(m => m.GetString()).ToArray());
+        // D-113: the configured vision model string rides in the body when a photo is attached.
+        Assert.Equal("google/gemma-4-31b-it:free", root.GetProperty("model").GetString());
         var content = root.GetProperty("messages")[1].GetProperty("content");
         Assert.Equal(JsonValueKind.Array, content.ValueKind);
         Assert.Equal(2, content.GetArrayLength());
@@ -440,7 +438,6 @@ public sealed class OpenRouterAiAnalysisServiceTests
         var url = content[1].GetProperty("image_url").GetProperty("url").GetString()!;
         Assert.StartsWith(DataUrlPrefix, url);
         Assert.Equal(JpegBytes, Convert.FromBase64String(url[DataUrlPrefix.Length..]));
-        // D-062: no require_parameters on the vision path.
         Assert.False(root.TryGetProperty("provider", out _));
         Assert.Equal("json_object", root.GetProperty("response_format").GetProperty("type").GetString());
     }
@@ -448,31 +445,31 @@ public sealed class OpenRouterAiAnalysisServiceTests
     [Fact]
     public async Task Missing_photo_file_degrades_to_text_only_and_still_analyzes()
     {
-        var client = new FakeOpenRouterClient { Response = ValidBody() };
+        var client = new FakeFreeLlmPoolClient { Response = ValidBody() };
         var service = Create(client, out _, fileStorage: new FakeFileStorage());
 
         var outcome = await service.AnalyzeWithMetadataAsync(
             Request(photoPaths: ["photos/not-there.jpg"]));
 
-        Assert.Equal("OpenRouter", outcome.Assessment.Provider);
+        Assert.Equal("FreeLlmPool", outcome.Assessment.Provider);
         Assert.False(client.LastIsVision);
         using var body = JsonDocument.Parse(client.LastRequestBody!);
-        // Text-only: content stays a plain string and the text pair is used.
+        // Text-only: content stays a plain string and the text model is used.
         Assert.Equal(JsonValueKind.String, body.RootElement.GetProperty("messages")[1].GetProperty("content").ValueKind);
-        Assert.Equal("z-ai/glm-5.2:free", body.RootElement.GetProperty("models")[0].GetString());
+        Assert.Equal("z-ai/glm-5.2:free", body.RootElement.GetProperty("model").GetString());
     }
 
     [Fact]
     public async Task Unreadable_photo_degrades_to_text_only_without_counting_a_breaker_failure()
     {
         var storage = new FakeFileStorage { ThrowOnOpen = true };
-        var client = new FakeOpenRouterClient { Response = ValidBody() };
+        var client = new FakeFreeLlmPoolClient { Response = ValidBody() };
         var service = Create(client, out var breaker, fileStorage: storage);
 
         var outcome = await service.AnalyzeWithMetadataAsync(
             Request(photoPaths: ["photos/broken.png"]));
 
-        Assert.Equal("OpenRouter", outcome.Assessment.Provider);
+        Assert.Equal("FreeLlmPool", outcome.Assessment.Provider);
         Assert.False(client.LastIsVision);
         Assert.True(breaker.TryEnter());
     }
@@ -481,13 +478,13 @@ public sealed class OpenRouterAiAnalysisServiceTests
     public async Task Unknown_photo_extension_degrades_to_text_only()
     {
         var storage = new FakeFileStorage { Files = { ["docs/report.pdf"] = JpegBytes } };
-        var client = new FakeOpenRouterClient { Response = ValidBody() };
+        var client = new FakeFreeLlmPoolClient { Response = ValidBody() };
         var service = Create(client, out _, fileStorage: storage);
 
         var outcome = await service.AnalyzeWithMetadataAsync(
             Request(photoPaths: ["docs/report.pdf"]));
 
-        Assert.Equal("OpenRouter", outcome.Assessment.Provider);
+        Assert.Equal("FreeLlmPool", outcome.Assessment.Provider);
         Assert.False(client.LastIsVision);
     }
 
@@ -498,7 +495,7 @@ public sealed class OpenRouterAiAnalysisServiceTests
     public async Task Extension_maps_to_the_expected_mime_type_in_the_data_url(string path, string expectedMime)
     {
         var storage = new FakeFileStorage { Files = { [path] = JpegBytes } };
-        var client = new FakeOpenRouterClient { Response = ValidBody() };
+        var client = new FakeFreeLlmPoolClient { Response = ValidBody() };
         var service = Create(client, out _, fileStorage: storage);
 
         await service.AnalyzeWithMetadataAsync(Request(photoPaths: [path]));
@@ -516,8 +513,8 @@ public sealed class OpenRouterAiAnalysisServiceTests
         {
             Files = { ["photos/first.jpg"] = JpegBytes, ["photos/second.jpg"] = [0x01, 0x02] },
         };
-        var client = new FakeOpenRouterClient { Response = ValidBody() };
-        var logger = new CapturingLogger<OpenRouterAiAnalysisService>();
+        var client = new FakeFreeLlmPoolClient { Response = ValidBody() };
+        var logger = new CapturingLogger<FreeLlmPoolAiAnalysisService>();
         var service = Create(client, out _, fileStorage: storage, logger: logger);
 
         await service.AnalyzeWithMetadataAsync(
@@ -531,7 +528,7 @@ public sealed class OpenRouterAiAnalysisServiceTests
         Assert.Contains(logger.Lines, l => l.Contains('2') && l.Contains("photo", StringComparison.OrdinalIgnoreCase));
     }
 
-    // ---- End-to-end through the REAL OpenRouterClient (fake HttpMessageHandler) ----
+    // ---- End-to-end through the REAL FreeLlmPoolClient (fake HttpMessageHandler) ----
 
     private sealed class StubHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> onSend)
         : HttpMessageHandler
@@ -544,24 +541,24 @@ public sealed class OpenRouterAiAnalysisServiceTests
     {
         public HttpClient CreateClient(string name) => new(handler, disposeHandler: false)
         {
-            BaseAddress = new Uri("https://openrouter.ai/"),
+            BaseAddress = new Uri("http://localhost:8080/"),
             Timeout = Timeout.InfiniteTimeSpan,
         };
     }
 
-    private static OpenRouterClient RealClient(HttpMessageHandler handler)
+    private static FreeLlmPoolClient RealClient(HttpMessageHandler handler, string apiKey = "test-key")
     {
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["Ai:OpenRouter:ApiKey"] = "test-key",
-            ["Ai:OpenRouter:TimeoutSecondsText"] = "10",
-            ["Ai:OpenRouter:TimeoutSecondsVision"] = "20",
+            ["Ai:FreeLlmPool:ApiKey"] = apiKey,
+            ["Ai:FreeLlmPool:TimeoutSecondsText"] = "10",
+            ["Ai:FreeLlmPool:TimeoutSecondsVision"] = "20",
         }).Build();
-        return new OpenRouterClient(new StubHttpClientFactory(handler), config);
+        return new FreeLlmPoolClient(new StubHttpClientFactory(handler), config);
     }
 
     [Fact]
-    public async Task Composite_with_real_client_returns_openrouter_on_a_successful_http_response()
+    public async Task Composite_with_real_client_returns_freellmpool_on_a_successful_http_response()
     {
         using var handler = new StubHandler((_, _) => Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
         {
@@ -571,7 +568,7 @@ public sealed class OpenRouterAiAnalysisServiceTests
 
         var outcome = await service.AnalyzeWithMetadataAsync(Request());
 
-        Assert.Equal("OpenRouter", outcome.Assessment.Provider);
+        Assert.Equal("FreeLlmPool", outcome.Assessment.Provider);
         Assert.Equal(57, outcome.TokensUsed);
         Assert.Equal("z-ai/glm-5.2:free", outcome.ModelName);
     }
@@ -584,8 +581,8 @@ public sealed class OpenRouterAiAnalysisServiceTests
         {
             Content = new StringContent("{\"error\":{\"message\":\"boom\"}}"),
         }));
-        var logger = new CapturingLogger<OpenRouterAiAnalysisService>();
-        var service = Create(RealClient(handler), out _, apiKey: secretKey, logger: logger);
+        var logger = new CapturingLogger<FreeLlmPoolAiAnalysisService>();
+        var service = Create(RealClient(handler, apiKey: secretKey), out _, logger: logger);
 
         var outcome = await service.AnalyzeWithMetadataAsync(Request());
 

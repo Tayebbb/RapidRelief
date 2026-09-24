@@ -8,7 +8,7 @@ namespace RapidRelief.Api.Features.Ai;
 /// <summary>
 /// Permanent rule-based fallback (blueprint B4, rule §4.5/§4.8) — a pure deterministic function of
 /// (request, now). Time comes from an injected <see cref="TimeProvider"/> so tests pin "now".
-/// F8 adds the OpenRouter provider in this lane; this class never gets deleted.
+/// F8 adds the FreeLlmPool provider in this lane; this class never gets deleted.
 /// </summary>
 public sealed class RuleBasedAiAnalysisService : IAiAnalysisService
 {

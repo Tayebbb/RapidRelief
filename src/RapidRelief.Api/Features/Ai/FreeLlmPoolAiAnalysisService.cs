@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using RapidRelief.Api.Features.Ai.OpenRouter;
+using RapidRelief.Api.Features.Ai.FreeLlmPool;
 using RapidRelief.Shared.Contracts.Enums;
 using RapidRelief.Shared.Contracts.ReadModels;
 using RapidRelief.Shared.Contracts.Services;
@@ -17,31 +17,32 @@ internal sealed record AiAnalysisOutcome(
     string? DegradedReason);
 
 /// <summary>
-/// D-028 composite provider chain: empty Ai:OpenRouter:ApiKey → straight to rule-based;
-/// breaker open → rule-based; otherwise try OpenRouter and fall back on ANY failure while
-/// counting it against the breaker — except a D-064 block (HTTP 403 or finish_reason
-/// content_filter), which falls back WITHOUT counting and releases the half-open probe.
-/// Never throws for analysis failures; logs metadata only (exception type, latency, model —
-/// never description/photo/response text).
+/// D-028 composite provider chain: blank Ai:FreeLlmPool:BaseUrl → straight to rule-based
+/// (D-113 — this is now the ops-level kill switch, not the API key: freellmpool can legitimately
+/// answer with zero key via its keyless providers); breaker open → rule-based; otherwise try
+/// freellmpool and fall back on ANY failure while counting it against the breaker — except a
+/// D-064 block (HTTP 403 or finish_reason content_filter), which falls back WITHOUT counting
+/// and releases the half-open probe. Never throws for analysis failures; logs metadata only
+/// (exception type, latency, model — never description/photo/response text).
 /// </summary>
-internal sealed class OpenRouterAiAnalysisService : IAiAnalysisService
+internal sealed class FreeLlmPoolAiAnalysisService : IAiAnalysisService
 {
     private readonly RuleBasedAiAnalysisService _fallback;
-    private readonly IOpenRouterClient _client;
+    private readonly IFreeLlmPoolClient _client;
     private readonly IFileStorage _fileStorage;
     private readonly AiCircuitBreaker _breaker;
     private readonly TimeProvider _timeProvider;
     private readonly IConfiguration _config;
-    private readonly ILogger<OpenRouterAiAnalysisService> _logger;
+    private readonly ILogger<FreeLlmPoolAiAnalysisService> _logger;
 
-    public OpenRouterAiAnalysisService(
+    public FreeLlmPoolAiAnalysisService(
         RuleBasedAiAnalysisService fallback,
-        IOpenRouterClient client,
+        IFreeLlmPoolClient client,
         IFileStorage fileStorage,
         AiCircuitBreaker breaker,
         TimeProvider timeProvider,
         IConfiguration config,
-        ILogger<OpenRouterAiAnalysisService> logger)
+        ILogger<FreeLlmPoolAiAnalysisService> logger)
     {
         _fallback = fallback;
         _client = client;
@@ -60,31 +61,32 @@ internal sealed class OpenRouterAiAnalysisService : IAiAnalysisService
     {
         var stopwatch = Stopwatch.StartNew();
 
-        var apiKey = _config["Ai:OpenRouter:ApiKey"];
-        if (string.IsNullOrWhiteSpace(apiKey))
+        var baseUrl = _config["Ai:FreeLlmPool:BaseUrl"];
+        if (string.IsNullOrWhiteSpace(baseUrl))
         {
-            // D-028: missing key never crashes and never counts against the breaker.
+            // D-113: blank BaseUrl is the operator kill switch — never crashes and never counts
+            // against the breaker (D-028 rule, now keyed off BaseUrl instead of ApiKey).
             return await FallbackAsync(request, stopwatch, ct, "No model provider is configured");
         }
 
         if (!_breaker.TryEnter())
         {
-            _logger.LogInformation("OpenRouter breaker open — rule-based fallback for incident {IncidentId}",
+            _logger.LogInformation("FreeLlmPool breaker open — rule-based fallback for incident {IncidentId}",
                 request.IncidentId);
             return await FallbackAsync(request, stopwatch, ct, "Model provider is temporarily circuit-broken");
         }
 
-        IReadOnlyList<string> models = ModelsFor(isVision: false);
+        var model = ModelFor(isVision: false);
         try
         {
-            // Blueprint chain: load first photo (D-024) → pick the D-061/D-062 model pair →
+            // Blueprint chain: load first photo (D-024) → pick the D-113 model →
             // build request → client (D-026 timeout).
             var photo = await LoadFirstPhotoAsync(request, ct);
-            models = ModelsFor(isVision: photo is not null);
-            var requestBody = OpenRouterPromptBuilder.Build(request, photo, models);
+            model = ModelFor(isVision: photo is not null);
+            var requestBody = FreeLlmPoolPromptBuilder.Build(request, photo, model);
             var responseBody = await _client.SendAsync(requestBody, photo is not null, ct);
 
-            var result = OpenRouterResponseParser.Parse(responseBody);
+            var result = FreeLlmPoolResponseParser.Parse(responseBody);
             if (result.Status == AiParseStatus.Invalid)
             {
                 throw new AiProviderUnavailableException($"Response rejected: {result.RejectReason}");
@@ -95,7 +97,7 @@ internal sealed class OpenRouterAiAnalysisService : IAiAnalysisService
                 // D-064: a content_filter finish is a normal outcome, not an availability failure.
                 _breaker.AbandonProbe();
                 _logger.LogInformation(
-                    "OpenRouter blocked the request for incident {IncidentId} ({Reason}) — rule-based fallback",
+                    "FreeLlmPool blocked the request for incident {IncidentId} ({Reason}) — rule-based fallback",
                     request.IncidentId, result.RejectReason);
                 return await FallbackAsync(request, stopwatch, ct, "Model provider declined to assess this report");
             }
@@ -108,13 +110,13 @@ internal sealed class OpenRouterAiAnalysisService : IAiAnalysisService
             var priority = PriorityFormula.Compute(severity, request.IsSos, request.ReportedAtUtc,
                 _timeProvider.GetUtcNow());
             // Metadata only — never description/photo/response text (blueprint PII rule).
-            // ModelName = response.model, the actually routed model (D-061).
+            // ModelName = response.model, the actually routed model.
             _logger.LogInformation(
-                "OpenRouter assessed incident {IncidentId}: model {Model}, {LatencyMs} ms, {Tokens} tokens, confidence {Confidence:F2}",
+                "FreeLlmPool assessed incident {IncidentId}: model {Model}, {LatencyMs} ms, {Tokens} tokens, confidence {Confidence:F2}",
                 request.IncidentId, parsed.ModelName, stopwatch.ElapsedMilliseconds, parsed.TotalTokenCount, parsed.Confidence);
 
             var dto = new AiAssessmentDto(request.IncidentId, parsed.PredictedType, severity,
-                priority, parsed.Summary, PossibleDuplicateOfId: null, Provider: "OpenRouter");
+                priority, parsed.Summary, PossibleDuplicateOfId: null, Provider: "FreeLlmPool");
             return new AiAnalysisOutcome(dto, parsed.ModelName, LatencyMs(stopwatch), parsed.TotalTokenCount,
                 parsed.FinishReason, Merge(request, parsed, photo is not null), DegradedReason: null);
         }
@@ -123,7 +125,7 @@ internal sealed class OpenRouterAiAnalysisService : IAiAnalysisService
             // D-064: HTTP 403 = input moderation — canned outcome, no breaker count, probe freed.
             _breaker.AbandonProbe();
             _logger.LogInformation(
-                "OpenRouter flagged the input for incident {IncidentId} ({Reason}) — rule-based fallback",
+                "FreeLlmPool flagged the input for incident {IncidentId} ({Reason}) — rule-based fallback",
                 request.IncidentId, ex.Message);
             return await FallbackAsync(request, stopwatch, ct, "Model provider flagged the report text");
         }
@@ -139,8 +141,8 @@ internal sealed class OpenRouterAiAnalysisService : IAiAnalysisService
             // Any provider-path failure counts (D-025); caller cancellation propagates instead.
             _breaker.RecordFailure();
             _logger.LogWarning(
-                "OpenRouter path failed for incident {IncidentId} ({ExceptionType}) after {LatencyMs} ms on model {Model} — falling back to rule-based: {Reason}",
-                request.IncidentId, ex.GetType().Name, stopwatch.ElapsedMilliseconds, models[0], ex.Message);
+                "FreeLlmPool path failed for incident {IncidentId} ({ExceptionType}) after {LatencyMs} ms on model {Model} — falling back to rule-based: {Reason}",
+                request.IncidentId, ex.GetType().Name, stopwatch.ElapsedMilliseconds, model, ex.Message);
             return await FallbackAsync(request, stopwatch, ct, $"Model provider unavailable ({ex.GetType().Name})");
         }
     }
@@ -178,17 +180,13 @@ internal sealed class OpenRouterAiAnalysisService : IAiAnalysisService
             parsed.Summary, reasoning);
     }
 
-    /// <summary>D-061/D-062 model pairs from config; empty fallback ⇒ single-element array.</summary>
-    private IReadOnlyList<string> ModelsFor(bool isVision)
-    {
-        var primary = isVision
-            ? _config["Ai:OpenRouter:VisionModel"] ?? "google/gemma-4-31b-it:free"
-            : _config["Ai:OpenRouter:TextModel"] ?? "z-ai/glm-5.2:free";
-        var fallback = isVision
-            ? _config["Ai:OpenRouter:VisionFallbackModel"]
-            : _config["Ai:OpenRouter:TextFallbackModel"];
-        return string.IsNullOrWhiteSpace(fallback) ? [primary] : [primary, fallback];
-    }
+    /// <summary>D-113 routing alias from config — no fallback pair; freellmpool already does
+    /// automatic multi-provider failover internally.</summary>
+    private string ModelFor(bool isVision)
+        => (isVision ? _config["Ai:FreeLlmPool:VisionModel"] : _config["Ai:FreeLlmPool:TextModel"])
+           is { Length: > 0 } configured
+            ? configured
+            : "quality";
 
     /// <summary>D-024: any photo problem degrades to text-only — never fails the pipeline.</summary>
     private async Task<AiPhoto?> LoadFirstPhotoAsync(AiAnalysisRequest request, CancellationToken ct)

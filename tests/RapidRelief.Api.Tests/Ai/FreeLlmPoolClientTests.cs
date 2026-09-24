@@ -2,21 +2,21 @@ using System.Net;
 using System.Text;
 using Microsoft.Extensions.Configuration;
 using RapidRelief.Api.Features.Ai;
-using RapidRelief.Api.Features.Ai.OpenRouter;
+using RapidRelief.Api.Features.Ai.FreeLlmPool;
 
 namespace RapidRelief.Api.Tests.Ai;
 
 /// <summary>
-/// OpenRouter transport (D-060/D-063/D-064) against a fake HttpMessageHandler: POST to the
+/// FreeLlmPool transport (D-113/D-063/D-064) against a fake HttpMessageHandler: POST to the
 /// pinned chat-completions route, API key travels as a per-request Authorization: Bearer
-/// header (never in the URL) plus X-Title attribution, D-026 linked-CTS timeouts (text vs
-/// vision), ZERO retries, and the three-way classification — non-2xx except 403 →
-/// AiProviderUnavailableException with the body never read into any message; 403 →
-/// AiProviderBlockedException on the status alone; 2xx with a top-level error and no choices
-/// → Unavailable reading ONLY error.code + sanitized error.metadata.error_type (error.message
-/// never); finish_reason "error" → Unavailable.
+/// header (never in the URL) — a blank key sends "Bearer unused" — D-026 linked-CTS timeouts
+/// (text vs vision), D-060 retry mechanism unchanged, and the three-way classification —
+/// non-2xx except 403 → AiProviderUnavailableException with the body never read into any
+/// message; 403 → AiProviderBlockedException on the status alone; 2xx with a top-level error
+/// and no choices → Unavailable reading ONLY error.code + sanitized error.metadata.error_type
+/// (error.message never); finish_reason "error" → Unavailable.
 /// </summary>
-public sealed class OpenRouterClientTests
+public sealed class FreeLlmPoolClientTests
 {
     private const string ApiKey = "sk-test-secret-123";
 
@@ -41,37 +41,37 @@ public sealed class OpenRouterClientTests
         public HttpClient CreateClient(string name)
         {
             RequestedName = name;
-            // Mirrors the AiModule "openrouter" named-client registration: pinned base address,
-            // infinite HttpClient timeout (D-026 timeouts are per-request linked CTS).
+            // Mirrors the AiModule "freellmpool" named-client registration: BaseAddress from
+            // config, infinite HttpClient timeout (D-026 timeouts are per-request linked CTS).
             return new HttpClient(handler, disposeHandler: false)
             {
-                BaseAddress = new Uri("https://openrouter.ai/"),
+                BaseAddress = new Uri("http://localhost:8080/"),
                 Timeout = Timeout.InfiniteTimeSpan,
             };
         }
     }
 
-    private static OpenRouterClient Create(HttpMessageHandler handler, out StubHttpClientFactory factory,
-        int textTimeoutSeconds = 10, int visionTimeoutSeconds = 20, int maxAttempts = 2)
+    private static FreeLlmPoolClient Create(HttpMessageHandler handler, out StubHttpClientFactory factory,
+        int textTimeoutSeconds = 10, int visionTimeoutSeconds = 20, int maxAttempts = 2, string? apiKey = ApiKey)
     {
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["Ai:OpenRouter:ApiKey"] = ApiKey,
-            ["Ai:OpenRouter:TimeoutSecondsText"] = textTimeoutSeconds.ToString(),
-            ["Ai:OpenRouter:TimeoutSecondsVision"] = visionTimeoutSeconds.ToString(),
-            ["Ai:OpenRouter:MaxAttempts"] = maxAttempts.ToString(),
+            ["Ai:FreeLlmPool:ApiKey"] = apiKey,
+            ["Ai:FreeLlmPool:TimeoutSecondsText"] = textTimeoutSeconds.ToString(),
+            ["Ai:FreeLlmPool:TimeoutSecondsVision"] = visionTimeoutSeconds.ToString(),
+            ["Ai:FreeLlmPool:MaxAttempts"] = maxAttempts.ToString(),
             // Keep the retry pause out of the test clock; the backoff maths is pinned separately.
-            ["Ai:OpenRouter:RetryBaseDelayMs"] = "0",
+            ["Ai:FreeLlmPool:RetryBaseDelayMs"] = "0",
         }).Build();
         factory = new StubHttpClientFactory(handler);
-        return new OpenRouterClient(factory, config);
+        return new FreeLlmPoolClient(factory, config);
     }
 
     private static HttpResponseMessage Ok(string body = "{\"choices\":[]}")
         => new(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
 
     [Fact]
-    public async Task Success_posts_the_body_to_the_chat_completions_route_with_bearer_and_attribution_headers()
+    public async Task Success_posts_the_body_to_the_chat_completions_route_with_a_bearer_header()
     {
         const string responseBody = "{\"choices\":[{\"message\":{\"content\":\"x\"},\"finish_reason\":\"stop\"}]}";
         using var handler = new RecordingHandler((_, _) => Task.FromResult(Ok(responseBody)));
@@ -80,15 +80,32 @@ public sealed class OpenRouterClientTests
         var response = await client.SendAsync("{\"payload\":true}", isVision: false);
 
         Assert.Equal(responseBody, response);
-        Assert.Equal("openrouter", factory.RequestedName);
+        Assert.Equal("freellmpool", factory.RequestedName);
         var request = Assert.Single(handler.Requests);
         Assert.Equal(HttpMethod.Post, request.Method);
-        Assert.Equal("https://openrouter.ai/api/v1/chat/completions", request.RequestUri!.ToString());
+        Assert.Equal("http://localhost:8080/v1/chat/completions", request.RequestUri!.ToString());
         Assert.Equal($"Bearer {ApiKey}", Assert.Single(request.Headers.GetValues("Authorization")));
-        Assert.Equal("RapidRelief", Assert.Single(request.Headers.GetValues("X-Title")));
+        Assert.False(request.Headers.Contains("X-Title")); // OpenRouter-only attribution header, dropped (D-113)
         Assert.DoesNotContain(ApiKey, request.RequestUri.ToString());
         Assert.Equal("application/json", request.Content!.Headers.ContentType!.MediaType);
         Assert.Equal("{\"payload\":true}", handler.LastBody);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task A_blank_api_key_sends_bearer_unused(string? blankKey)
+    {
+        // D-113: freellmpool accepts any placeholder key on loopback unless a proxy key is
+        // configured, so a blank key must still produce a well-formed request, not a crash.
+        using var handler = new RecordingHandler((_, _) => Task.FromResult(Ok()));
+        var client = Create(handler, out _, apiKey: blankKey);
+
+        await client.SendAsync("{}", isVision: false);
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal("Bearer unused", Assert.Single(request.Headers.GetValues("Authorization")));
     }
 
     [Theory]
@@ -166,7 +183,7 @@ public sealed class OpenRouterClientTests
     [Fact]
     public async Task A_403_throws_blocked_on_the_status_alone_without_reading_the_body()
     {
-        // D-064: OpenRouter signals input moderation with HTTP 403 — the status suffices.
+        // D-064: a 403 signals input moderation — the status suffices.
         using var handler = new RecordingHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden)
         {
             Content = new StringContent("{\"error\":{\"message\":\"user text echoed here must not leak\"}}"),

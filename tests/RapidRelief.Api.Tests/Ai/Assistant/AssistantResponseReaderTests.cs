@@ -4,7 +4,7 @@ using RapidRelief.Api.Features.Ai.Assistant;
 namespace RapidRelief.Api.Tests.Ai.Assistant;
 
 /// <summary>
-/// D-050 prose finish policy under the D-064 OpenRouter signals. The split between
+/// D-050 prose finish policy under the D-064 FreeLlmPool signals. The split between
 /// <c>Blocked</c> (a normal user-visible outcome) and <c>Invalid</c> (a provider-path failure)
 /// is what keeps three hostile messages from opening the shared breaker for everyone:
 /// "stop" → Ok, "length" → Ok + truncated, "content_filter" → Blocked, "error" → Invalid

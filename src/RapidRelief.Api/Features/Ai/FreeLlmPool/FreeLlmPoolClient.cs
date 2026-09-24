@@ -1,25 +1,27 @@
 using System.Text;
 using System.Text.Json;
 
-namespace RapidRelief.Api.Features.Ai.OpenRouter;
+namespace RapidRelief.Api.Features.Ai.FreeLlmPool;
 
 /// <summary>
-/// Real OpenRouter transport (D-060): named HttpClient "openrouter" (BaseAddress pinned,
-/// Timeout = Infinite), POST api/v1/chat/completions with the API key as a per-request
-/// Authorization: Bearer header (never in the URL, never logged) plus X-Title attribution.
-/// D-026 timeouts via per-request linked CTS; zero retries — a 429 is just a breaker-counted
-/// failure. D-063 three-way classification: non-2xx except 403 → AiProviderUnavailableException
-/// (body never read); 403 → AiProviderBlockedException (status alone, body never read); 2xx with
-/// a top-level error and no choices → Unavailable reading ONLY error.code + sanitized
-/// error.metadata.error_type (error.message is never read); choices[0].finish_reason == "error"
-/// → Unavailable ("provider mid-generation error").
+/// Real freellmpool transport (D-113): named HttpClient "freellmpool" (BaseAddress read from
+/// config Ai:FreeLlmPool:BaseUrl, Timeout = Infinite), POST v1/chat/completions with the API
+/// key as a per-request Authorization: Bearer header (never in the URL, never logged) — a
+/// blank key sends "Bearer unused" (freellmpool accepts any placeholder key on loopback unless
+/// a proxy key is configured). No attribution header (OpenRouter-only concept, dropped).
+/// D-026 timeouts via per-request linked CTS; D-060 retry mechanism unchanged: exponential
+/// backoff with jitter on transient failures. D-063 three-way classification: non-2xx except
+/// 403 → AiProviderUnavailableException (body never read); 403 → AiProviderBlockedException
+/// (status alone, body never read); 2xx with a top-level error and no choices → Unavailable
+/// reading ONLY error.code + sanitized error.metadata.error_type (error.message is never
+/// read); choices[0].finish_reason == "error" → Unavailable ("provider mid-generation error").
 /// </summary>
-internal sealed class OpenRouterClient : IOpenRouterClient
+internal sealed class FreeLlmPoolClient : IFreeLlmPoolClient
 {
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfiguration _config;
 
-    public OpenRouterClient(IHttpClientFactory httpClientFactory, IConfiguration config)
+    public FreeLlmPoolClient(IHttpClientFactory httpClientFactory, IConfiguration config)
     {
         _httpClientFactory = httpClientFactory;
         _config = config;
@@ -27,8 +29,8 @@ internal sealed class OpenRouterClient : IOpenRouterClient
 
     public async Task<string> SendAsync(string requestBody, bool isVision, CancellationToken ct = default)
     {
-        var maxAttempts = Math.Clamp(_config.GetValue("Ai:OpenRouter:MaxAttempts", 2), 1, 4);
-        var baseDelayMs = Math.Clamp(_config.GetValue("Ai:OpenRouter:RetryBaseDelayMs", 250), 0, 5_000);
+        var maxAttempts = Math.Clamp(_config.GetValue("Ai:FreeLlmPool:MaxAttempts", 2), 1, 4);
+        var baseDelayMs = Math.Clamp(_config.GetValue("Ai:FreeLlmPool:RetryBaseDelayMs", 250), 0, 5_000);
 
         for (var attempt = 1; ; attempt++)
         {
@@ -49,21 +51,21 @@ internal sealed class OpenRouterClient : IOpenRouterClient
 
     private async Task<string> SendOnceAsync(string requestBody, bool isVision, CancellationToken ct)
     {
-        var apiKey = _config["Ai:OpenRouter:ApiKey"] ?? string.Empty;
+        var apiKey = _config["Ai:FreeLlmPool:ApiKey"];
+        var authValue = string.IsNullOrWhiteSpace(apiKey) ? "unused" : apiKey;
         var timeoutSeconds = isVision
-            ? _config.GetValue("Ai:OpenRouter:TimeoutSecondsVision", 20)
-            : _config.GetValue("Ai:OpenRouter:TimeoutSecondsText", 10);
+            ? _config.GetValue("Ai:FreeLlmPool:TimeoutSecondsVision", 20)
+            : _config.GetValue("Ai:FreeLlmPool:TimeoutSecondsText", 10);
 
-        var client = _httpClientFactory.CreateClient("openrouter");
+        var client = _httpClientFactory.CreateClient("freellmpool");
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeoutCts.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
 
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "api/v1/chat/completions")
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "v1/chat/completions")
         {
             Content = new StringContent(requestBody, Encoding.UTF8, "application/json"),
         };
-        httpRequest.Headers.TryAddWithoutValidation("Authorization", $"Bearer {apiKey}");
-        httpRequest.Headers.TryAddWithoutValidation("X-Title", "RapidRelief");
+        httpRequest.Headers.TryAddWithoutValidation("Authorization", $"Bearer {authValue}");
 
         HttpResponseMessage response;
         try
@@ -77,21 +79,21 @@ internal sealed class OpenRouterClient : IOpenRouterClient
         catch (OperationCanceledException)
         {
             throw new AiProviderUnavailableException(
-                $"OpenRouter {(isVision ? "vision" : "text")} request timed out after {timeoutSeconds} s",
+                $"FreeLlmPool {(isVision ? "vision" : "text")} request timed out after {timeoutSeconds} s",
                 isTransient: true);
         }
         catch (HttpRequestException ex)
         {
             // Metadata-only message; the original (host-level detail, no headers) rides as inner.
-            throw new AiProviderUnavailableException($"OpenRouter request failed: {ex.GetType().Name}", ex, isTransient: true);
+            throw new AiProviderUnavailableException($"FreeLlmPool request failed: {ex.GetType().Name}", ex, isTransient: true);
         }
 
         using (response)
         {
             if ((int)response.StatusCode == 403)
             {
-                // D-064: OpenRouter signals input moderation with the status alone — body never read.
-                throw new AiProviderBlockedException("OpenRouter flagged the input (HTTP 403)");
+                // D-064: a 403 signals input moderation — body never read.
+                throw new AiProviderBlockedException("FreeLlmPool flagged the input (HTTP 403)");
             }
 
             if (!response.IsSuccessStatusCode)
@@ -100,7 +102,7 @@ internal sealed class OpenRouterClient : IOpenRouterClient
                 // Only overload and server-side faults are worth a second attempt; a 400 or a 402
                 // will fail identically and just delays the fallback the caller already has.
                 var transient = status == 429 || status >= 500;
-                throw new AiProviderUnavailableException($"OpenRouter returned HTTP {status}", transient);
+                throw new AiProviderUnavailableException($"FreeLlmPool returned HTTP {status}", transient);
             }
 
             string body;
@@ -115,7 +117,7 @@ internal sealed class OpenRouterClient : IOpenRouterClient
             catch (OperationCanceledException)
             {
                 throw new AiProviderUnavailableException(
-                    $"OpenRouter response read timed out after {timeoutSeconds} s", isTransient: true);
+                    $"FreeLlmPool response read timed out after {timeoutSeconds} s", isTransient: true);
             }
 
             ThrowOnEmbeddedProviderFailure(body);
@@ -155,7 +157,7 @@ internal sealed class OpenRouterClient : IOpenRouterClient
             if (root.TryGetProperty("error", out var error) && !hasChoices)
             {
                 throw new AiProviderUnavailableException(
-                    $"OpenRouter 200-level error: code {ErrorCode(error)}, type {ErrorType(error)}");
+                    $"FreeLlmPool 200-level error: code {ErrorCode(error)}, type {ErrorType(error)}");
             }
 
             if (hasChoices
@@ -164,7 +166,7 @@ internal sealed class OpenRouterClient : IOpenRouterClient
                 && finish.ValueKind == JsonValueKind.String
                 && finish.GetString() == "error")
             {
-                throw new AiProviderUnavailableException("OpenRouter provider mid-generation error");
+                throw new AiProviderUnavailableException("FreeLlmPool provider mid-generation error");
             }
         }
     }

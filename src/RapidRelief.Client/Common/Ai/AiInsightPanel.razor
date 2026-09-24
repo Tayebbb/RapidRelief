@@ -141,7 +141,7 @@ else
 
     private string ProviderLabel => Insight!.Provider switch
     {
-        "OpenRouter" => Insight.ModelName is { Length: > 0 } model ? $"model {model}" : "language model",
+        "FreeLlmPool" => Insight.ModelName is { Length: > 0 } model ? $"model {model}" : "language model",
         "RuleBased" => "offline rule engine",
         _ => Insight.Provider,
     };

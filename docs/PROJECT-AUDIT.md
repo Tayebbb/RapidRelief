@@ -231,7 +231,7 @@ render hardcoded C# lists.
 | **Authentication (password)** | Register/login/refresh/logout/profile + photo upload/read, 11 endpoints, `auth` rate limit, hashed refresh tokens with rotation + reuse detection, security-stamp checks; ~12 dedicated test files |
 | **Role authorization** | Live probe: Citizen dev-role → `POST /api/sample/pings` **403**, `POST /api/alerts` **403**; Government → 200. Policies: `RequireGovernment` (aliases `RequireAdmin`/`RequireNgo`), `RequireRescuer`, `RequireCitizen` |
 | **Admin user management (API)** | `GET /api/auth/users` returns real paged users with roles; lock, role-assign, delete endpoints exist and are Government-gated |
-| **AI analysis engine** | `IncidentCreated` → bounded channel → `AiAnalysisWorker` → classification, severity, priority score, duplicate detection, persistence to `ai_assessments`, `IncidentAssessed` published. OpenRouter transport with model-pair fallback, circuit breaker, timeouts, blocked/unavailable classification, and a **permanent rule-based fallback** — ~18 test files incl. golden-pinned request bodies |
+| **AI analysis engine** | `IncidentCreated` → bounded channel → `AiAnalysisWorker` → classification, severity, priority score, duplicate detection, persistence to `ai_assessments`, `IncidentAssessed` published. freellmpool transport (single routing-alias model, D-113 — supersedes the OpenRouter model-pair fallback), circuit breaker, timeouts, blocked/unavailable classification, and a **permanent rule-based fallback** — ~18 test files incl. golden-pinned request bodies |
 | **AI assistant (F16)** | `/api/ai/assistant` POST/GET/DELETE, server-owned history (`ai_assistant_messages`), sanitizer (control chars + URL stripping + clamp), canned safety taxonomy, per-user 12/300 s budget, `/assistant` page that never dead-ends |
 | **Realtime + notifications** | `/hubs/notifications` SignalR hub (server-derived role groups), `notifications_*` store, cursor-paged inbox, unread count, read/read-all, retention sweep, bell + `/notifications` inbox + toasts, dedupe between push and 5 s/60 s polling, tri-state `Realtime:Mode` |
 | **Broadcast alerts (F10)** | `POST /api/alerts` (Government) → persisted → `AlertPublished` → existing F9 delivery; `GET /api/alerts/active` verified 200; `/alerts/compose` UI + citizen banner |
@@ -355,7 +355,7 @@ Legend — **COMPLETE** = works end-to-end · **PARTIAL** = real code, incomplet
 
 | Feature | Status | Evidence | Quality | Problems | Priority |
 | --- | --- | --- | --- | --- | --- |
-| Disaster classification | ✅ RESOLVED §0e | Rule-based + OpenRouter, golden-tested, triggered by `IncidentCreated` on every real report | High | — | — |
+| Disaster classification | ✅ RESOLVED §0e | Rule-based + freellmpool (D-113, was OpenRouter), golden-tested, triggered by `IncidentCreated` on every real report | High | — | — |
 | Severity estimation | ✅ RESOLVED §0e | Same pipeline, with the model's severity confidence-damped in the priority engine | High | — | — |
 | Damage / image analysis | COMPLETE | Vision model pair, first photo, data-URL part, text-only degradation | High | The report UI uploads photos (§0b) but the vision path needs a live key to exercise | P2 |
 | AI incident summary | ✅ RESOLVED §0e | Persisted and rendered in the labelled `AiInsightPanel` on the responder detail page | High | — | — |
@@ -455,7 +455,7 @@ Positives worth protecting: consistent token-based visual language in light and 
 
 ## 11. AI integration status
 
-**Engineering quality: the strongest part of the repository.** Provider abstraction (`IOpenRouterClient`), shared circuit breaker, per-request timeouts with linked CTS, retry-with-backoff on transient failures only (§0e, D-108), three-way error classification, blocked-vs-failed distinction, golden-pinned request bodies, prompt-injection fencing, no PII in payloads or logs, and a permanent rule-based fallback that makes the demo network-independent.
+**Engineering quality: the strongest part of the repository.** Provider abstraction (`IFreeLlmPoolClient`, formerly `IOpenRouterClient` — D-113/D-114), shared circuit breaker, per-request timeouts with linked CTS, retry-with-backoff on transient failures only (§0e, D-108), three-way error classification, blocked-vs-failed distinction, golden-pinned request bodies, prompt-injection fencing, no PII in payloads or logs, and a permanent rule-based fallback that makes the demo network-independent.
 
 **Product reality: the engine is disconnected.** The pipeline entry point is the `IncidentCreated`
 event, and **no production code publishes it** — only tests do. Consequently:
@@ -588,7 +588,7 @@ deleting that mock data in the same PR. The mocks are the debt; each PR must pay
 | Dev database | Shared **Neon** cloud instance with a committed password | **Change.** Use the documented docker-compose Postgres locally; keep Neon for a single deployed demo instance with a rotated secret. |
 | Identity | ASP.NET Identity + JWT + refresh cookie | **Keep** — well implemented. |
 | OAuth | **Neon Auth**, unverified | **Change the implementation, not the vendor** (verify the session server-side), or drop Google sign-in for the demo — password login already works. |
-| AI | **OpenRouter** free models behind `IAiAnalysisService` + rule-based fallback — the brief says Gemini | **Keep.** Provider-agnostic seam, model-pair fallback, and a fallback that guarantees the demo never depends on quota. Gemini can be re-added as one more transport if required. |
+| AI | **freellmpool** (self-hosted free-provider-pool proxy, D-113, was OpenRouter) behind `IAiAnalysisService` + rule-based fallback — the brief says Gemini | **Keep.** Provider-agnostic seam, automatic multi-provider failover inside freellmpool itself, and a fallback that guarantees the demo never depends on quota or an account. Gemini can be re-added as one more transport if required. |
 | Maps | **Leaflet + OpenStreetMap** (vendored) — the brief says Google Maps | **Keep.** No API key, no billing, works offline-ish, already integrated. Directions can hand off to an external maps URL. |
 | Realtime | SignalR + polling fallback | **Keep** — exemplary. |
 | Tests | xUnit + `WebApplicationFactory` + SQLite in-memory + NetArchTest | **Keep**, and extend to the new endpoints. Consider Testcontainers **only** if SQLite/Npgsql divergence starts biting; the CI fidelity job is the cheaper fix (P1-10). |
@@ -627,7 +627,7 @@ blocked behind design discussion.
 | 5 | **Shared cloud dev database** — one destructive call (S4) wipes everyone's data mid-demo | Medium | Total demo loss | Local docker-compose per developer; remove `DELETE /users/all` |
 | 6 | **Contracts v1 still not ratified** — F2/F4/F5 endpoints are about to be built against unratified read models | Medium | Rework across four lanes | Hold the 30-minute workshop before P0-2 merges |
 | 7 | **Migration fidelity gap (T7)** — 5 contexts unproven against Postgres | Medium | A migration that works on SQLite fails on demo day | P1-10, one CI line per context |
-| 8 | **Stack divergence from the written brief** (.NET 8 vs 10, Blazor vs MVC, Postgres vs SQL Server, OpenRouter vs Gemini, Leaflet vs Google Maps) | Certain (already diverged) | Rubric compliance, not technical | Confirm with the instructor in writing this week; every divergence is defensible and documented in PROJECT-CONTEXT §7 |
+| 8 | **Stack divergence from the written brief** (.NET 8 vs 10, Blazor vs MVC, Postgres vs SQL Server, freellmpool (was OpenRouter) vs Gemini, Leaflet vs Google Maps) | Certain (already diverged) | Rubric compliance, not technical | Confirm with the instructor in writing this week; every divergence is defensible and documented in PROJECT-CONTEXT §7 |
 
 ---
 
