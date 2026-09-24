@@ -24,7 +24,7 @@ public class CommandCenterTests(TestingWebAppFactory factory) : IClassFixture<Te
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<CommandCenterOverviewDto>>();
-        
+
         Assert.NotNull(envelope);
         Assert.NotNull(envelope.Data);
         // From DhakaSeedData: 28 incidents total, 8 shelters.
@@ -52,7 +52,7 @@ public class CommandCenterTests(TestingWebAppFactory factory) : IClassFixture<Te
     {
         // Arrange
         var request = new HttpRequestMessage(HttpMethod.Get, "/api/command-center/overview");
-        
+
         // Act
         var response = await _client.SendAsync(request);
 
