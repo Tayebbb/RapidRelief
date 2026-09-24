@@ -27,12 +27,12 @@ public sealed class OpsDbContext : DbContext
         {
             // feature_ prefix convention (PROJECT-CONTEXT §5)
             shelter.ToTable("ops_shelters");
-            
+
             shelter.HasKey(s => s.Id);
             shelter.Property(s => s.Name).IsRequired().HasMaxLength(100);
-            
+
             shelter.OwnsOne(s => s.Location);
-            
+
             // SQLite (tests) cannot natively store arrays/jsonb out of the box without mapping
             // For cross-provider portability, we use a simple JSON string conversion for SQLite.
             if (Database.ProviderName == "Microsoft.EntityFrameworkCore.Sqlite")

@@ -12,7 +12,7 @@ public static class HaversineHelper
         var h = Math.Sin(dLat / 2) * Math.Sin(dLat / 2)
                 + Math.Cos(ToRadians(a.Latitude)) * Math.Cos(ToRadians(b.Latitude))
                 * Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
-                
+
         // Clamp: fp error can push sqrt(h) past 1.0 for near-antipodal points -> Asin NaN.
         return 2 * earthRadiusMeters * Math.Asin(Math.Min(1.0, Math.Sqrt(h)));
     }

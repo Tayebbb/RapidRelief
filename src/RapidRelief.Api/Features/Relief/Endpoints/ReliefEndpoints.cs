@@ -305,7 +305,7 @@ public static class ReliefEndpoints
         await NotifyRequesterAsync(notifier, entity, ct);
         await notifier.NotifyRoleAsync(Roles.Government, StatusTopic, new
         {
-            title = $"Relief request cancelled by requester",
+            title = "Relief request cancelled by requester",
             requestId = entity.Id,
             status = entity.Status.ToString(),
         }, ct);

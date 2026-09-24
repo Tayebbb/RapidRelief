@@ -1,5 +1,4 @@
 using FluentValidation;
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using RapidRelief.Api.Features.Shelters.Data;
 using RapidRelief.Api.Features.Shelters.Domain;
@@ -22,7 +21,7 @@ public static class SheltersEndpoints
         var group = endpoints.MapGroup("/api/shelters");
 
         group.MapPost("/", CreateShelterAsync).RequireAuthorization(AuthPolicies.RequireAdmin);
-        group.MapGet("/", GetSheltersAsync).AllowAnonymous(); // Allowed for citizen
+        group.MapGet("/", GetSheltersAsync).AllowAnonymous();
         group.MapGet("/{id:guid}", GetShelterByIdAsync).AllowAnonymous();
         group.MapPut("/{id:guid}", UpdateShelterAsync).RequireAuthorization(AuthPolicies.RequireAdmin);
         group.MapPatch("/{id:guid}/occupancy", UpdateOccupancyAsync).RequireAuthorization(AuthPolicies.RequireAdmin);
@@ -96,7 +95,7 @@ public static class SheltersEndpoints
 
         if (lat.HasValue && lng.HasValue)
         {
-            // F3 finder functionality, utilizing the IShelterReadService interface for stub resilience
+            // Finder functionality, utilizing the IShelterReadService interface for stub resilience
             var origin = new GeoPoint(lat.Value, lng.Value);
             var nearest = await readService.GetNearestAsync(origin, pageSize, ct);
 
@@ -224,7 +223,6 @@ public static class SheltersEndpoints
 
         shelter.CurrentOccupancy = request.CurrentOccupancy;
 
-        // Auto-update status based on occupancy logic (optional but helpful)
         if (shelter.CurrentOccupancy >= shelter.Capacity && shelter.Status == ShelterStatus.Open)
         {
             shelter.Status = ShelterStatus.Full;

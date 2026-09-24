@@ -18,7 +18,7 @@ public sealed class SheltersModule : IFeatureModule
                 options.UseNpgsql(connectionString, npgsql =>
                     npgsql.MigrationsHistoryTable(OpsDbContext.MigrationsHistoryTableName)));
         }
-        
+
         services.AddScoped<RapidRelief.Shared.Contracts.Services.IShelterReadService, RapidRelief.Api.Features.Shelters.Services.ShelterReadService>();
     }
 

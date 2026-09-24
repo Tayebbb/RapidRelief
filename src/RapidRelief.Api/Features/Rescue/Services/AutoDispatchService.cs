@@ -179,16 +179,16 @@ public sealed class AutoDispatchService : IAutoDispatchService
         _logger.LogInformation("AI Auto-Dispatch successful: Incident {IncidentId} assigned to team {TeamName} (Mission: {MissionId}, Suitability: {Score:F2})",
             incidentId, candidate.Team.TeamName, mission.Id, candidate.Score);
 
-        // 1. Publish Domain Event (triggers timeline updates, citizen push notifications)
+        // Domain event triggers timeline updates and citizen push notifications
         await _eventBus.PublishAsync(new MissionAssigned(mission.Id, mission.IncidentId, candidate.Team.Id, AutoDispatchActorId), ct);
 
-        // 2. Real-time push alerts to the team's devices
+        // Real-time push alerts to the team's devices
         await NotifyTeamAsync(candidate.Team, mission, incident, ct);
 
-        // 3. Operations channel notification for government EOC dashboards
+        // Operations channel notification for government EOC dashboards
         await NotifyOperationsAsync(candidate.Team.TeamName, mission, incident, priorityScore, ct);
 
-        // 4. Audit Trail
+        // Audit Trail
         await _audit.RecordAsync(new AuditRecord(
             AutoDispatchActorId, "AI Auto-Dispatch Engine", Roles.Government,
             "AutoDispatch.MissionAssigned", "Incident", incidentId.ToString(),

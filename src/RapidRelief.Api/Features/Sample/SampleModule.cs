@@ -15,7 +15,7 @@ public sealed class SampleModule : IFeatureModule
 
     public void AddModule(IServiceCollection services, IConfiguration config, IHostEnvironment env)
     {
-        // Npgsql ONLY outside Testing — the test factory injects its own SQLite options (B6 step 8).
+        // Npgsql ONLY outside Testing — the test factory injects its own SQLite options.
         if (!env.IsEnvironment("Testing"))
         {
             var connectionString = config.GetConnectionString("Postgres");
