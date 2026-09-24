@@ -119,7 +119,7 @@ public sealed class NotificationHubClient : IAsyncDisposable
                 options.AccessTokenProvider = GetAccessTokenAsync;
                 if (RealtimeConnectionPolicy.UseDevTransport(hasSession, devRole, _isDevelopment))
                 {
-                    // D-035: only long polling can carry the dev header through negotiate.
+                    // Only long polling can carry the dev header through negotiate.
                     options.Transports = HttpTransportType.LongPolling;
                     options.Headers[DevRoleHandler.HeaderName] = devRole;
                 }
@@ -152,7 +152,7 @@ public sealed class NotificationHubClient : IAsyncDisposable
         }
         catch (Exception ex)
         {
-            // Hub off (D-032 PollingOnly/Off), unreachable, or rejected — polling covers it.
+            // Hub off (PollingOnly/Off), unreachable, or rejected — polling covers it.
             _state.SetHubConnected(false);
             _logger.LogInformation(ex, "Notification hub unavailable — falling back to polling");
         }

@@ -38,7 +38,7 @@ public sealed class NotificationState
 
     public string BadgeText => FormatBadge(UnreadCount);
 
-    /// <summary>Latest server cursor (D-038); the next poll asks for everything after it.</summary>
+    /// <summary>Latest server cursor; the next poll asks for everything after it.</summary>
     public string? Cursor { get; private set; }
 
     public bool HubConnected { get; private set; }
@@ -59,7 +59,7 @@ public sealed class NotificationState
     /// </summary>
     public event Action<NotificationDto>? Arrived;
 
-    /// <summary>D-039 display rule: nothing at zero, "99+" above the cap.</summary>
+    /// <summary>Display rule: nothing at zero, "99+" above the cap.</summary>
     public static string FormatBadge(int unread) => unread switch
     {
         <= 0 => string.Empty,

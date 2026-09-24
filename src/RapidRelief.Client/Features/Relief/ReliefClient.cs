@@ -107,7 +107,8 @@ public sealed class ReliefClient(HttpClient http)
     }
 
     public async Task<ReliefActionResult> CancelAsync(Guid id, CancellationToken ct = default)
-    {        try
+    {
+        try
         {
             var response = await http.PostAsync($"{BasePath}/{id}/cancel", content: null, ct);
             if (response.IsSuccessStatusCode)

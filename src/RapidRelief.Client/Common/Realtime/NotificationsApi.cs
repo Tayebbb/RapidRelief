@@ -45,7 +45,7 @@ public sealed class NotificationsApi : INotificationsApi
     private readonly HttpClient _http;
 
     /// <param name="http">
-    /// D-044: this singleton's OWN client, built from the same DevRoleHandler →
+    /// This singleton's OWN client, built from the same DevRoleHandler →
     /// AuthMessageHandler chain as the main scoped client, so Bearer and X-Dev-Role behave
     /// exactly as they do for every other API call.
     /// </param>

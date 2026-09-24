@@ -4,7 +4,7 @@ using RapidRelief.Shared.Contracts.Enums;
 
 namespace RapidRelief.Client.Common.Ai;
 
-/// <summary>Hand-mirrored wire records (D-045) for the decision-support surface.</summary>
+/// <summary>Wire records for the decision-support surface.</summary>
 public sealed record AiPriorityFactorDto(string Code, string Label, double Points, string Evidence);
 
 public sealed record AiInsightDto(

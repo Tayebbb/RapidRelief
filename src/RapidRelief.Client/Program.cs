@@ -44,11 +44,11 @@ builder.Services.AddSingleton(sp => new AuthApi(
 // attaches Bearer and strips X-Dev-Role while signed in — real login wins) → fetch.
 builder.Services.AddScoped(sp => ApiClient(sp));
 
-// F16 assistant rides the MAIN scoped client so Bearer / X-Dev-Role behave as everywhere else.
+// Assistant rides the MAIN scoped client so Bearer / X-Dev-Role behave as everywhere else.
 builder.Services.AddScoped<IAssistantApi>(sp => new AssistantApi(sp.GetRequiredService<HttpClient>()));
 builder.Services.AddScoped<IAlertsApi>(sp => new AlertsApi(sp.GetRequiredService<HttpClient>()));
 
-// Realtime (F9). The notification singletons outlive the scoped main client, so they get their
+// Realtime: the notification singletons outlive the scoped main client, so they get their
 // own instance of the SAME handler chain — Bearer and X-Dev-Role behave identically.
 builder.Services.AddSingleton<INotificationsApi>(sp => new NotificationsApi(ApiClient(sp)));
 builder.Services.AddSingleton<NotificationState>();
@@ -67,21 +67,21 @@ builder.Services.AddSingleton(sp => new NotificationHubClient(
     isDevelopment,
     sp.GetRequiredService<ILogger<NotificationHubClient>>()));
 
-// F3 Client
+// Shelters client
 builder.Services.AddScoped(sp => new SheltersClient(sp.GetRequiredService<HttpClient>()));
 
-// F7 Client
+// Command center client
 builder.Services.AddScoped(sp => new CommandCenterClient(sp.GetRequiredService<HttpClient>()));
 
-// F2 incident ingestion + F5 rescue operations ride the main Bearer / X-Dev-Role chain.
+// Incident ingestion + rescue operations ride the main Bearer / X-Dev-Role chain.
 builder.Services.AddScoped(sp => new IncidentsClient(sp.GetRequiredService<HttpClient>()));
 builder.Services.AddScoped(sp => new RescueClient(sp.GetRequiredService<HttpClient>()));
 builder.Services.AddScoped(sp => new ReliefClient(sp.GetRequiredService<HttpClient>()));
 
-// F7 command centre: aggregates the ops metrics, audit trail, inventory and admin surfaces.
+// Command centre: aggregates the ops metrics, audit trail, inventory and admin surfaces.
 builder.Services.AddScoped(sp => new CommandClient(sp.GetRequiredService<HttpClient>()));
 
-// F8 decision support: structured insight, explanation and the duplicate review queue.
+// Decision support: structured insight, explanation and the duplicate review queue.
 builder.Services.AddScoped(sp => new AiClient(sp.GetRequiredService<HttpClient>()));
 
 // Store-and-forward outbox: a report typed offline is persisted before any network attempt.
@@ -98,7 +98,7 @@ builder.Services.AddScoped(sp => new MapConfigService(sp.GetRequiredService<Http
 
 var host = builder.Build();
 
-// Silent session restore on boot (F5) — must never block or crash an offline PWA start.
+// Silent session restore on boot — must never block or crash an offline PWA start.
 try
 {
     await host.Services.GetRequiredService<AuthApi>().TryRefreshAsync();
