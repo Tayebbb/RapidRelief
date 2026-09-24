@@ -107,7 +107,7 @@ public sealed class IncidentReadService(IncidentsDbContext db, DatabaseHealth he
         return earthRadiusKm * 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
     }
 
-    private static IncidentSummaryDto ToSummary(Domain.IncidentReport report) => new(        report.Id,
+    private static IncidentSummaryDto ToSummary(Domain.IncidentReport report) => new(report.Id,
         report.DisasterType,
         report.Severity,
         report.Status,

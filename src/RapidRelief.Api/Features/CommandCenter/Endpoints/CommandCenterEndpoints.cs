@@ -1,12 +1,9 @@
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Routing;
-
-using RapidRelief.Shared.Contracts.Common;
-using RapidRelief.Shared.Contracts.ReadModels;
-using RapidRelief.Shared.Contracts.Enums;
-using RapidRelief.Shared.Contracts.Services;
 using RapidRelief.Api.Infrastructure.Auth;
-using Microsoft.AspNetCore.Builder;
+using RapidRelief.Api.Infrastructure.Persistence;
+using RapidRelief.Shared.Contracts.Common;
+using RapidRelief.Shared.Contracts.Enums;
+using RapidRelief.Shared.Contracts.ReadModels;
+using RapidRelief.Shared.Contracts.Services;
 
 namespace RapidRelief.Api.Features.CommandCenter.Endpoints;
 
@@ -24,7 +21,7 @@ public static class CommandCenterEndpoints
         IIncidentReadService incidentReadService,
         IShelterReadService shelterReadService,
         IRegistryReadService registryReadService,
-        RapidRelief.Api.Infrastructure.Persistence.DatabaseHealth databaseHealth,
+        DatabaseHealth databaseHealth,
         CancellationToken ct)
     {
         if (databaseHealth.PostgresAvailable != true)
@@ -35,7 +32,6 @@ public static class CommandCenterEndpoints
                 detail: "The app is running in degraded mode (D-005): Postgres is unreachable, so database-backed endpoints are temporarily unavailable.");
         }
 
-        // Fetch data concurrently for performance
         var incidentsTask = incidentReadService.GetIncidentsAsync(new IncidentQuery(), ct);
         var sheltersTask = shelterReadService.GetSheltersAsync(ct);
         var hospitalsTask = registryReadService.GetHospitalsAsync(ct);
@@ -52,7 +48,7 @@ public static class CommandCenterEndpoints
 
         var totalActiveIncidents = incidents.Count(i => i.Status != IncidentStatus.Resolved);
         var totalCriticalIncidents = incidents.Count(i => (i.Severity == Severity.Severe || i.Severity == Severity.Catastrophic) && i.Status != IncidentStatus.Resolved);
-        
+
         var openShelters = shelters.Where(s => s.IsOpen).ToList();
         var totalShelterCapacity = openShelters.Sum(s => Math.Max(0, s.Capacity - s.Occupancy));
 

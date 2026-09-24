@@ -59,7 +59,7 @@ public sealed record UploadedMediaDto(string Path, string Url, long SizeBytes, s
 
 public sealed class CreateIncidentValidator : AbstractValidator<CreateIncidentRequest>
 {
-    // D-011 carry-out: ingestion caps the description so a hostile report cannot blow the AI budget.
+    // Ingestion caps the description so a hostile report cannot blow the AI budget.
     public const int MaxDescriptionLength = 4000;
 
     public CreateIncidentValidator()

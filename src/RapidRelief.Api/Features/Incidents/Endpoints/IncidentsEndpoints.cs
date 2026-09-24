@@ -24,7 +24,7 @@ public static class IncidentsEndpoints
 
     public static void Map(IEndpointRouteBuilder endpoints)
     {
-        // D-011: ingestion is the abuse surface — the whole group carries the reports budget.
+        // Ingestion is the abuse surface — the whole group carries the reports budget.
         var group = endpoints.MapGroup(BasePath)
             .RequireAuthorization()
             .RequireRateLimiting("reports");
@@ -143,7 +143,7 @@ public static class IncidentsEndpoints
             return Results.Ok(new ApiEnvelope<IncidentDto>(ToDto(winner)));
         }
 
-        // The AI pipeline (F8) starts here: handler → bounded channel → worker → IncidentAssessed.
+        // The AI pipeline starts here: handler → bounded channel → worker → IncidentAssessed.
         await eventBus.PublishAsync(
             new IncidentCreated(incident.Id, reporterId, incident.DisasterType, incident.Severity,
                 new GeoPoint(incident.Latitude, incident.Longitude), incident.Description, incident.IsSos,
@@ -476,7 +476,7 @@ public static class IncidentsEndpoints
 
         await NotifyReporterAsync(notifier, incident,
             "Your report has been closed by the command centre.", ct);
-            
+
         await notifier.NotifyRoleAsync(Roles.Rescuer, Topics.IncidentStatus, new
         {
             title = "Incident resolved",

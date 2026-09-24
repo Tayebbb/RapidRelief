@@ -55,8 +55,8 @@ public sealed class FoundationModule : IFeatureModule
         endpoints.MapGet("/api/hero-images", (IWebHostEnvironment env) =>
         {
             var clientDir = Path.GetFullPath(Path.Combine(env.ContentRootPath, "..", "RapidRelief.Client", "wwwroot", "hero images"));
-            var prodDir = env.WebRootPath is not null 
-                ? Path.Combine(env.WebRootPath, "hero images") 
+            var prodDir = env.WebRootPath is not null
+                ? Path.Combine(env.WebRootPath, "hero images")
                 : Path.Combine(env.ContentRootPath, "wwwroot", "hero images");
             var dir = Directory.Exists(clientDir) ? clientDir : Directory.Exists(prodDir) ? prodDir : null;
 
