@@ -41,8 +41,8 @@ public sealed class DiResolutionSmokeTests : IClassFixture<TestingWebAppFactory>
         Assert.IsType<RapidRelief.Api.Features.Shelters.Services.ShelterReadService>(
             scope.ServiceProvider.GetRequiredService<IShelterReadService>());
 
-        // F13
-        Assert.IsType<FakeRegistryReadService>(scope.ServiceProvider.GetRequiredService<IRegistryReadService>());
+        // F13 real implementation now registered
+        Assert.IsType<RapidRelief.Api.Features.Registry.Services.RegistryReadService>(scope.ServiceProvider.GetRequiredService<IRegistryReadService>());
         Assert.IsType<IdentityUserAdminService>(services.GetRequiredService<IUserAdminService>());
         // F8: the FreeLlmPool-with-fallback composite displaces the direct rule-based binding
         // (D-028); the rule-based service stays resolvable concretely — the fallback never dies (§4.5).

@@ -28,8 +28,27 @@ jobs:
       - name: Build
         run: dotnet build RapidRelief.sln -c Release --no-restore
 
+      # D-117: -m:1 caps MSBuild/testhost parallelism — a full-solution run occasionally hit
+      # System.OutOfMemoryException on a resource-constrained runner (two WebApplicationFactory-
+      # backed test projects JIT-ing Reflection.Emit concurrently); a rerun always passed clean,
+      # but a red CI run that gets reflexively re-run risks masking a real future regression.
       - name: Test (SQLite/unit/arch — no services)
-        run: dotnet test RapidRelief.sln -c Release --no-build
+        run: dotnet test RapidRelief.sln -c Release --no-build -m:1
+
+      # D-117: this was "unassessed, not clean" per docs/FINAL-AUDIT.md — a manual
+      # `dotnet list package --vulnerable` run is easy to forget before a release, so it's a gate now.
+      - name: Check for known-vulnerable packages
+        run: |
+          dotnet list RapidRelief.sln package --vulnerable --include-transitive | tee vuln.txt
+          if grep -q "has the following vulnerable packages" vuln.txt; then
+            echo "::error::Known-vulnerable package(s) found — see the list above"
+            exit 1
+          fi
+
+      # D-117: render.yaml/Dockerfile were never exercised by CI, so either could silently rot
+      # (a broken Dockerfile would only surface on an actual Render deploy attempt).
+      - name: Build the production Dockerfile
+        run: docker build -t rapidrelief:ci .
 
   # Proves the generated migrations are valid Npgsql SQL against a real postgres:16.
   # Extend with one `dotnet ef database update --context <X>` line per future context.
@@ -106,5 +125,10 @@ jobs:
 
       - name: Apply AuditDbContext migrations
         run: dotnet ef database update --project src/RapidRelief.Api --context AuditDbContext
+        env:
+          ConnectionStrings__Postgres: "Host=localhost;Port=5432;Database=rapidrelief;Username=rapidrelief;Password=rapidrelief_dev"
+
+      - name: Apply RegistryDbContext migrations
+        run: dotnet ef database update --project src/RapidRelief.Api --context RegistryDbContext
         env:
           ConnectionStrings__Postgres: "Host=localhost;Port=5432;Database=rapidrelief;Username=rapidrelief;Password=rapidrelief_dev"

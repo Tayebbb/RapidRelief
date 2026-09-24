@@ -1,0 +1,620 @@
+@page "/admin/registry"
+@page "/g/registry"
+@layout MainLayout
+@namespace RapidRelief.Client.Features.Registry.Pages.Admin
+@using RapidRelief.Client.Common.Ui
+@using RapidRelief.Client.Features.Command
+@using RapidRelief.Client.Features.Command.Components
+@using RapidRelief.Client.Features.Registry
+@attribute [Authorize(Roles = "Government,Admin")]
+@inject RegistryClient Registry
+
+<PageTitle>Registry — RapidRelief</PageTitle>
+
+<div class="cmd-layout">
+    <header class="cmd-header">
+        <div>
+            <div class="cmd-role-badge">
+                <AppIcon Name="clipboard" Size="14" />
+                <span>Directory Registry</span>
+            </div>
+            <h1 class="cmd-title">Hospitals, Volunteers &amp; NGOs</h1>
+            <p class="cmd-subtitle">Manage healthcare capacity, community responders, and non-governmental relief partners.</p>
+        </div>
+        <div class="cmd-header-actions">
+            <button type="button" class="rr-btn rr-btn-ghost rr-btn-sm" @onclick="RefreshAsync" disabled="@_loading">
+                <AppIcon Name="refresh" Size="15" /><span>Refresh</span>
+            </button>
+            <button type="button" class="rr-btn rr-btn-primary rr-btn-sm" @onclick="StartCreate">
+                <AppIcon Name="plus" Size="15" /><span>Add @CurrentTabSingular</span>
+            </button>
+        </div>
+    </header>
+
+    @if (_message is not null)
+    {
+        <div class="cmd-banner @(_messageIsError ? "error" : "ok")" role="alert">
+            <AppIcon Name="@(_messageIsError ? "alert-circle" : "check-circle")" Size="18" />
+            <span>@_message</span>
+        </div>
+    }
+
+    <CommandTabs Active="g/registry" />
+
+    <div style="display: flex; gap: var(--space-2); margin-bottom: var(--space-3);">
+        <button type="button" class="rr-btn @(_activeTab == RegistryTab.Hospitals ? "rr-btn-primary" : "rr-btn-ghost") rr-btn-sm"
+                @onclick="() => SetTab(RegistryTab.Hospitals)">
+            Hospitals (@(_hospitals?.Count ?? 0))
+        </button>
+        <button type="button" class="rr-btn @(_activeTab == RegistryTab.Volunteers ? "rr-btn-primary" : "rr-btn-ghost") rr-btn-sm"
+                @onclick="() => SetTab(RegistryTab.Volunteers)">
+            Volunteers (@(_volunteers?.Count ?? 0))
+        </button>
+        <button type="button" class="rr-btn @(_activeTab == RegistryTab.Ngos ? "rr-btn-primary" : "rr-btn-ghost") rr-btn-sm"
+                @onclick="() => SetTab(RegistryTab.Ngos)">
+            NGOs (@(_ngos?.Count ?? 0))
+        </button>
+    </div>
+
+    @* Form Card *@
+    @if (_editing)
+    {
+        <section class="cmd-card" style="margin-bottom: var(--space-4);">
+            <header class="cmd-card-head">
+                <div>
+                    <h2>@(_editingId.HasValue ? "Edit" : "Register") @CurrentTabSingular</h2>
+                    <p>Enter official credentials and coordinates for operations mapping.</p>
+                </div>
+            </header>
+            <div class="cmd-form">
+                @if (_activeTab == RegistryTab.Hospitals)
+                {
+                    <div class="cmd-field">
+                        <label for="hosp-name">Hospital Name</label>
+                        <input id="hosp-name" @bind="_hospName" placeholder="e.g. Dhaka Medical College Hospital" />
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3);">
+                        <div class="cmd-field">
+                            <label for="hosp-lat">Latitude</label>
+                            <input id="hosp-lat" type="number" step="any" @bind="_hospLat" />
+                        </div>
+                        <div class="cmd-field">
+                            <label for="hosp-lon">Longitude</label>
+                            <input id="hosp-lon" type="number" step="any" @bind="_hospLon" />
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: var(--space-3);">
+                        <div class="cmd-field">
+                            <label for="hosp-total">Total Beds</label>
+                            <input id="hosp-total" type="number" min="0" @bind="_hospTotalBeds" />
+                        </div>
+                        <div class="cmd-field">
+                            <label for="hosp-avail">Available Beds</label>
+                            <input id="hosp-avail" type="number" min="0" @bind="_hospAvailableBeds" />
+                        </div>
+                        <div class="cmd-field">
+                            <label for="hosp-icu">ICU Beds</label>
+                            <input id="hosp-icu" type="number" min="0" @bind="_hospIcuBeds" />
+                        </div>
+                        <div class="cmd-field">
+                            <label for="hosp-avail-icu">Available ICU</label>
+                            <input id="hosp-avail-icu" type="number" min="0" @bind="_hospAvailableIcuBeds" />
+                        </div>
+                    </div>
+                    <div class="cmd-field">
+                        <label for="hosp-specs">Specialties (comma-separated)</label>
+                        <input id="hosp-specs" @bind="_hospSpecialties" placeholder="Trauma, Burn, Surgery, ICU" />
+                    </div>
+                    <div class="cmd-field">
+                        <label for="hosp-contact">Contact Number</label>
+                        <input id="hosp-contact" @bind="_hospContact" placeholder="+880 2 5550100" />
+                    </div>
+                    <div class="cmd-field">
+                        <label for="hosp-addr">Address</label>
+                        <input id="hosp-addr" @bind="_hospAddress" placeholder="Full address" />
+                    </div>
+                }
+                else if (_activeTab == RegistryTab.Volunteers)
+                {
+                    <div class="cmd-field">
+                        <label for="vol-name">Full Name</label>
+                        <input id="vol-name" @bind="_volName" placeholder="e.g. Arif Hossain" />
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3);">
+                        <div class="cmd-field">
+                            <label for="vol-lat">Latitude (optional)</label>
+                            <input id="vol-lat" type="number" step="any" @bind="_volLat" />
+                        </div>
+                        <div class="cmd-field">
+                            <label for="vol-lon">Longitude (optional)</label>
+                            <input id="vol-lon" type="number" step="any" @bind="_volLon" />
+                        </div>
+                    </div>
+                    <div class="cmd-field">
+                        <label for="vol-status">Status</label>
+                        <select id="vol-status" @bind="_volStatus">
+                            <option value="Available">Available</option>
+                            <option value="Assigned">Assigned</option>
+                            <option value="Unavailable">Unavailable</option>
+                        </select>
+                    </div>
+                    <div class="cmd-field">
+                        <label for="vol-skills">Skills (comma-separated)</label>
+                        <input id="vol-skills" @bind="_volSkills" placeholder="FirstAid, Swimming, Triage, Logistics" />
+                    </div>
+                    <div class="cmd-field">
+                        <label for="vol-contact">Contact Number</label>
+                        <input id="vol-contact" @bind="_volContact" placeholder="+880 1555 100000" />
+                    </div>
+                }
+                else if (_activeTab == RegistryTab.Ngos)
+                {
+                    <div class="cmd-field">
+                        <label for="ngo-name">Organization Name</label>
+                        <input id="ngo-name" @bind="_ngoName" placeholder="e.g. BRAC Disaster Response" />
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3);">
+                        <div class="cmd-field">
+                            <label for="ngo-lat">Latitude</label>
+                            <input id="ngo-lat" type="number" step="any" @bind="_ngoLat" />
+                        </div>
+                        <div class="cmd-field">
+                            <label for="ngo-lon">Longitude</label>
+                            <input id="ngo-lon" type="number" step="any" @bind="_ngoLon" />
+                        </div>
+                    </div>
+                    <div class="cmd-field">
+                        <label for="ngo-focus">Focus Areas (comma-separated)</label>
+                        <input id="ngo-focus" @bind="_ngoFocus" placeholder="Flood Relief, Medical Camps, Shelter" />
+                    </div>
+                    <div class="cmd-field">
+                        <label for="ngo-person">Contact Person</label>
+                        <input id="ngo-person" @bind="_ngoPerson" placeholder="Lead Coordinator" />
+                    </div>
+                    <div class="cmd-field">
+                        <label for="ngo-email">Contact Email</label>
+                        <input id="ngo-email" type="email" @bind="_ngoEmail" placeholder="response@example.org" />
+                    </div>
+                    <div class="cmd-field">
+                        <label for="ngo-contact">Contact Number</label>
+                        <input id="ngo-contact" @bind="_ngoContact" placeholder="+880 2 5550200" />
+                    </div>
+                }
+                <div class="cmd-form-actions">
+                    <button type="button" class="rr-btn rr-btn-primary rr-btn-sm" disabled="@_busy" @onclick="SaveAsync">Save</button>
+                    <button type="button" class="rr-btn rr-btn-ghost rr-btn-sm" @onclick="() => _editing = false">Cancel</button>
+                </div>
+            </div>
+        </section>
+    }
+
+    @* Table Section *@
+    <section class="cmd-card">
+        <header class="cmd-card-head">
+            <div>
+                <h2>Registered @CurrentTabLabel</h2>
+                <p>Real-time records from PostgreSQL database.</p>
+            </div>
+            <input type="search" class="cmd-search" placeholder="Search..." @bind="_search" @bind:event="oninput" style="max-width: 250px;" />
+        </header>
+
+        @if (_loading)
+        {
+            <p class="cmd-empty">Loading records…</p>
+        }
+        else if (_activeTab == RegistryTab.Hospitals)
+        {
+            @if (FilteredHospitals.Count == 0)
+            {
+                <p class="cmd-empty">No hospitals match your search.</p>
+            }
+            else
+            {
+                <div class="cmd-table-wrap">
+                    <table class="cmd-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Location</th>
+                                <th>Beds (Avail / Total)</th>
+                                <th>ICU Beds</th>
+                                <th>Specialties</th>
+                                <th>Contact</th>
+                                <th class="cmd-col-action">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var h in FilteredHospitals)
+                            {
+                                <tr>
+                                    <td><strong>@h.Name</strong></td>
+                                    <td>@CommandClient.FormatCoordinate(h.Latitude), @CommandClient.FormatCoordinate(h.Longitude)</td>
+                                    <td>@h.AvailableBeds / @h.TotalBeds</td>
+                                    <td>@h.AvailableIcuBeds / @h.IcuBeds</td>
+                                    <td>@string.Join(", ", h.Specialties)</td>
+                                    <td>@h.ContactNumber</td>
+                                    <td class="cmd-col-action">
+                                        <button type="button" class="rr-btn rr-btn-ghost rr-btn-xs" @onclick="() => StartEditHospital(h)">Edit</button>
+                                        <button type="button" class="rr-btn rr-btn-danger rr-btn-xs" disabled="@_busy" @onclick="() => DeleteHospitalAsync(h.Id)">Delete</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        }
+        else if (_activeTab == RegistryTab.Volunteers)
+        {
+            @if (FilteredVolunteers.Count == 0)
+            {
+                <p class="cmd-empty">No volunteers match your search.</p>
+            }
+            else
+            {
+                <div class="cmd-table-wrap">
+                    <table class="cmd-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Status</th>
+                                <th>Skills</th>
+                                <th>Location</th>
+                                <th>Contact</th>
+                                <th class="cmd-col-action">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var v in FilteredVolunteers)
+                            {
+                                <tr>
+                                    <td><strong>@v.FullName</strong></td>
+                                    <td><span class="cmd-pill @(v.Status == "Available" ? "ok" : "warn")">@v.Status</span></td>
+                                    <td>@string.Join(", ", v.Skills)</td>
+                                    <td>
+                                        @if (v.Latitude.HasValue && v.Longitude.HasValue)
+                                        {
+                                            <span>@CommandClient.FormatCoordinate(v.Latitude.Value), @CommandClient.FormatCoordinate(v.Longitude.Value)</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="cmd-sub">—</span>
+                                        }
+                                    </td>
+                                    <td>@v.ContactNumber</td>
+                                    <td class="cmd-col-action">
+                                        <button type="button" class="rr-btn rr-btn-ghost rr-btn-xs" @onclick="() => StartEditVolunteer(v)">Edit</button>
+                                        <button type="button" class="rr-btn rr-btn-danger rr-btn-xs" disabled="@_busy" @onclick="() => DeleteVolunteerAsync(v.Id)">Delete</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        }
+        else if (_activeTab == RegistryTab.Ngos)
+        {
+            @if (FilteredNgos.Count == 0)
+            {
+                <p class="cmd-empty">No NGOs match your search.</p>
+            }
+            else
+            {
+                <div class="cmd-table-wrap">
+                    <table class="cmd-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Focus Areas</th>
+                                <th>Contact Person</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                                <th class="cmd-col-action">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var n in FilteredNgos)
+                            {
+                                <tr>
+                                    <td><strong>@n.Name</strong></td>
+                                    <td>@string.Join(", ", n.FocusAreas)</td>
+                                    <td>@n.ContactPerson</td>
+                                    <td>@n.ContactEmail</td>
+                                    <td>@n.ContactNumber</td>
+                                    <td class="cmd-col-action">
+                                        <button type="button" class="rr-btn rr-btn-ghost rr-btn-xs" @onclick="() => StartEditNgo(n)">Edit</button>
+                                        <button type="button" class="rr-btn rr-btn-danger rr-btn-xs" disabled="@_busy" @onclick="() => DeleteNgoAsync(n.Id)">Delete</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        }
+    </section>
+</div>
+
+@code {
+    private enum RegistryTab { Hospitals, Volunteers, Ngos }
+
+    private RegistryTab _activeTab = RegistryTab.Hospitals;
+    private bool _loading = true;
+    private bool _busy;
+    private string? _message;
+    private bool _messageIsError;
+    private string _search = string.Empty;
+
+    private IReadOnlyList<HospitalDto>? _hospitals;
+    private IReadOnlyList<VolunteerDto>? _volunteers;
+    private IReadOnlyList<NgoDto>? _ngos;
+
+    private bool _editing;
+    private Guid? _editingId;
+
+    // Hospital fields
+    private string _hospName = string.Empty;
+    private double _hospLat = 23.8103;
+    private double _hospLon = 90.4125;
+    private int _hospTotalBeds = 100;
+    private int _hospAvailableBeds = 20;
+    private int _hospIcuBeds = 10;
+    private int _hospAvailableIcuBeds = 2;
+    private string _hospSpecialties = string.Empty;
+    private string _hospContact = string.Empty;
+    private string _hospAddress = string.Empty;
+
+    // Volunteer fields
+    private string _volName = string.Empty;
+    private double? _volLat = 23.8103;
+    private double? _volLon = 90.4125;
+    private string _volStatus = "Available";
+    private string _volSkills = string.Empty;
+    private string _volContact = string.Empty;
+
+    // Ngo fields
+    private string _ngoName = string.Empty;
+    private double _ngoLat = 23.8103;
+    private double _ngoLon = 90.4125;
+    private string _ngoFocus = string.Empty;
+    private string _ngoPerson = string.Empty;
+    private string _ngoEmail = string.Empty;
+    private string _ngoContact = string.Empty;
+
+    private string CurrentTabLabel => _activeTab switch
+    {
+        RegistryTab.Hospitals => "Hospitals",
+        RegistryTab.Volunteers => "Volunteers",
+        RegistryTab.Ngos => "NGOs",
+        _ => string.Empty
+    };
+
+    private string CurrentTabSingular => _activeTab switch
+    {
+        RegistryTab.Hospitals => "Hospital",
+        RegistryTab.Volunteers => "Volunteer",
+        RegistryTab.Ngos => "NGO",
+        _ => string.Empty
+    };
+
+    private IReadOnlyList<HospitalDto> FilteredHospitals =>
+        string.IsNullOrWhiteSpace(_search)
+            ? _hospitals ?? []
+            : (_hospitals ?? []).Where(h => h.Name.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                                         || h.Specialties.Any(s => s.Contains(_search, StringComparison.OrdinalIgnoreCase))).ToList();
+
+    private IReadOnlyList<VolunteerDto> FilteredVolunteers =>
+        string.IsNullOrWhiteSpace(_search)
+            ? _volunteers ?? []
+            : (_volunteers ?? []).Where(v => v.FullName.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                                          || v.Skills.Any(s => s.Contains(_search, StringComparison.OrdinalIgnoreCase))).ToList();
+
+    private IReadOnlyList<NgoDto> FilteredNgos =>
+        string.IsNullOrWhiteSpace(_search)
+            ? _ngos ?? []
+            : (_ngos ?? []).Where(n => n.Name.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                                    || n.FocusAreas.Any(f => f.Contains(_search, StringComparison.OrdinalIgnoreCase))).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAsync();
+    }
+
+    private void SetTab(RegistryTab tab)
+    {
+        _activeTab = tab;
+        _editing = false;
+        _search = string.Empty;
+    }
+
+    private async Task RefreshAsync()
+    {
+        _loading = true;
+        var hTask = Registry.GetHospitalsAsync();
+        var vTask = Registry.GetVolunteersAsync();
+        var nTask = Registry.GetNgosAsync();
+        await Task.WhenAll(hTask, vTask, nTask);
+
+        _hospitals = await hTask;
+        _volunteers = await vTask;
+        _ngos = await nTask;
+        _loading = false;
+        StateHasChanged();
+    }
+
+    private void StartCreate()
+    {
+        _editing = true;
+        _editingId = null;
+
+        if (_activeTab == RegistryTab.Hospitals)
+        {
+            _hospName = string.Empty;
+            _hospLat = 23.8103;
+            _hospLon = 90.4125;
+            _hospTotalBeds = 100;
+            _hospAvailableBeds = 20;
+            _hospIcuBeds = 10;
+            _hospAvailableIcuBeds = 2;
+            _hospSpecialties = "General, Trauma";
+            _hospContact = "+880 2 5550100";
+            _hospAddress = "Dhaka";
+        }
+        else if (_activeTab == RegistryTab.Volunteers)
+        {
+            _volName = string.Empty;
+            _volLat = 23.8103;
+            _volLon = 90.4125;
+            _volStatus = "Available";
+            _volSkills = "FirstAid, Logistics";
+            _volContact = "+880 1555 100000";
+        }
+        else if (_activeTab == RegistryTab.Ngos)
+        {
+            _ngoName = string.Empty;
+            _ngoLat = 23.8103;
+            _ngoLon = 90.4125;
+            _ngoFocus = "Disaster Relief, Food";
+            _ngoPerson = "Coordinator";
+            _ngoEmail = "relief@ngo.example";
+            _ngoContact = "+880 2 5550200";
+        }
+    }
+
+    private void StartEditHospital(HospitalDto h)
+    {
+        _editing = true;
+        _editingId = h.Id;
+        _hospName = h.Name;
+        _hospLat = h.Latitude;
+        _hospLon = h.Longitude;
+        _hospTotalBeds = h.TotalBeds;
+        _hospAvailableBeds = h.AvailableBeds;
+        _hospIcuBeds = h.IcuBeds;
+        _hospAvailableIcuBeds = h.AvailableIcuBeds;
+        _hospSpecialties = string.Join(", ", h.Specialties);
+        _hospContact = h.ContactNumber;
+        _hospAddress = h.Address;
+    }
+
+    private void StartEditVolunteer(VolunteerDto v)
+    {
+        _editing = true;
+        _editingId = v.Id;
+        _volName = v.FullName;
+        _volLat = v.Latitude;
+        _volLon = v.Longitude;
+        _volStatus = v.Status;
+        _volSkills = string.Join(", ", v.Skills);
+        _volContact = v.ContactNumber;
+    }
+
+    private void StartEditNgo(NgoDto n)
+    {
+        _editing = true;
+        _editingId = n.Id;
+        _ngoName = n.Name;
+        _ngoLat = n.Latitude;
+        _ngoLon = n.Longitude;
+        _ngoFocus = string.Join(", ", n.FocusAreas);
+        _ngoPerson = n.ContactPerson;
+        _ngoEmail = n.ContactEmail;
+        _ngoContact = n.ContactNumber;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_busy) return;
+        _busy = true;
+        string? error = null;
+
+        if (_activeTab == RegistryTab.Hospitals)
+        {
+            var specs = _hospSpecialties.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+            if (_editingId is { } existingId)
+            {
+                error = await Registry.UpdateHospitalAsync(existingId, new UpdateHospitalRequest(
+                    _hospName, _hospLat, _hospLon, _hospTotalBeds, _hospAvailableBeds, _hospIcuBeds, _hospAvailableIcuBeds, true, specs, _hospContact, _hospAddress));
+            }
+            else
+            {
+                error = await Registry.CreateHospitalAsync(new CreateHospitalRequest(
+                    _hospName, _hospLat, _hospLon, _hospTotalBeds, _hospAvailableBeds, _hospIcuBeds, _hospAvailableIcuBeds, true, specs, _hospContact, _hospAddress));
+            }
+        }
+        else if (_activeTab == RegistryTab.Volunteers)
+        {
+            var skills = _volSkills.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+            if (_editingId is { } existingId)
+            {
+                error = await Registry.UpdateVolunteerAsync(existingId, new UpdateVolunteerRequest(
+                    _volName, _volLat, _volLon, skills, _volStatus, _volContact));
+            }
+            else
+            {
+                error = await Registry.CreateVolunteerAsync(new CreateVolunteerRequest(
+                    _volName, null, _volLat, _volLon, skills, _volStatus, _volContact));
+            }
+        }
+        else if (_activeTab == RegistryTab.Ngos)
+        {
+            var focus = _ngoFocus.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+            if (_editingId is { } existingId)
+            {
+                error = await Registry.UpdateNgoAsync(existingId, new UpdateNgoRequest(
+                    _ngoName, _ngoLat, _ngoLon, focus, _ngoPerson, _ngoEmail, _ngoContact));
+            }
+            else
+            {
+                error = await Registry.CreateNgoAsync(new CreateNgoRequest(
+                    _ngoName, _ngoLat, _ngoLon, focus, _ngoPerson, _ngoEmail, _ngoContact));
+            }
+        }
+
+        Report(error ?? $"{CurrentTabSingular} saved successfully.", error is not null);
+        if (error is null)
+        {
+            _editing = false;
+        }
+
+        await RefreshAsync();
+        _busy = false;
+    }
+
+    private async Task DeleteHospitalAsync(Guid id)
+    {
+        if (_busy) return;
+        _busy = true;
+        var error = await Registry.DeleteHospitalAsync(id);
+        Report(error ?? "Hospital deleted.", error is not null);
+        await RefreshAsync();
+        _busy = false;
+    }
+
+    private async Task DeleteVolunteerAsync(Guid id)
+    {
+        if (_busy) return;
+        _busy = true;
+        var error = await Registry.DeleteVolunteerAsync(id);
+        Report(error ?? "Volunteer deleted.", error is not null);
+        await RefreshAsync();
+        _busy = false;
+    }
+
+    private async Task DeleteNgoAsync(Guid id)
+    {
+        if (_busy) return;
+        _busy = true;
+        var error = await Registry.DeleteNgoAsync(id);
+        Report(error ?? "NGO deleted.", error is not null);
+        await RefreshAsync();
+        _busy = false;
+    }
+
+    private void Report(string? message, bool isError)
+    {
+        _message = message;
+        _messageIsError = isError;
+    }
+}

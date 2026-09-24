@@ -19,6 +19,7 @@ using RapidRelief.Client.Features.Reports;
 using RapidRelief.Client.Features.Rescue;
 using RapidRelief.Client.Features.Shelters;
 using RapidRelief.Client.Features.CommandCenter;
+using RapidRelief.Client.Features.Registry;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
@@ -77,6 +78,7 @@ builder.Services.AddScoped(sp => new CommandCenterClient(sp.GetRequiredService<H
 builder.Services.AddScoped(sp => new IncidentsClient(sp.GetRequiredService<HttpClient>()));
 builder.Services.AddScoped(sp => new RescueClient(sp.GetRequiredService<HttpClient>()));
 builder.Services.AddScoped(sp => new ReliefClient(sp.GetRequiredService<HttpClient>()));
+builder.Services.AddScoped(sp => new RegistryClient(sp.GetRequiredService<HttpClient>()));
 
 // Command centre: aggregates the ops metrics, audit trail, inventory and admin surfaces.
 builder.Services.AddScoped(sp => new CommandClient(sp.GetRequiredService<HttpClient>()));
@@ -98,14 +100,21 @@ builder.Services.AddScoped(sp => new MapConfigService(sp.GetRequiredService<Http
 
 var host = builder.Build();
 
+// D-117: these three boot steps deliberately never throw past this point (see each comment),
+// but they used to swallow the exception with no trace at all — a systemic failure (e.g. a
+// cookie/CORS break after a deploy) was invisible except as a vague "I keep getting logged out"
+// ticket. Log at Warning so the browser console/telemetry sink still sees it; still never blocks
+// or crashes boot.
+var bootLogger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Boot");
+
 // Silent session restore on boot — must never block or crash an offline PWA start.
 try
 {
     await host.Services.GetRequiredService<AuthApi>().TryRefreshAsync();
 }
-catch
+catch (Exception ex)
 {
-    // boot stays anonymous
+    bootLogger.LogWarning(ex, "Session restore failed on boot — continuing anonymous");
 }
 
 // Connect the hub / start polling if that restore (or a dev role) gives us an identity.
@@ -113,9 +122,9 @@ try
 {
     await host.Services.GetRequiredService<NotificationHubClient>().SyncAsync();
 }
-catch
+catch (Exception ex)
 {
-    // realtime is best-effort; the inbox endpoints keep working without it
+    bootLogger.LogWarning(ex, "Realtime hub sync failed on boot — falling back to polling");
 }
 
 // Deliver anything the citizen filed while offline, then keep listening for reconnects.
@@ -123,9 +132,9 @@ try
 {
     await host.Services.GetRequiredService<OutboxService>().InitializeAsync();
 }
-catch
+catch (Exception ex)
 {
-    // a broken IndexedDB must never stop the app from starting
+    bootLogger.LogWarning(ex, "Offline outbox init failed on boot — offline reports may be stuck queued");
 }
 
 await host.RunAsync();
