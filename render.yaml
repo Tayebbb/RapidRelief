@@ -22,8 +22,33 @@ services:
         value: RapidRelief
       - key: Auth__SeedDemoUsers
         value: "false"
-      - key: Ai__OpenRouter__ApiKey
-        sync: false
+      # D-117: was AllowedHosts "*" (appsettings.json default). Verify this against the actual
+      # externally-assigned hostname shown in the Render dashboard after first deploy — Render
+      # appends a random suffix if "rapidrelief" is already taken, in which case update this value.
+      - key: AllowedHosts
+        value: rapidrelief.onrender.com
+      # D-117: freellmpool sidecar (see the pserv below). Render resolves this to "host:port" with
+      # no scheme (docs: property "hostport" on a private service) — FreeLlmPoolClient/AiModule.cs
+      # now auto-prefixes "http://" and appends "/" when the configured value has no "://", so this
+      # wires up with no manual step. If Render's actual resolved value ever needs overriding,
+      # set it directly in the dashboard as a full URL instead (e.g. "http://freellmpool-xxxx:8080/").
+      - key: Ai__FreeLlmPool__BaseUrl
+        fromService:
+          name: freellmpool
+          type: pserv
+          property: hostport
+
+  # D-117: freellmpool AI proxy, private (no public URL) — reachable only from the web service
+  # above over Render's internal network. Keyless start: Pollinations/OVHcloud/Kilo
+  # Gateway/LLM7 need no credentials. Add provider keys here later (envVars, e.g. GROQ_API_KEY)
+  # to unlock more capacity — see freellmpool's README provider table.
+  - type: pserv
+    name: freellmpool
+    runtime: image
+    plan: free
+    image:
+      url: ghcr.io/0xzr/freellmpool:0.13.0
+    envVars: []
 
 databases:
   - name: rapidrelief-db

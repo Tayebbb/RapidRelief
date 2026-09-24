@@ -36,10 +36,21 @@ public sealed class AiModule : IFeatureModule
         // BaseAddress read from config (deployment topology varies), Infinite timeout
         // (linked-CTS per call). Falls back to the local default when blank so a fresh
         // checkout still boots against the docker-compose sidecar.
+        // D-117: Render's fromService/hostport resolves to a bare "host:port" with no scheme —
+        // auto-prefix "http://" (freellmpool's own container has no TLS) so the Render blueprint
+        // needs no manual dashboard step to wire the sidecar in.
         services.AddHttpClient("freellmpool", client =>
         {
             var baseUrl = config["Ai:FreeLlmPool:BaseUrl"];
-            client.BaseAddress = new Uri(string.IsNullOrWhiteSpace(baseUrl) ? "http://localhost:8080/" : baseUrl);
+            if (string.IsNullOrWhiteSpace(baseUrl))
+            {
+                baseUrl = "http://localhost:8080/";
+            }
+            else if (!baseUrl.Contains("://", StringComparison.Ordinal))
+            {
+                baseUrl = $"http://{baseUrl}/";
+            }
+            client.BaseAddress = new Uri(baseUrl);
             client.Timeout = Timeout.InfiniteTimeSpan;
         });
         services.AddSingleton<IFreeLlmPoolClient, FreeLlmPoolClient>();

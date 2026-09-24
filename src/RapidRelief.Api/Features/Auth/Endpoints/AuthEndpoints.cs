@@ -587,12 +587,19 @@ public static class AuthEndpoints
         AuthDbContext db,
         HttpContext httpContext,
         IHostEnvironment env,
+        IConfiguration config,
         CancellationToken ct)
     {
         // SECURITY (audit 2026-09-03): this endpoint mints a full session from a caller-supplied
         // e-mail without verifying any provider token — an authentication bypass for every account.
         // Refused outside local dev until the Neon Auth session is validated server-side.
-        if (!env.IsDevelopment() && !env.IsEnvironment("Testing"))
+        // D-117: a bare IsEnvironment("Testing") check is a single point of failure shared with
+        // every other dev-only gate in this file — a deploy topology that (mis)uses "Testing" as
+        // a staging label with a real database would otherwise reopen this. Require a SECOND,
+        // independent opt-in (Auth:AllowDevGoogleSession, defaults false, set true only in
+        // appsettings.Development.json) so a stray environment name alone can never re-enable it.
+        if ((!env.IsDevelopment() && !env.IsEnvironment("Testing"))
+            || !config.GetValue("Auth:AllowDevGoogleSession", defaultValue: false))
         {
             return Results.Problem(
                 statusCode: StatusCodes.Status404NotFound,
