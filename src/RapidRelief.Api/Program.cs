@@ -13,7 +13,7 @@ using RapidRelief.Shared.Contracts.Eventing;
 using RapidRelief.Shared.Contracts.Services;
 using Serilog;
 
-// B6 step 1 — Serilog bootstrap logger, replaced by the config-driven logger below.
+// Serilog bootstrap logger, replaced by the config-driven logger below.
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
     .CreateBootstrapLogger();
@@ -37,7 +37,7 @@ try
         optional: true,
         reloadOnChange: true);
 
-    // D-011 — forwarded headers are OPT-IN for reverse-proxy deploys (Proxy:Enabled). Rate
+    // Forwarded headers are opt-in for reverse-proxy deploys (Proxy:Enabled). Rate
     // limiting partitions per-IP, so proxied deployments MUST configure this or every client
     // shares the proxy's IP partition. KnownNetworks/Proxies are cleared only when proxies
     // are explicitly listed (Proxy:KnownProxies) — never blindly trust any upstream.
@@ -60,13 +60,13 @@ try
         });
     }
 
-    // B6 step 2 — ProblemDetails + exception handling (shared framework, no packages).
+    // ProblemDetails + exception handling (shared framework, no packages).
     builder.Services.AddProblemDetails();
     builder.Services.AddExceptionHandler<BindingFailureExceptionHandler>();
     // Registered after the binding handler so a BadHttpRequestException stays a 400.
     builder.Services.AddExceptionHandler<DatabaseFailureExceptionHandler>();
 
-    // B6 step 3 — rate limiter: global per-IP fixed window + named policy skeletons; skipped in Testing.
+    // Rate limiter: global per-IP fixed window + named policy skeletons; skipped in Testing.
     if (!isTesting)
     {
         builder.Services.AddRateLimiter(options =>
@@ -151,17 +151,17 @@ try
         });
     }
 
-    // B6 step 4 — FluentValidation validators (EXPLICIT validation only, never auto-MVC).
+    // FluentValidation validators (EXPLICIT validation only, never auto-MVC).
     builder.Services.AddValidatorsFromAssemblyContaining<Program>();
     builder.Services.AddHttpClient();
 
-    // B6 step 5 — MultiAuth policy scheme + JwtBearer + FakeAuth (Dev/Testing) + role policies.
+    // MultiAuth policy scheme + JwtBearer + FakeAuth (Dev/Testing) + role policies.
     builder.Services.AddRapidReliefAuth(builder.Configuration, builder.Environment);
 
-    // B6 step 6 — event bus (SCOPED, see B3).
+    // Event bus (SCOPED, see B3).
     builder.Services.AddScoped<IEventBus, InProcessEventBus>();
 
-    // B6 step 7 — DatabaseHealth singleton (D-005 degraded-mode flag) + local-disk file storage.
+    // DatabaseHealth singleton (D-005 degraded-mode flag) + local-disk file storage.
     builder.Services.AddSingleton<DatabaseHealth>();
     builder.Services.AddSingleton<IFileStorage, LocalDiskFileStorage>();
 
@@ -172,7 +172,7 @@ try
         builder.Services.AddHostedService<DatabaseHealthProbe>();
     }
 
-    // B6 step 8 — module discovery + registration (deterministic order).
+    // Module discovery + registration (deterministic order).
     var modules = ModuleDiscovery.Discover(typeof(Program).Assembly);
     foreach (var module in modules)
     {
@@ -181,12 +181,12 @@ try
 
     var app = builder.Build();
 
-    // B6 step 9 — ProblemDetails for exceptions and bare status codes. Binding failures keep
+    // ProblemDetails for exceptions and bare status codes. Binding failures keep
     // their own 4xx status via BindingFailureExceptionHandler instead of surfacing as 500.
     app.UseExceptionHandler();
     app.UseStatusCodePages();
 
-    // Post-review item 4a — every response (API, static files, SPA fallback) declares that
+    // Every response (API, static files, SPA fallback) declares that
     // browsers must not MIME-sniff it. OnStarting + indexer keeps it single-valued.
     app.Use(async (context, next) =>
     {
@@ -198,23 +198,22 @@ try
         await next(context);
     });
 
-    // D-011 — must run before anything that consumes scheme/client IP (HTTPS redirect, rate limiter).
+    // Must run before anything that consumes scheme/client IP (HTTPS redirect, rate limiter).
     if (proxyEnabled)
     {
         app.UseForwardedHeaders();
     }
 
-    // D-010 — TLS terminates at the app outside Development/Testing: redirect + HSTS.
+    // TLS terminates at the app outside Development/Testing: redirect + HSTS.
     if (!app.Environment.IsDevelopment() && !isTesting)
     {
         app.UseHsts();
         app.UseHttpsRedirection();
     }
 
-    // B6 step 10.
     app.UseSerilogRequestLogging();
 
-    // B6 step 11 — hosted Blazor WASM client. In Development, force revalidation so edited
+    // Hosted Blazor WASM client. In Development, force revalidation so edited
     // static assets (JS modules, CSS) are never served stale from the browser's heuristic cache.
     app.UseBlazorFrameworkFiles();
     if (app.Environment.IsDevelopment())
@@ -229,10 +228,9 @@ try
         app.UseStaticFiles();
     }
 
-    // B6 step 12.
     app.UseAuthentication();
 
-    // B6 step 13 — AFTER authentication so RateLimitPartitions.UserOrIp sees the real caller;
+    // AFTER authentication so RateLimitPartitions.UserOrIp sees the real caller;
     // before authorization so unauthenticated floods still consume permits.
     if (!isTesting)
     {
@@ -241,18 +239,18 @@ try
 
     app.UseAuthorization();
 
-    // B6 step 14 — each module maps its own endpoints.
+    // Each module maps its own endpoints.
     foreach (var module in modules)
     {
         module.MapEndpoints(app);
     }
 
-    // B6 step 15 — SPA fallback to the Blazor client; unknown /api/* routes must stay
+    // SPA fallback to the Blazor client; unknown /api/* routes must stay
     // ProblemDetails 404s and never fall through to the SPA shell.
     app.MapFallback("/api/{**path}", () => Results.Problem(statusCode: StatusCodes.Status404NotFound, title: "Not found"));
     app.MapFallbackToFile("index.html");
 
-    // B6 step 16 — per-module migrations; warn-and-continue-degraded on failure (D-005). Skipped in
+    // Per-module migrations; warn-and-continue-degraded on failure (D-005). Skipped in
     // Testing (the factory uses SQLite EnsureCreated instead).
     if (!isTesting)
     {

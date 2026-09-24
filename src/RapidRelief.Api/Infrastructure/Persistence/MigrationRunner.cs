@@ -3,7 +3,7 @@ using RapidRelief.Api.Infrastructure.Modules;
 namespace RapidRelief.Api.Infrastructure.Persistence;
 
 /// <summary>
-/// B6 step 16 — per-module startup migrations with retry; on total failure the app keeps
+/// Per-module startup migrations with retry; on total failure the app keeps
 /// serving in degraded mode (D-005). NEVER crashes the host.
 /// </summary>
 public static class MigrationRunner
