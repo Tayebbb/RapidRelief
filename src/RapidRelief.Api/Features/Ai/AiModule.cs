@@ -33,9 +33,9 @@ public sealed class AiModule : IFeatureModule
             config.GetValue("Ai:FreeLlmPool:BreakerFailures", 3),
             TimeSpan.FromMinutes(config.GetValue("Ai:FreeLlmPool:BreakerOpenMinutes", 2.0))));
 
-        // D-113: BaseAddress read from config (deployment topology varies), Infinite timeout
-        // (D-026 linked-CTS per call). Falls back to the local default when blank so a fresh
-        // checkout still boots against the docker-compose sidecar (D-115).
+        // BaseAddress read from config (deployment topology varies), Infinite timeout
+        // (linked-CTS per call). Falls back to the local default when blank so a fresh
+        // checkout still boots against the docker-compose sidecar.
         services.AddHttpClient("freellmpool", client =>
         {
             var baseUrl = config["Ai:FreeLlmPool:BaseUrl"];
@@ -44,7 +44,7 @@ public sealed class AiModule : IFeatureModule
         });
         services.AddSingleton<IFreeLlmPoolClient, FreeLlmPoolClient>();
 
-        // F16 (D-047): same feature, same external dependency, same shared breaker.
+        // Same feature, same external dependency, same shared breaker.
         services.AddSingleton(AssistantOptions.Read(config));
         services.AddSingleton<IAssistantService, FreeLlmPoolAssistantService>();
         services.AddHostedService<AssistantRetentionWorker>();

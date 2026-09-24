@@ -17,7 +17,7 @@ public sealed class AuthModule : IFeatureModule
 
     public void AddModule(IServiceCollection services, IConfiguration config, IHostEnvironment env)
     {
-        if (!env.IsEnvironment("Testing")) // factory injects SQLite itself (B6 step 8 precedent)
+        if (!env.IsEnvironment("Testing")) // factory injects SQLite itself
         {
             services.AddDbContext<AuthDbContext>(options =>
                 options.UseNpgsql(config.GetConnectionString("Postgres"), npgsql =>

@@ -133,7 +133,7 @@ public static class AuthSeeder
         }
 
         var userManager = scopedServices.GetRequiredService<UserManager<AppUser>>();
-        
+
         var seedUsers = new List<(string Email, string Role, Guid Id, string DisplayName)>
         {
             ("citizen1@rr.dev", Roles.Citizen, Guid.Parse("11111111-1111-1111-1111-111111111111"), "Citizen One"),

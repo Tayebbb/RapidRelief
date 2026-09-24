@@ -191,7 +191,7 @@ public static class AiEndpoints
             .Select(n => (Ngo: n,
                 Matched: n.FocusAreas.Where(f => wantedFocus.Contains(f, StringComparer.OrdinalIgnoreCase)).ToList()))
             .Where(x => x.Matched.Count > 0)
-            .Take(3) // seed order preserved (D-027)
+            .Take(3) // seed order preserved
             .ToList();
 
         string? reason = null;
@@ -240,7 +240,7 @@ public static class AiEndpoints
         return incident is null ? null : (incident.Location, incident.Type);
     }
 
-    // D-027 verbatim maps — matching is OrdinalIgnoreCase, cap 3.
+    // Verbatim maps — matching is OrdinalIgnoreCase, cap 3.
     private static string[] TeamSkills(DisasterType type) => type switch
     {
         DisasterType.Flood => ["Swimming", "Boating"],

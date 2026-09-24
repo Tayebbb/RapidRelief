@@ -153,7 +153,7 @@ public static class AlertsEndpoints
             await audit.RecordAsync(new AuditRecord(null, string.Empty, string.Empty,
                 "Alert.Revoke", "Alert", alert.Id.ToString(),
                 $"Stood down broadcast \"{alert.Title}\"", "Revoked"), ct);
-            
+
             await notifier.NotifyAllAsync(RealtimeTopics.AlertPublished, new
             {
                 title = "Alert revoked",
