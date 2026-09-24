@@ -41,6 +41,23 @@ public sealed record ReliefActionResult(ReliefRequestDto? Request, string? Error
     public static ReliefActionResult Failure(string error) => new(null, error);
 }
 
+public sealed record DispatchRequest(
+    Guid ResourceId,
+    double DispatchedQuantity,
+    string CarrierOrPartner);
+
+public sealed record ReliefDispatchDto(
+    Guid Id,
+    Guid ReliefRequestId,
+    Guid ResourceId,
+    string ResourceName,
+    double DispatchedQuantity,
+    string CarrierOrPartner,
+    string Status,
+    Guid DispatchedByUserId,
+    DateTimeOffset DispatchedAtUtc,
+    DateTimeOffset? DeliveredAtUtc);
+
 public sealed class ReliefClient(HttpClient http)
 {
     private const string BasePath = "api/relief/requests";

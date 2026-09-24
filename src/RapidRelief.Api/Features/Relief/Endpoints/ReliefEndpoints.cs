@@ -9,6 +9,7 @@ using RapidRelief.Shared.Contracts.Common;
 using RapidRelief.Shared.Contracts.Enums;
 using RapidRelief.Shared.Contracts.Eventing;
 using RapidRelief.Shared.Contracts.Events;
+using RapidRelief.Shared.Contracts.ReadModels;
 using RapidRelief.Shared.Contracts.Services;
 
 namespace RapidRelief.Api.Features.Relief.Endpoints;
@@ -30,8 +31,8 @@ public static class ReliefEndpoints
     {
         [ReliefStatus.Pending] = [ReliefStatus.Approved, ReliefStatus.Rejected],
         [ReliefStatus.Approved] = [ReliefStatus.Allocated, ReliefStatus.Rejected],
-        [ReliefStatus.Allocated] = [ReliefStatus.Dispatched, ReliefStatus.Rejected],
-        [ReliefStatus.Dispatched] = [ReliefStatus.Delivered],
+        [ReliefStatus.Allocated] = [ReliefStatus.Rejected],
+        [ReliefStatus.Dispatched] = [],
         [ReliefStatus.Delivered] = [],
         [ReliefStatus.Rejected] = [],
     };
@@ -48,6 +49,10 @@ public static class ReliefEndpoints
         group.MapGet("/requests/{id:guid}", GetAsync);
         group.MapPost("/requests/{id:guid}/status", UpdateStatusAsync).RequireAuthorization(AuthPolicies.RequireGovernment);
         group.MapPost("/requests/{id:guid}/cancel", CancelAsync);
+        group.MapPost("/requests/{id:guid}/dispatch", DispatchAsync).RequireAuthorization(AuthPolicies.RequireGovernment);
+        group.MapPost("/dispatches/{dispatchId:guid}/deliver", DeliverAsync).RequireAuthorization(AuthPolicies.RequireResponder);
+        group.MapGet("/requests/{id:guid}/dispatches", GetRequestDispatchesAsync);
+        group.MapGet("/resources/{id:guid}/dispatches", GetResourceDispatchesAsync).RequireAuthorization(AuthPolicies.RequireGovernment);
 
         ReliefResourceEndpoints.Map(endpoints);
     }
@@ -243,6 +248,20 @@ public static class ReliefEndpoints
 
         if (!AllowedTransitions.TryGetValue(entity.Status, out var allowed) || !allowed.Contains(request.Status))
         {
+            if (request.Status == ReliefStatus.Dispatched)
+            {
+                return Results.Problem(statusCode: StatusCodes.Status409Conflict,
+                    title: "Invalid relief transition",
+                    detail: $"A request in status {entity.Status} cannot move to Dispatched directly. Use the dispatch workflow endpoint: POST /api/relief/requests/{{id}}/dispatch.");
+            }
+
+            if (request.Status == ReliefStatus.Delivered)
+            {
+                return Results.Problem(statusCode: StatusCodes.Status409Conflict,
+                    title: "Invalid relief transition",
+                    detail: $"A request in status {entity.Status} cannot move to Delivered directly. Use the delivery workflow endpoint: POST /api/relief/dispatches/{{dispatchId}}/deliver.");
+            }
+
             return Results.Problem(statusCode: StatusCodes.Status409Conflict,
                 title: "Invalid relief transition",
                 detail: $"A request in status {entity.Status} cannot move to {request.Status}.");
@@ -378,6 +397,249 @@ public static class ReliefEndpoints
         entity.IncidentId,
         entity.CreatedAtUtc,
         entity.UpdatedAtUtc);
+
+    private static async Task<IResult> DispatchAsync(
+        Guid id,
+        DispatchRequest request,
+        IValidator<DispatchRequest> validator,
+        ReliefDbContext db,
+        IEventBus eventBus,
+        IRealtimeNotifier notifier,
+        IAuditTrail audit,
+        DatabaseHealth health,
+        HttpContext context,
+        TimeProvider clock,
+        CancellationToken ct)
+    {
+        if (health.PostgresAvailable != true)
+        {
+            return DatabaseUnavailable();
+        }
+
+        var validation = await validator.ValidateAsync(request, ct);
+        if (!validation.IsValid)
+        {
+            return Results.ValidationProblem(validation.ToDictionary());
+        }
+
+        if (!TryGetUserId(context, out var userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        var entity = await db.Requests.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (entity is null)
+        {
+            return Results.NotFound();
+        }
+
+        if (entity.Status != ReliefStatus.Allocated && entity.Status != ReliefStatus.Dispatched)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status409Conflict,
+                title: "Invalid dispatch state",
+                detail: $"Request must be in 'Allocated' or 'Dispatched' status to dispatch (current status is {entity.Status}).");
+        }
+
+        var resource = await db.Resources.FirstOrDefaultAsync(x => x.Id == request.ResourceId, ct);
+        if (resource is null)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status404NotFound,
+                title: "Resource not found",
+                detail: $"Relief resource '{request.ResourceId}' was not found in inventory.");
+        }
+
+        var available = Math.Max(0, resource.TotalQuantity - resource.AllocatedQuantity);
+        if (request.DispatchedQuantity > available)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status400BadRequest,
+                title: "Insufficient inventory",
+                detail: $"Dispatched quantity ({request.DispatchedQuantity:0.##}) exceeds available stock ({available:0.##} {resource.Unit}).");
+        }
+
+        var now = clock.GetUtcNow();
+        var dispatch = new ReliefDispatch
+        {
+            Id = Guid.NewGuid(),
+            ReliefRequestId = entity.Id,
+            ResourceId = resource.Id,
+            DispatchedQuantity = request.DispatchedQuantity,
+            DispatchedByUserId = userId,
+            CarrierOrPartner = request.CarrierOrPartner.Trim(),
+            Status = "Dispatched",
+            DispatchedAtUtc = now,
+        };
+
+        resource.AllocatedQuantity += request.DispatchedQuantity;
+        resource.UpdatedAtUtc = now;
+
+        entity.Status = ReliefStatus.Dispatched;
+        entity.UpdatedAtUtc = now;
+
+        db.Dispatches.Add(dispatch);
+        await db.SaveChangesAsync(ct);
+
+        await audit.RecordAsync(new AuditRecord(userId, string.Empty, string.Empty,
+            "Relief.Dispatch", "ReliefDispatch", dispatch.Id.ToString(),
+            $"Dispatched {dispatch.DispatchedQuantity:0.##} {resource.Unit} of {resource.Name} for request {entity.Id} via {dispatch.CarrierOrPartner}", "Created"), ct);
+
+        await eventBus.PublishAsync(new ReliefDispatchCreated(entity.Id, dispatch.Id, resource.Id, dispatch.DispatchedQuantity), ct);
+        await eventBus.PublishAsync(new ReliefStatusChanged(entity.Id, entity.Status), ct);
+        await NotifyRequesterAsync(notifier, entity, ct);
+
+        return Results.Created($"{BasePath}/dispatches/{dispatch.Id}",
+            new ApiEnvelope<ReliefDispatchDto>(ToDispatchDto(dispatch, resource.Name)));
+    }
+
+    private static async Task<IResult> DeliverAsync(
+        Guid dispatchId,
+        ReliefDbContext db,
+        IEventBus eventBus,
+        IRealtimeNotifier notifier,
+        IAuditTrail audit,
+        DatabaseHealth health,
+        HttpContext context,
+        TimeProvider clock,
+        CancellationToken ct)
+    {
+        if (health.PostgresAvailable != true)
+        {
+            return DatabaseUnavailable();
+        }
+
+        if (!TryGetUserId(context, out var userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        var dispatch = await db.Dispatches
+            .Include(d => d.Resource)
+            .Include(d => d.ReliefRequest)
+            .FirstOrDefaultAsync(d => d.Id == dispatchId, ct);
+
+        if (dispatch is null)
+        {
+            return Results.NotFound();
+        }
+
+        if (dispatch.Status == "Delivered" || dispatch.DeliveredAtUtc is not null)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status409Conflict,
+                title: "Already delivered",
+                detail: "This dispatch has already been delivered.");
+        }
+
+        var now = clock.GetUtcNow();
+        dispatch.DeliveredAtUtc = now;
+        dispatch.Status = "Delivered";
+
+        var otherPending = await db.Dispatches
+            .AnyAsync(d => d.ReliefRequestId == dispatch.ReliefRequestId && d.Id != dispatch.Id && d.Status != "Delivered", ct);
+
+        var requestDelivered = false;
+        if (!otherPending && dispatch.ReliefRequest is not null)
+        {
+            dispatch.ReliefRequest.Status = ReliefStatus.Delivered;
+            dispatch.ReliefRequest.UpdatedAtUtc = now;
+            requestDelivered = true;
+        }
+
+        await db.SaveChangesAsync(ct);
+
+        await audit.RecordAsync(new AuditRecord(userId, string.Empty, string.Empty,
+            "Relief.Deliver", "ReliefDispatch", dispatch.Id.ToString(),
+            $"Delivered dispatch {dispatch.Id} for relief request {dispatch.ReliefRequestId}", "Delivered"), ct);
+
+        await eventBus.PublishAsync(new ReliefDelivered(dispatch.ReliefRequestId, dispatch.Id, dispatch.ResourceId, dispatch.DispatchedQuantity), ct);
+
+        if (requestDelivered && dispatch.ReliefRequest is not null)
+        {
+            await eventBus.PublishAsync(new ReliefStatusChanged(dispatch.ReliefRequestId, ReliefStatus.Delivered), ct);
+            await NotifyRequesterAsync(notifier, dispatch.ReliefRequest, ct);
+        }
+
+        return Results.Ok(new ApiEnvelope<ReliefDispatchDto>(ToDispatchDto(dispatch, dispatch.Resource?.Name ?? string.Empty)));
+    }
+
+    private static async Task<IResult> GetRequestDispatchesAsync(
+        Guid id,
+        ReliefDbContext db,
+        DatabaseHealth health,
+        HttpContext context,
+        CancellationToken ct)
+    {
+        if (health.PostgresAvailable != true)
+        {
+            return DatabaseUnavailable();
+        }
+
+        if (!TryGetUserId(context, out var userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        var request = await db.Requests.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (request is null)
+        {
+            return Results.NotFound();
+        }
+
+        if (!context.User.IsInRole(Roles.Government) && !context.User.IsInRole(Roles.Rescuer) && request.RequesterId != userId)
+        {
+            return Results.NotFound();
+        }
+
+        var dispatches = await db.Dispatches
+            .AsNoTracking()
+            .Include(d => d.Resource)
+            .Where(d => d.ReliefRequestId == id)
+            .OrderByDescending(d => d.DispatchedAtUtc)
+            .ToListAsync(ct);
+
+        return Results.Ok(new ApiEnvelope<IReadOnlyList<ReliefDispatchDto>>(
+            dispatches.Select(d => ToDispatchDto(d, d.Resource?.Name ?? string.Empty)).ToList()));
+    }
+
+    private static async Task<IResult> GetResourceDispatchesAsync(
+        Guid id,
+        ReliefDbContext db,
+        DatabaseHealth health,
+        CancellationToken ct,
+        int page = 1,
+        int pageSize = 50)
+    {
+        if (health.PostgresAvailable != true)
+        {
+            return DatabaseUnavailable();
+        }
+
+        page = Math.Clamp(page, 1, 1_000_000);
+        pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
+
+        var query = db.Dispatches.AsNoTracking().Include(d => d.Resource).Where(d => d.ResourceId == id);
+        var total = await query.CountAsync(ct);
+        var rows = await query
+            .OrderByDescending(d => d.DispatchedAtUtc)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
+
+        return Results.Ok(new ApiEnvelope<PagedResult<ReliefDispatchDto>>(
+            new PagedResult<ReliefDispatchDto>(
+                rows.Select(d => ToDispatchDto(d, d.Resource?.Name ?? string.Empty)).ToList(),
+                page, pageSize, total)));
+    }
+
+    private static ReliefDispatchDto ToDispatchDto(ReliefDispatch d, string resourceName) => new(
+        d.Id,
+        d.ReliefRequestId,
+        d.ResourceId,
+        resourceName,
+        d.DispatchedQuantity,
+        d.CarrierOrPartner,
+        d.Status,
+        d.DispatchedByUserId,
+        d.DispatchedAtUtc,
+        d.DeliveredAtUtc);
 
     private static IResult DatabaseUnavailable() => Results.Problem(
         statusCode: StatusCodes.Status503ServiceUnavailable,

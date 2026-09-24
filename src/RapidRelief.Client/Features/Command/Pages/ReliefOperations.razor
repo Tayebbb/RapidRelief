@@ -59,6 +59,41 @@
                 </select>
             </header>
 
+            @if (_dispatchingRequest is not null)
+            {
+                <div class="cmd-form" style="margin-bottom: 1rem; padding: 1rem; border: 1px solid var(--cmd-border-subtle); border-radius: var(--rr-radius);">
+                    <div style="margin-bottom: 0.5rem;">
+                        <strong>Dispatch supplies for @_dispatchingRequest.Type request (@_dispatchingRequest.Quantity units)</strong>
+                        <p class="cmd-sub" style="margin: 0;">Select available warehouse stock and specify the delivery carrier or partner.</p>
+                    </div>
+                    <div class="cmd-field">
+                        <label for="disp-item">Warehouse item</label>
+                        <select id="disp-item" @bind="_selectedResourceId">
+                            <option value="">-- Select warehouse inventory --</option>
+                            @if (_inventory is not null)
+                            {
+                                @foreach (var item in _inventory.Items.Where(i => i.AvailableQuantity > 0))
+                                {
+                                    <option value="@item.Id">@item.Name (@item.Category) — @item.AvailableQuantity.ToString("0.##") @item.Unit available</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="cmd-field">
+                        <label for="disp-qty">Dispatched quantity</label>
+                        <input id="disp-qty" type="number" min="0.01" step="any" @bind="_dispatchedQuantity" />
+                    </div>
+                    <div class="cmd-field">
+                        <label for="disp-carrier">Carrier or partner</label>
+                        <input id="disp-carrier" @bind="_carrierOrPartner" placeholder="e.g. Bangladesh Red Crescent Unit 3" />
+                    </div>
+                    <div class="cmd-form-actions">
+                        <button type="button" class="rr-btn rr-btn-primary rr-btn-sm" disabled="@_busy" @onclick="ConfirmDispatchAsync">Confirm dispatch</button>
+                        <button type="button" class="rr-btn rr-btn-ghost rr-btn-sm" @onclick="() => _dispatchingRequest = null">Cancel</button>
+                    </div>
+                </div>
+            }
+
             @if (_loading)
             {
                 <p class="cmd-empty">Loading requests…</p>
@@ -103,6 +138,20 @@
                                                 @ReliefClient.StageLabel(next)
                                             </button>
                                         }
+                                        @if (request.Status is ReliefStatus.Allocated)
+                                        {
+                                            <button type="button" class="rr-btn rr-btn-primary rr-btn-xs" disabled="@_busy"
+                                                    @onclick="() => OpenDispatch(request)">
+                                                Dispatch…
+                                            </button>
+                                        }
+                                        @if (request.Status is ReliefStatus.Dispatched or ReliefStatus.Delivered)
+                                        {
+                                            <button type="button" class="rr-btn rr-btn-ghost rr-btn-xs" disabled="@_busy"
+                                                    @onclick="() => ToggleDispatchesAsync(request.Id)">
+                                                @(_expandedRequestId == request.Id ? "Hide" : "Dispatches")
+                                            </button>
+                                        }
                                         @if (request.Status is ReliefStatus.Pending or ReliefStatus.Approved or ReliefStatus.Allocated)
                                         {
                                             <button type="button" class="rr-btn rr-btn-ghost rr-btn-xs" disabled="@_busy"
@@ -114,6 +163,67 @@
                                         }
                                     </td>
                                 </tr>
+                                @if (_expandedRequestId == request.Id)
+                                {
+                                    <tr>
+                                        <td colspan="7" style="padding: 0.75rem 1rem; background: var(--rr-surface-raised, rgba(0,0,0,0.03));">
+                                            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                                    <strong>Tracked dispatches (@request.Type)</strong>
+                                                    <button type="button" class="rr-btn rr-btn-ghost rr-btn-xs" @onclick="() => _expandedRequestId = null">Close</button>
+                                                </div>
+                                                @if (_loadingDispatches)
+                                                {
+                                                    <p class="cmd-empty">Loading dispatches…</p>
+                                                }
+                                                else if (_dispatches.Count == 0)
+                                                {
+                                                    <p class="cmd-empty">No dispatches recorded yet for this request.</p>
+                                                }
+                                                else
+                                                {
+                                                    <table class="cmd-table" style="font-size: 0.85rem; width: 100%;">
+                                                        <thead>
+                                                            <tr>
+                                                                <th>Item</th>
+                                                                <th>Quantity</th>
+                                                                <th>Carrier / Partner</th>
+                                                                <th>Dispatched</th>
+                                                                <th>Status</th>
+                                                                <th class="cmd-col-action">Action</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            @foreach (var d in _dispatches)
+                                                            {
+                                                                <tr>
+                                                                    <td>@d.ResourceName</td>
+                                                                    <td>@d.DispatchedQuantity</td>
+                                                                    <td>@d.CarrierOrPartner</td>
+                                                                    <td>@RelativeTime(d.DispatchedAtUtc)</td>
+                                                                    <td><span class="cmd-pill @(d.Status == "Delivered" ? "ok" : "warn")">@d.Status</span></td>
+                                                                    <td class="cmd-col-action">
+                                                                        @if (d.Status != "Delivered")
+                                                                        {
+                                                                            <button type="button" class="rr-btn rr-btn-primary rr-btn-xs" disabled="@_busy"
+                                                                                    @onclick="() => MarkDeliveredAsync(d.Id)">
+                                                                                Mark delivered
+                                                                            </button>
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            <span class="cmd-sub">Delivered</span>
+                                                                        }
+                                                                    </td>
+                                                                </tr>
+                                                            }
+                                                        </tbody>
+                                                    </table>
+                                                }
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
                             }
                         </tbody>
                     </table>
@@ -242,6 +352,15 @@
     private string _draftUnit = "Boxes";
     private string _draftWarehouse = string.Empty;
 
+    private ReliefRequestDto? _dispatchingRequest;
+    private Guid? _selectedResourceId;
+    private double _dispatchedQuantity;
+    private string _carrierOrPartner = string.Empty;
+
+    private Guid? _expandedRequestId;
+    private List<ReliefDispatchDto> _dispatches = new();
+    private bool _loadingDispatches;
+
     private int Pending => _requests.Count(r => r.Status == ReliefStatus.Pending);
 
     private int InPipeline => _requests.Count(r =>
@@ -346,6 +465,90 @@
         _busy = false;
     }
 
+    private void OpenDispatch(ReliefRequestDto request)
+    {
+        _dispatchingRequest = request;
+        _dispatchedQuantity = request.Quantity;
+        _carrierOrPartner = "Red Crescent";
+        var matching = _inventory?.Items.FirstOrDefault(i => i.Category == request.Type && i.AvailableQuantity >= request.Quantity)
+                       ?? _inventory?.Items.FirstOrDefault(i => i.Category == request.Type && i.AvailableQuantity > 0);
+        _selectedResourceId = matching?.Id;
+    }
+
+    private async Task ConfirmDispatchAsync()
+    {
+        if (_busy || _dispatchingRequest is null) return;
+        if (!_selectedResourceId.HasValue || _selectedResourceId.Value == Guid.Empty)
+        {
+            Report("Select an available stocked item from the warehouse.", true);
+            return;
+        }
+        if (_dispatchedQuantity <= 0)
+        {
+            Report("Dispatched quantity must be greater than zero.", true);
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(_carrierOrPartner))
+        {
+            Report("Enter the carrier or partner delivering the relief.", true);
+            return;
+        }
+
+        _busy = true;
+        var error = await Command.CreateDispatchAsync(_dispatchingRequest.Id,
+            new DispatchRequest(_selectedResourceId.Value, _dispatchedQuantity, _carrierOrPartner.Trim()));
+
+        if (error is not null)
+        {
+            Report(error, true);
+        }
+        else
+        {
+            Report($"Dispatch created for {_dispatchingRequest.Type} via {_carrierOrPartner.Trim()} — status updated to Dispatched.", false);
+            _dispatchingRequest = null;
+        }
+
+        await RefreshAsync();
+        _busy = false;
+    }
+
+    private async Task ToggleDispatchesAsync(Guid requestId)
+    {
+        if (_expandedRequestId == requestId)
+        {
+            _expandedRequestId = null;
+            return;
+        }
+
+        _expandedRequestId = requestId;
+        _loadingDispatches = true;
+        var list = await Command.GetRequestDispatchesAsync(requestId);
+        _dispatches = list?.ToList() ?? new();
+        _loadingDispatches = false;
+    }
+
+    private async Task MarkDeliveredAsync(Guid dispatchId)
+    {
+        if (_busy) return;
+        _busy = true;
+        var error = await Command.MarkDeliveredAsync(dispatchId);
+        if (error is not null)
+        {
+            Report(error, true);
+        }
+        else
+        {
+            Report("Dispatch marked as delivered.", false);
+            if (_expandedRequestId is { } reqId)
+            {
+                var list = await Command.GetRequestDispatchesAsync(reqId);
+                _dispatches = list?.ToList() ?? new();
+            }
+        }
+        await RefreshAsync();
+        _busy = false;
+    }
+
     private void Report(string? message, bool isError)
     {
         _message = message;
@@ -358,8 +561,6 @@
     {
         ReliefStatus.Pending => ReliefStatus.Approved,
         ReliefStatus.Approved => ReliefStatus.Allocated,
-        ReliefStatus.Allocated => ReliefStatus.Dispatched,
-        ReliefStatus.Dispatched => ReliefStatus.Delivered,
         _ => null,
     };
 

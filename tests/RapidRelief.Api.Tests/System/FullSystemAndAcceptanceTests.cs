@@ -289,17 +289,16 @@ public sealed class FullSystemAndAcceptanceTests : IClassFixture<TestingWebAppFa
         });
 
         // 5. Government dispatches the relief supplies
-        var dispatchRes = await gov.PostAsJsonAsync($"/api/relief/requests/{requestId}/status", new UpdateReliefStatusRequest(
-            Status: ReliefStatus.Dispatched,
-            Note: "Relief truck on route to Dhanmondi."
+        var dispatchRes = await gov.PostAsJsonAsync($"/api/relief/requests/{requestId}/dispatch", new DispatchRequest(
+            ResourceId: resourceId,
+            DispatchedQuantity: 20,
+            CarrierOrPartner: "Red Crescent Team Alpha"
         ));
-        Assert.Equal(HttpStatusCode.OK, dispatchRes.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, dispatchRes.StatusCode);
+        var dispatchDto = (await dispatchRes.Content.ReadFromJsonAsync<ApiEnvelope<ReliefDispatchDto>>())!.Data!;
 
         // 6. Delivery confirmed
-        var deliverRes = await gov.PostAsJsonAsync($"/api/relief/requests/{requestId}/status", new UpdateReliefStatusRequest(
-            Status: ReliefStatus.Delivered,
-            Note: "Delivered to family safely."
-        ));
+        var deliverRes = await gov.PostAsync($"/api/relief/dispatches/{dispatchDto.Id}/deliver", null);
         Assert.Equal(HttpStatusCode.OK, deliverRes.StatusCode);
 
         // 7. Citizen checks request status in /mine

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net.Http.Json;
+using RapidRelief.Client.Features.Relief;
 using RapidRelief.Shared.Contracts.Common;
 using RapidRelief.Shared.Contracts.Enums;
 using RapidRelief.Shared.Contracts.ReadModels;
@@ -198,6 +199,18 @@ public sealed class CommandClient(HttpClient http)
 
     public async Task<string?> UpdateReliefStatusAsync(Guid id, ReliefStatus status, string? note, CancellationToken ct = default)
         => await PostAsync($"api/relief/requests/{id}/status", new { status, note }, ct);
+
+    public async Task<string?> CreateDispatchAsync(Guid requestId, DispatchRequest request, CancellationToken ct = default)
+        => await PostAsync($"api/relief/requests/{requestId}/dispatch", request, ct);
+
+    public async Task<string?> MarkDeliveredAsync(Guid dispatchId, CancellationToken ct = default)
+        => await PostAsync($"api/relief/dispatches/{dispatchId}/deliver", new { }, ct);
+
+    public async Task<IReadOnlyList<ReliefDispatchDto>?> GetRequestDispatchesAsync(Guid requestId, CancellationToken ct = default)
+        => await GetAsync<IReadOnlyList<ReliefDispatchDto>>($"api/relief/requests/{requestId}/dispatches", ct);
+
+    public async Task<PagedResult<ReliefDispatchDto>?> GetResourceDispatchesAsync(Guid resourceId, int page = 1, int pageSize = 50, CancellationToken ct = default)
+        => await GetAsync<PagedResult<ReliefDispatchDto>>($"api/relief/resources/{resourceId}/dispatches?page={page}&pageSize={pageSize}", ct);
 
     public static string FormatMinutes(double? minutes) => minutes switch
     {

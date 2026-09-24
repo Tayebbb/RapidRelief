@@ -57,3 +57,31 @@ public sealed class UpdateReliefStatusValidator : AbstractValidator<UpdateRelief
         RuleFor(x => x.Note).MaximumLength(500);
     }
 }
+
+public sealed record DispatchRequest(
+    Guid ResourceId,
+    double DispatchedQuantity,
+    string CarrierOrPartner);
+
+public sealed record ReliefDispatchDto(
+    Guid Id,
+    Guid ReliefRequestId,
+    Guid ResourceId,
+    string ResourceName,
+    double DispatchedQuantity,
+    string CarrierOrPartner,
+    string Status,
+    Guid DispatchedByUserId,
+    DateTimeOffset DispatchedAtUtc,
+    DateTimeOffset? DeliveredAtUtc);
+
+public sealed class DispatchValidator : AbstractValidator<DispatchRequest>
+{
+    public DispatchValidator()
+    {
+        RuleFor(x => x.ResourceId).NotEmpty();
+        RuleFor(x => x.DispatchedQuantity).GreaterThan(0).LessThanOrEqualTo(10_000_000);
+        RuleFor(x => x.CarrierOrPartner).NotEmpty().MaximumLength(150);
+    }
+}
+

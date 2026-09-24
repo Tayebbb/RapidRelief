@@ -137,12 +137,35 @@ public sealed class ReliefComprehensiveTests : IClassFixture<TestingWebAppFactor
         var allocResp = await govClient.PostAsJsonAsync($"{RequestsPath}/{created.Id}/status", new UpdateReliefStatusRequest(ReliefStatus.Allocated, "Stock allocated at Central Hub"));
         Assert.Equal(HttpStatusCode.OK, allocResp.StatusCode);
 
-        // Allocated -> Dispatched
-        var dispResp = await govClient.PostAsJsonAsync($"{RequestsPath}/{created.Id}/status", new UpdateReliefStatusRequest(ReliefStatus.Dispatched, "Driver en route"));
-        Assert.Equal(HttpStatusCode.OK, dispResp.StatusCode);
+        // Direct Allocated -> Dispatched via status endpoint is forbidden (D-118)
+        var illegalDisp = await govClient.PostAsJsonAsync($"{RequestsPath}/{created.Id}/status", new UpdateReliefStatusRequest(ReliefStatus.Dispatched, "Direct dispatch"));
+        Assert.Equal(HttpStatusCode.Conflict, illegalDisp.StatusCode);
 
-        // Dispatched -> Delivered
-        var delivResp = await govClient.PostAsJsonAsync($"{RequestsPath}/{created.Id}/status", new UpdateReliefStatusRequest(ReliefStatus.Delivered, "Signed and delivered"));
+        // Create warehouse resource for Medicine
+        var createResResp = await govClient.PostAsJsonAsync(ResourcesPath, new ReliefResourceRequest(
+            Name: "First Aid & Medicine Packs",
+            Category: ResourceType.Medicine,
+            TotalQuantity: 100,
+            AllocatedQuantity: 0,
+            Unit: "Packs",
+            WarehouseLocation: "Central Hub Depot"));
+        Assert.Equal(HttpStatusCode.Created, createResResp.StatusCode);
+        var resDto = (await createResResp.Content.ReadFromJsonAsync<ApiEnvelope<ReliefResourceDto>>())!.Data!;
+
+        // Allocated -> Dispatched via dedicated endpoint
+        var dispResp = await govClient.PostAsJsonAsync($"{RequestsPath}/{created.Id}/dispatch", new DispatchRequest(
+            ResourceId: resDto.Id,
+            DispatchedQuantity: 5,
+            CarrierOrPartner: "Red Crescent Courier"));
+        Assert.Equal(HttpStatusCode.Created, dispResp.StatusCode);
+        var dispDto = (await dispResp.Content.ReadFromJsonAsync<ApiEnvelope<ReliefDispatchDto>>())!.Data!;
+
+        // Direct Dispatched -> Delivered via status endpoint is forbidden (D-118)
+        var illegalDeliv = await govClient.PostAsJsonAsync($"{RequestsPath}/{created.Id}/status", new UpdateReliefStatusRequest(ReliefStatus.Delivered, "Direct deliver"));
+        Assert.Equal(HttpStatusCode.Conflict, illegalDeliv.StatusCode);
+
+        // Dispatched -> Delivered via dedicated endpoint
+        var delivResp = await govClient.PostAsync($"/api/relief/dispatches/{dispDto.Id}/deliver", null);
         Assert.Equal(HttpStatusCode.OK, delivResp.StatusCode);
 
         // Verify final state
@@ -360,7 +383,22 @@ public sealed class ReliefComprehensiveTests : IClassFixture<TestingWebAppFactor
         // Advance to Dispatched
         await govClient.PostAsJsonAsync($"{RequestsPath}/{created.Id}/status", new UpdateReliefStatusRequest(ReliefStatus.Approved, null));
         await govClient.PostAsJsonAsync($"{RequestsPath}/{created.Id}/status", new UpdateReliefStatusRequest(ReliefStatus.Allocated, null));
-        await govClient.PostAsJsonAsync($"{RequestsPath}/{created.Id}/status", new UpdateReliefStatusRequest(ReliefStatus.Dispatched, null));
+
+        var createResResp = await govClient.PostAsJsonAsync(ResourcesPath, new ReliefResourceRequest(
+            Name: "Emergency Clothing",
+            Category: ResourceType.Clothing,
+            TotalQuantity: 100,
+            AllocatedQuantity: 0,
+            Unit: "Items",
+            WarehouseLocation: "Hub A"));
+        Assert.Equal(HttpStatusCode.Created, createResResp.StatusCode);
+        var resDto = (await createResResp.Content.ReadFromJsonAsync<ApiEnvelope<ReliefResourceDto>>())!.Data!;
+
+        var dispResp = await govClient.PostAsJsonAsync($"{RequestsPath}/{created.Id}/dispatch", new DispatchRequest(
+            ResourceId: resDto.Id,
+            DispatchedQuantity: 10,
+            CarrierOrPartner: "Red Crescent Courier"));
+        Assert.Equal(HttpStatusCode.Created, dispResp.StatusCode);
 
         // Dispatched -> Rejected is illegal (cannot reject after leaving warehouse)
         var illegalResp2 = await govClient.PostAsJsonAsync($"{RequestsPath}/{created.Id}/status",
@@ -427,7 +465,22 @@ public sealed class ReliefComprehensiveTests : IClassFixture<TestingWebAppFactor
         // Advance to Dispatched
         await govClient.PostAsJsonAsync($"{RequestsPath}/{created.Id}/status", new UpdateReliefStatusRequest(ReliefStatus.Approved, null));
         await govClient.PostAsJsonAsync($"{RequestsPath}/{created.Id}/status", new UpdateReliefStatusRequest(ReliefStatus.Allocated, null));
-        await govClient.PostAsJsonAsync($"{RequestsPath}/{created.Id}/status", new UpdateReliefStatusRequest(ReliefStatus.Dispatched, null));
+
+        var createResResp = await govClient.PostAsJsonAsync(ResourcesPath, new ReliefResourceRequest(
+            Name: "Emergency Flashlights",
+            Category: ResourceType.Other,
+            TotalQuantity: 100,
+            AllocatedQuantity: 0,
+            Unit: "Items",
+            WarehouseLocation: "Hub B"));
+        Assert.Equal(HttpStatusCode.Created, createResResp.StatusCode);
+        var resDto = (await createResResp.Content.ReadFromJsonAsync<ApiEnvelope<ReliefResourceDto>>())!.Data!;
+
+        var dispResp = await govClient.PostAsJsonAsync($"{RequestsPath}/{created.Id}/dispatch", new DispatchRequest(
+            ResourceId: resDto.Id,
+            DispatchedQuantity: 10,
+            CarrierOrPartner: "Courier Express"));
+        Assert.Equal(HttpStatusCode.Created, dispResp.StatusCode);
 
         // Citizen attempts cancel -> 409 Conflict
         var cancelResp = await citizenClient.PostAsync($"{RequestsPath}/{created.Id}/cancel", null);

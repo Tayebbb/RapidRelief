@@ -184,11 +184,36 @@ public sealed class CitizenWorkflowTests : IClassFixture<TestingWebAppFactory>
         var request = (await create.Content.ReadFromJsonAsync<ApiEnvelope<ReliefView>>())!.Data!;
         Assert.Equal(ReliefStatus.Pending, request.Status);
 
-        foreach (var next in new[] { ReliefStatus.Approved, ReliefStatus.Allocated, ReliefStatus.Dispatched, ReliefStatus.Delivered })
+        var appResp = await Client(Roles.Government).PostAsJsonAsync($"{ReliefPath}/{request.Id}/status", new { status = ReliefStatus.Approved });
+        Assert.Equal(HttpStatusCode.OK, appResp.StatusCode);
+
+        var allocResp = await Client(Roles.Government).PostAsJsonAsync($"{ReliefPath}/{request.Id}/status", new { status = ReliefStatus.Allocated });
+        Assert.Equal(HttpStatusCode.OK, allocResp.StatusCode);
+
+        var resCreate = await Client(Roles.Government).PostAsJsonAsync("/api/relief/resources", new
         {
-            var step = await Client(Roles.Government).PostAsJsonAsync($"{ReliefPath}/{request.Id}/status", new { status = next });
-            Assert.Equal(HttpStatusCode.OK, step.StatusCode);
-        }
+            name = "Drinking Water Bottles",
+            category = ResourceType.Water,
+            totalQuantity = 100.0,
+            allocatedQuantity = 0.0,
+            unit = "liters",
+            warehouseLocation = "Central Hub"
+        });
+        Assert.Equal(HttpStatusCode.Created, resCreate.StatusCode);
+        var resId = (await resCreate.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>()).GetProperty("data").GetProperty("id").GetGuid();
+
+        var dispResp = await Client(Roles.Government).PostAsJsonAsync($"{ReliefPath}/{request.Id}/dispatch", new
+        {
+            resourceId = resId,
+            dispatchedQuantity = 4.0,
+            carrierOrPartner = "Red Crescent Courier",
+            trackingNotes = "On the way"
+        });
+        Assert.Equal(HttpStatusCode.Created, dispResp.StatusCode);
+        var dispatchId = (await dispResp.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>()).GetProperty("data").GetProperty("id").GetGuid();
+
+        var delivResp = await Client(Roles.Rescuer).PostAsync($"/api/relief/dispatches/{dispatchId}/deliver", null);
+        Assert.Equal(HttpStatusCode.OK, delivResp.StatusCode);
 
         var mine = await Client(Roles.Citizen).GetFromJsonAsync<ApiEnvelope<PagedResult<ReliefView>>>($"{ReliefPath}/mine");
         Assert.Equal(ReliefStatus.Delivered, mine!.Data!.Items.Single().Status);
