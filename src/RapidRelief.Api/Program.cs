@@ -181,6 +181,28 @@ try
 
     var app = builder.Build();
 
+    app.Use(async (context, next) =>
+    {
+        var feature = context.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpResponseBodyFeature>();
+        if (feature is not null and not Microsoft.AspNetCore.Http.StreamResponseBodyFeature)
+        {
+            var streamFeature = new Microsoft.AspNetCore.Http.StreamResponseBodyFeature(context.Response.Body);
+            context.Features.Set<Microsoft.AspNetCore.Http.Features.IHttpResponseBodyFeature>(streamFeature);
+            try
+            {
+                await next();
+            }
+            finally
+            {
+                await streamFeature.CompleteAsync();
+            }
+        }
+        else
+        {
+            await next();
+        }
+    });
+
     // ProblemDetails for exceptions and bare status codes. Binding failures keep
     // their own 4xx status via BindingFailureExceptionHandler instead of surfacing as 500.
     app.UseExceptionHandler();

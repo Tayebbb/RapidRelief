@@ -3,13 +3,19 @@
 @page "/map"
 @using RapidRelief.Shared.Contracts.Common
 @using RapidRelief.Shared.Contracts.ReadModels
+@using RapidRelief.Shared.Contracts.Services
 @using RapidRelief.Client.Common.Map
 @using RapidRelief.Client.Common.Ui
+@using RapidRelief.Client.Common.Realtime
 @using RapidRelief.Client.Features.Shelters
+@using RapidRelief.Client.Features.Rescue
 @using RapidRelief.Client.Features.SafetyZones
 @inject SheltersClient SheltersClient
 @inject SafetyZonesClient SafetyZonesClient
+@inject RescueClient RescueClient
+@inject LiveUpdateService Live
 @inject GeolocationService Geo
+@implements IDisposable
 
 <PageTitle>Live Disaster & Shelter Map — RapidRelief</PageTitle>
 
@@ -23,7 +29,7 @@
             </div>
             <h1 class="livemap-title">Live Disaster &amp; Shelter Map</h1>
             <p class="livemap-subtitle">
-                Real-time emergency shelters, live vacancy telemetry, and safe routes across the city.
+                Real-time emergency shelters, live vacancy telemetry, and active rescue units across the city.
             </p>
         </div>
         <div class="livemap-actions">
@@ -43,7 +49,7 @@
     @if (_geoNote is not null)
     {
         <div class="alert alert-warning py-2 px-3 mb-3 d-flex align-items-center justify-content-between flex-wrap gap-2" role="alert">
-            <span class="small">@_geoNote Showing shelters across central Dhaka.</span>
+            <span class="small">@_geoNote Showing telemetry across central Dhaka.</span>
             <button class="btn btn-link btn-sm text-decoration-none p-0" type="button" @onclick="LocateAsync">Try again</button>
         </div>
     }
@@ -61,8 +67,18 @@
         </div>
 
         <div class="stat-card">
-            <div class="stat-icon bg-primary-subtle text-primary">
+            <div class="stat-icon bg-success-subtle text-success">
                 <AppIcon Name="shield" Size="20" />
+            </div>
+            <div class="stat-meta">
+                <span class="stat-label">Active Rescue Units</span>
+                <strong class="stat-value">@_teams.Count Units</strong>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon bg-primary-subtle text-primary">
+                <AppIcon Name="users" Size="20" />
             </div>
             <div class="stat-meta">
                 <span class="stat-label">Total Free Spaces</span>
@@ -75,7 +91,7 @@
                 <AppIcon Name="map-pin" Size="20" />
             </div>
             <div class="stat-meta">
-                <span class="stat-label">Nearest Safe Facility</span>
+                <span class="stat-label">Nearest Facility</span>
                 <strong class="stat-value">@NearestShelterSummary</strong>
             </div>
         </div>
@@ -97,10 +113,19 @@
                         @onclick='() => SetFilter("high-cap")'>
                     High Free Capacity (@(_shelters?.Count(s => s.Capacity - s.Occupancy > 50) ?? 0))
                 </button>
+                <button type="button" class="btn-filter @(_showRescueTeams ? "active" : null)"
+                        @onclick="ToggleRescueTeams">
+                    Rescue Units (@_teams.Count)
+                </button>
             </div>
-            <span class="map-legend-item">
-                <span class="legend-dot open"></span> Safe &amp; Open
-            </span>
+            <div class="d-flex align-items-center gap-3">
+                <span class="map-legend-item">
+                    <span class="legend-dot open"></span> Safe &amp; Open
+                </span>
+                <span class="map-legend-item">
+                    <span class="legend-dot" style="background-color: var(--rr-action, #1e7a5a);"></span> Rescue Units
+                </span>
+            </div>
         </div>
 
         <div class="map-viewport-wrapper">
@@ -193,6 +218,8 @@
     private readonly MapView _map = new();
     private List<ShelterSummaryDto>? _shelters;
     private List<ShelterRecommendationDto> _recommendations = [];
+    private List<RescueTeamLiveDto> _teams = [];
+    private bool _showRescueTeams = true;
     private string _activeFilter = "all";
     private bool _loading = true;
     private bool _locating;
@@ -200,6 +227,7 @@
     private GeoPoint? _userLocation;
     private GeoPoint? _gpsFix;
     private double _gpsAccuracy;
+    private IDisposable? _liveSub;
 
     private GeoPoint MapCenter => _userLocation ?? DhakaFallback;
 
@@ -241,12 +269,17 @@
     private List<SafetyZoneDto> _safetyZones = [];
     private List<RoadClosureDto> _roadClosures = [];
 
+    protected override void OnInitialized()
+    {
+        _liveSub = Live.Subscribe(RefreshAsync, RealtimeTopics.CitizenFeed);
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
             await LocateAsync();
-            await LoadSheltersAsync();
+            await LoadMapDataAsync();
         }
     }
 
@@ -278,12 +311,12 @@
     {
         _loading = true;
         StateHasChanged();
-        await LoadSheltersAsync();
+        await LoadMapDataAsync();
         _loading = false;
         StateHasChanged();
     }
 
-    private async Task LoadSheltersAsync()
+    private async Task LoadMapDataAsync()
     {
         try
         {
@@ -292,8 +325,9 @@
             var recsTask = SheltersClient.GetRecommendationsAsync(center.Latitude, center.Longitude, count: 3);
             var zonesTask = SafetyZonesClient.GetZonesAsync();
             var closuresTask = SafetyZonesClient.GetClosuresAsync();
+            var teamsTask = RescueClient.GetLiveTeamsAsync();
 
-            await Task.WhenAll(sheltersTask, recsTask, zonesTask, closuresTask);
+            await Task.WhenAll(sheltersTask, recsTask, zonesTask, closuresTask, teamsTask);
 
             var envelope = await sheltersTask;
             if (envelope?.Data is not null)
@@ -304,12 +338,13 @@
             _recommendations = (await recsTask).ToList();
             _safetyZones = (await zonesTask).ToList();
             _roadClosures = (await closuresTask).ToList();
+            _teams = (await teamsTask).ToList();
 
             UpdateMapLayers();
         }
         catch (HttpRequestException)
         {
-            _geoNote = "Could not fetch shelter telemetry. Check your connection.";
+            _geoNote = "Could not fetch map telemetry. Check your connection.";
         }
         finally
         {
@@ -324,6 +359,12 @@
         UpdateMapLayers();
     }
 
+    private void ToggleRescueTeams()
+    {
+        _showRescueTeams = !_showRescueTeams;
+        UpdateMapLayers();
+    }
+
     private void UpdateMapLayers()
     {
         if (_shelters is not null)
@@ -332,11 +373,17 @@
             _map.SetLayer(MapLayerId.Shelters, visibleShelters.ToPlacemarks());
         }
 
+        _map.SetLayer(MapLayerId.Teams, _showRescueTeams ? _teams.ToPlacemarks() : []);
         _map.SetLayer(MapLayerId.SafetyZones, _safetyZones.ToPlacemarks());
         _map.SetLayer(MapLayerId.RoadClosures, _roadClosures.ToPlacemarks());
 
         _map.UserLocation = _gpsFix;
         _map.UserLocationAccuracyMeters = _gpsAccuracy;
         _map.FallbackCenter = MapCenter;
+    }
+
+    public void Dispose()
+    {
+        _liveSub?.Dispose();
     }
 }

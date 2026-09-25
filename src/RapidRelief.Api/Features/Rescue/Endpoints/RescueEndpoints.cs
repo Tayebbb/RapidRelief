@@ -58,6 +58,7 @@ public static class RescueEndpoints
         group.MapPost("/missions/{id:guid}/status", UpdateStatusAsync);
         group.MapPost("/missions/{id:guid}/reassign", ReassignAsync).RequireAuthorization(AuthPolicies.RequireGovernment);
         group.MapGet("/teams", TeamsAsync);
+        group.MapGet("/teams/live", LiveTeamsAsync).AllowAnonymous();
         group.MapGet("/teams/suitable", SuitableTeamsAsync);
         group.MapPost("/teams", CreateTeamAsync).RequireAuthorization(AuthPolicies.RequireGovernment);
         group.MapPut("/teams/{id:guid}", UpdateTeamAsync).RequireAuthorization(AuthPolicies.RequireGovernment);
@@ -824,6 +825,20 @@ public static class RescueEndpoints
         team.UpdatedAtUtc = clock.GetUtcNow();
         await db.SaveChangesAsync(ct);
 
+        var liveDto = new RescueTeamLiveDto(
+            team.Id,
+            team.TeamName,
+            team.Specialization,
+            team.Status,
+            team.CurrentLatitude.Value,
+            team.CurrentLongitude.Value,
+            team.UpdatedAtUtc
+        );
+
+        await notifier.NotifyRoleAsync(Roles.Government, RealtimeTopics.RescueTeamPosition, liveDto, ct);
+        await notifier.NotifyRoleAsync(Roles.Rescue, RealtimeTopics.RescueTeamPosition, liveDto, ct);
+        await notifier.NotifyRoleAsync(Roles.Citizen, RealtimeTopics.RescueTeamPosition, liveDto, ct);
+
         if (statusChanged)
         {
             var payload = new
@@ -837,6 +852,31 @@ public static class RescueEndpoints
         }
 
         return Results.NoContent();
+    }
+
+    private static async Task<IResult> LiveTeamsAsync(
+        RescueDbContext db,
+        DatabaseHealth health,
+        CancellationToken ct)
+    {
+        if (health.PostgresAvailable != true)
+        {
+            return DatabaseUnavailable();
+        }
+
+        var teams = await db.Teams.AsNoTracking()
+            .Where(t => t.Status != TeamStatus.OffDuty && t.CurrentLatitude != null && t.CurrentLongitude != null)
+            .Select(t => new RescueTeamLiveDto(
+                t.Id,
+                t.TeamName,
+                t.Specialization,
+                t.Status,
+                t.CurrentLatitude!.Value,
+                t.CurrentLongitude!.Value,
+                t.UpdatedAtUtc))
+            .ToListAsync(ct);
+
+        return Results.Ok(new ApiEnvelope<IReadOnlyList<RescueTeamLiveDto>>(teams));
     }
 
     private static async Task<IResult> UpdateTeamStatusAsync(

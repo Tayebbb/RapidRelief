@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http.Json;
 using RapidRelief.Shared.Contracts.Common;
 using RapidRelief.Shared.Contracts.Enums;
+using RapidRelief.Shared.Contracts.ReadModels;
 
 namespace RapidRelief.Client.Features.Rescue;
 
@@ -154,6 +155,19 @@ public sealed class RescueClient(HttpClient http)
         try
         {
             var envelope = await http.GetFromJsonAsync<ApiEnvelope<List<RescueTeamDto>>>($"{BasePath}/teams", ct);
+            return envelope?.Data ?? [];
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or NotSupportedException)
+        {
+            return [];
+        }
+    }
+
+    public async Task<IReadOnlyList<RescueTeamLiveDto>> GetLiveTeamsAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            var envelope = await http.GetFromJsonAsync<ApiEnvelope<List<RescueTeamLiveDto>>>($"{BasePath}/teams/live", ct);
             return envelope?.Data ?? [];
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or NotSupportedException)
