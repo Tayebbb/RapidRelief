@@ -16,6 +16,11 @@ public static class MapMarkerKind
     public const string Shelter = "shelter";
     public const string Relief = "relief";
     public const string Pin = "pin";
+    public const string DangerZone = "dangerzone";
+    public const string EvacuationZone = "evacuationzone";
+    public const string SafeAssemblyPoint = "safeassemblypoint";
+    public const string RestrictedArea = "restrictedarea";
+    public const string RoadClosure = "roadclosure";
 }
 
 /// <summary>One weighted contribution to the heat layer; weight is relative within a render.</summary>

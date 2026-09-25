@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -10,6 +11,8 @@ using RapidRelief.Api.Features.Alerts.Data;
 using RapidRelief.Api.Features.Auth.Data;
 using RapidRelief.Api.Features.Auth.Services;
 using RapidRelief.Api.Features.Realtime.Data;
+using RapidRelief.Api.Features.SafetyZones.Data;
+using RapidRelief.Api.Features.SafetyZones.Services;
 using RapidRelief.Api.Features.Sample.Data;
 using RapidRelief.Api.Infrastructure.Persistence;
 
@@ -47,6 +50,7 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
         builder.UseSetting("Ai:FreeLlmPool:BaseUrl", "");
         builder.ConfigureServices(services =>
         {
+            services.AddTransient<Microsoft.AspNetCore.Http.IProblemDetailsService, TestProblemDetailsService>();
             AddSqliteContext<SampleDbContext>(services);
             AddSqliteContext<AuthDbContext>(services);
             AddSqliteContext<RapidRelief.Api.Features.Shelters.Data.OpsDbContext>(services);
@@ -58,7 +62,31 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
             AddSqliteContext<RapidRelief.Api.Features.Relief.Data.ReliefDbContext>(services);
             AddSqliteContext<RapidRelief.Api.Features.Audit.Data.AuditDbContext>(services);
             AddSqliteContext<RapidRelief.Api.Features.Registry.Data.RegistryDbContext>(services);
+            AddSqliteContext<SafetyZonesDbContext>(services);
         });
+    }
+
+    private sealed class TestProblemDetailsService : Microsoft.AspNetCore.Http.IProblemDetailsService
+    {
+        public async ValueTask<bool> TryWriteAsync(Microsoft.AspNetCore.Http.ProblemDetailsContext context)
+        {
+            var response = context.HttpContext.Response;
+            if (response.HasStarted)
+            {
+                return false;
+            }
+
+            response.ContentType = "application/problem+json";
+            response.StatusCode = context.ProblemDetails.Status ?? response.StatusCode;
+            var json = System.Text.Json.JsonSerializer.Serialize(context.ProblemDetails, System.Text.Json.JsonSerializerOptions.Web);
+            await response.WriteAsync(json, context.HttpContext.RequestAborted);
+            return true;
+        }
+
+        public async ValueTask WriteAsync(Microsoft.AspNetCore.Http.ProblemDetailsContext context)
+        {
+            await TryWriteAsync(context);
+        }
     }
 
     protected override IHost CreateHost(IHostBuilder builder)
@@ -76,6 +104,7 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
         EnsureCreated<RapidRelief.Api.Features.Relief.Data.ReliefDbContext>(host);
         EnsureCreated<RapidRelief.Api.Features.Audit.Data.AuditDbContext>(host);
         EnsureCreated<RapidRelief.Api.Features.Registry.Data.RegistryDbContext>(host);
+        EnsureCreated<SafetyZonesDbContext>(host);
 
         // MigrationRunner is skipped in Testing, so module seeding never runs — seed here (risk 3).
         using (var scope = host.Services.CreateScope())
@@ -86,6 +115,7 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
                 .SeedAsync(scope.ServiceProvider, CancellationToken.None).GetAwaiter().GetResult();
             RapidRelief.Api.Features.Registry.Services.RegistrySeeder
                 .SeedAsync(scope.ServiceProvider, CancellationToken.None).GetAwaiter().GetResult();
+            SafetyZonesSeeder.SeedAsync(scope.ServiceProvider, CancellationToken.None).GetAwaiter().GetResult();
         }
 
         // EnsureCreated succeeded ⇒ the relational store is real and reachable, so the

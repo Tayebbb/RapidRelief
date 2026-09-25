@@ -20,6 +20,7 @@ using RapidRelief.Client.Features.Rescue;
 using RapidRelief.Client.Features.Shelters;
 using RapidRelief.Client.Features.CommandCenter;
 using RapidRelief.Client.Features.Registry;
+using RapidRelief.Client.Features.SafetyZones;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
@@ -79,6 +80,7 @@ builder.Services.AddScoped(sp => new IncidentsClient(sp.GetRequiredService<HttpC
 builder.Services.AddScoped(sp => new RescueClient(sp.GetRequiredService<HttpClient>()));
 builder.Services.AddScoped(sp => new ReliefClient(sp.GetRequiredService<HttpClient>()));
 builder.Services.AddScoped(sp => new RegistryClient(sp.GetRequiredService<HttpClient>()));
+builder.Services.AddScoped(sp => new SafetyZonesClient(sp.GetRequiredService<HttpClient>()));
 
 // Command centre: aggregates the ops metrics, audit trail, inventory and admin surfaces.
 builder.Services.AddScoped(sp => new CommandClient(sp.GetRequiredService<HttpClient>()));

@@ -1,0 +1,785 @@
+@page "/g/safety-zones"
+@page "/admin/safety-zones"
+@page "/safety/zones"
+@layout MainLayout
+@namespace RapidRelief.Client.Features.SafetyZones.Pages
+@using RapidRelief.Shared.Contracts.Common
+@using RapidRelief.Shared.Contracts.Enums
+@using RapidRelief.Shared.Contracts.ReadModels
+@using RapidRelief.Shared.Contracts.Services
+@using RapidRelief.Client.Common.Map
+@using RapidRelief.Client.Common.Realtime
+@using RapidRelief.Client.Common.Ui
+@using RapidRelief.Client.Features.Command.Components
+@using RapidRelief.Client.Features.SafetyZones
+@attribute [Authorize(Roles = "Government,Admin")]
+@inject SafetyZonesClient Client
+@inject LiveUpdateService Live
+@implements IDisposable
+
+<PageTitle>Safety Zones & Road Closures — RapidRelief</PageTitle>
+
+<div class="cmd-layout">
+    <header class="cmd-header">
+        <div>
+            <div class="cmd-role-badge">
+                <AppIcon Name="shield" Size="14" />
+                <span>Command Operations</span>
+            </div>
+            <h1 class="cmd-title">Safety Zones &amp; Road Closures</h1>
+            <p class="cmd-subtitle">
+                Establish disaster danger perimeters, evacuation zones, assembly points, and live traffic blockades.
+            </p>
+        </div>
+        <div class="cmd-header-actions">
+            <RealtimeIndicator />
+            <button type="button" class="rr-btn rr-btn-primary rr-btn-sm" @onclick="OpenCreateZoneModal">
+                <AppIcon Name="plus" Size="15" /><span>Add Safety Zone</span>
+            </button>
+            <button type="button" class="rr-btn rr-btn-secondary rr-btn-sm" @onclick="OpenCreateClosureModal">
+                <AppIcon Name="alert-triangle" Size="15" /><span>Add Road Closure</span>
+            </button>
+            <button type="button" class="rr-btn rr-btn-ghost rr-btn-sm" @onclick="LoadDataAsync" disabled="@_loading">
+                <AppIcon Name="refresh" Size="15" /><span>Refresh</span>
+            </button>
+        </div>
+    </header>
+
+    <CommandTabs Active="g/safety-zones" />
+
+    <!-- KPI Metric Summary -->
+    <div class="cmd-kpi-grid">
+        <div class="cmd-kpi-card">
+            <span class="cmd-kpi-label">Active Danger Zones</span>
+            <span class="cmd-kpi-value text-danger">@_zones.Count(z => z.IsActive && (z.ZoneType == ZoneType.DangerZone || z.ZoneType == ZoneType.EvacuationZone))</span>
+            <span class="cmd-kpi-sub">High-risk flashpoints</span>
+        </div>
+        <div class="cmd-kpi-card">
+            <span class="cmd-kpi-label">Safe Assembly Points</span>
+            <span class="cmd-kpi-value text-success">@_zones.Count(z => z.IsActive && z.ZoneType == ZoneType.SafeAssemblyPoint)</span>
+            <span class="cmd-kpi-sub">Designated relief staging</span>
+        </div>
+        <div class="cmd-kpi-card">
+            <span class="cmd-kpi-label">Active Road Closures</span>
+            <span class="cmd-kpi-value text-warning">@_closures.Count(c => c.IsActive)</span>
+            <span class="cmd-kpi-sub">Floods &amp; debris blockades</span>
+        </div>
+        <div class="cmd-kpi-card">
+            <span class="cmd-kpi-label">Total Monitored Areas</span>
+            <span class="cmd-kpi-value">@(_zones.Count + _closures.Count)</span>
+            <span class="cmd-kpi-sub">Active &amp; scheduled perimeters</span>
+        </div>
+    </div>
+
+    <!-- Filter & Sub-Nav Bar -->
+    <div class="cmd-card" style="margin-bottom: var(--space-4);">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+            <div class="d-flex gap-2 flex-wrap">
+                <button type="button" class="rr-btn rr-btn-sm @(_tab == TabMode.All ? "rr-btn-primary" : "rr-btn-ghost")"
+                        @onclick="() => _tab = TabMode.All">
+                    All Entries (@(_zones.Count + _closures.Count))
+                </button>
+                <button type="button" class="rr-btn rr-btn-sm @(_tab == TabMode.DangerZones ? "rr-btn-primary" : "rr-btn-ghost")"
+                        @onclick="() => _tab = TabMode.DangerZones">
+                    Danger &amp; Evacuation Zones (@_zones.Count(z => z.ZoneType == ZoneType.DangerZone || z.ZoneType == ZoneType.EvacuationZone))
+                </button>
+                <button type="button" class="rr-btn rr-btn-sm @(_tab == TabMode.SafePoints ? "rr-btn-primary" : "rr-btn-ghost")"
+                        @onclick="() => _tab = TabMode.SafePoints">
+                    Safe Assembly Points (@_zones.Count(z => z.ZoneType == ZoneType.SafeAssemblyPoint))
+                </button>
+                <button type="button" class="rr-btn rr-btn-sm @(_tab == TabMode.RoadClosures ? "rr-btn-primary" : "rr-btn-ghost")"
+                        @onclick="() => _tab = TabMode.RoadClosures">
+                    Road Closures (@_closures.Count)
+                </button>
+            </div>
+
+            <div class="d-flex gap-2 align-items-center">
+                <input type="search" class="rr-input" placeholder="Search by name, road, reason..."
+                       style="min-width: 240px; padding: 6px 12px; font-size: 13px;"
+                       @bind="_search" @bind:event="oninput" />
+            </div>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <RrLoadingState Message="Loading safety perimeters and road closures..." />
+    }
+    else if (_error is not null)
+    {
+        <RrErrorState Title="Failed to load safety data" Message="@_error" OnRetry="LoadDataAsync" />
+    }
+    else
+    {
+        <!-- Main Content Lists -->
+        <div class="d-flex flex-column gap-4">
+            @if (_tab != TabMode.RoadClosures)
+            {
+                <section>
+                    <header class="d-flex align-items-center justify-content-between mb-3">
+                        <h2 class="h5 m-0 d-flex align-items-center gap-2">
+                            <AppIcon Name="shield" Size="18" />
+                            <span>Safety &amp; Danger Zones (@FilteredZones.Count)</span>
+                        </h2>
+                    </header>
+
+                    @if (FilteredZones.Count == 0)
+                    {
+                        <RrEmptyState Icon="shield" Title="No safety zones found" Description="No zones match the current filter." />
+                    }
+                    else
+                    {
+                        <div class="cmd-table-shell">
+                            <table class="cmd-table">
+                                <thead>
+                                    <tr>
+                                        <th>Zone Name &amp; Description</th>
+                                        <th>Type</th>
+                                        <th>Severity</th>
+                                        <th>Geometry &amp; Area</th>
+                                        <th>Status</th>
+                                        <th style="text-align: right;">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var zone in FilteredZones)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <strong>@zone.Name</strong>
+                                                <p class="small text-muted mb-0" style="max-width: 320px;">@zone.Description</p>
+                                            </td>
+                                            <td>
+                                                <span class="rr-chip @ZoneTypeChip(zone.ZoneType)">@zone.ZoneType</span>
+                                            </td>
+                                            <td>
+                                                <span class="rr-chip @SeverityChip(zone.Severity)">@zone.Severity</span>
+                                            </td>
+                                            <td>
+                                                <div class="small">
+                                                    <div><strong>@zone.GeometryType</strong></div>
+                                                    <span class="text-muted">
+                                                        @(zone.GeometryType == "Circle" ? $"Lat: {zone.CenterLat:F4}, Lng: {zone.CenterLng:F4} (r: {zone.RadiusMeters}m)" : "Custom Polygon")
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                @if (zone.IsActive)
+                                                {
+                                                    <span class="rr-chip rr-chip-success">Active</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="rr-chip">Inactive</span>
+                                                }
+                                            </td>
+                                            <td style="text-align: right;">
+                                                <div class="d-flex justify-content-end gap-1">
+                                                    <button type="button" class="rr-btn rr-btn-ghost rr-btn-xs"
+                                                            title="@(zone.IsActive ? "Deactivate" : "Activate")"
+                                                            @onclick="() => ToggleZoneActiveAsync(zone)">
+                                                        <AppIcon Name="@(zone.IsActive ? "close" : "check")" Size="14" />
+                                                    </button>
+                                                    <button type="button" class="rr-btn rr-btn-ghost rr-btn-xs"
+                                                            title="Edit Zone"
+                                                            @onclick="() => OpenEditZoneModal(zone)">
+                                                        <AppIcon Name="edit" Size="14" />
+                                                    </button>
+                                                    <button type="button" class="rr-btn rr-btn-ghost rr-btn-xs text-danger"
+                                                            title="Delete Zone"
+                                                            @onclick="() => ConfirmDeleteZone(zone)">
+                                                        <AppIcon Name="trash" Size="14" />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </section>
+            }
+
+            @if (_tab == TabMode.All || _tab == TabMode.RoadClosures)
+            {
+                <section>
+                    <header class="d-flex align-items-center justify-content-between mb-3">
+                        <h2 class="h5 m-0 d-flex align-items-center gap-2">
+                            <AppIcon Name="alert-triangle" Size="18" />
+                            <span>Road Closures &amp; Blockades (@FilteredClosures.Count)</span>
+                        </h2>
+                    </header>
+
+                    @if (FilteredClosures.Count == 0)
+                    {
+                        <RrEmptyState Icon="alert-triangle" Title="No road closures found" Description="No closures match the current filter." />
+                    }
+                    else
+                    {
+                        <div class="cmd-table-shell">
+                            <table class="cmd-table">
+                                <thead>
+                                    <tr>
+                                        <th>Road Name</th>
+                                        <th>Severity</th>
+                                        <th>Blocked Reason</th>
+                                        <th>Alternate Detour</th>
+                                        <th>Status</th>
+                                        <th style="text-align: right;">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var closure in FilteredClosures)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <strong>@closure.RoadName</strong>
+                                                @if (!string.IsNullOrWhiteSpace(closure.Description))
+                                                {
+                                                    <p class="small text-muted mb-0">@closure.Description</p>
+                                                }
+                                            </td>
+                                            <td>
+                                                <span class="rr-chip rr-chip-danger">@closure.Severity</span>
+                                            </td>
+                                            <td>
+                                                <span class="small">@closure.BlockedReason</span>
+                                            </td>
+                                            <td>
+                                                <span class="small text-success">@(closure.AlternateRouteAdvice ?? "None listed")</span>
+                                            </td>
+                                            <td>
+                                                @if (closure.IsActive)
+                                                {
+                                                    <span class="rr-chip rr-chip-danger">Closed</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="rr-chip rr-chip-success">Reopened</span>
+                                                }
+                                            </td>
+                                            <td style="text-align: right;">
+                                                <div class="d-flex justify-content-end gap-1">
+                                                    <button type="button" class="rr-btn rr-btn-ghost rr-btn-xs"
+                                                            title="@(closure.IsActive ? "Mark Reopened" : "Mark Closed")"
+                                                            @onclick="() => ToggleClosureActiveAsync(closure)">
+                                                        <AppIcon Name="@(closure.IsActive ? "check" : "close")" Size="14" />
+                                                    </button>
+                                                    <button type="button" class="rr-btn rr-btn-ghost rr-btn-xs"
+                                                            title="Edit Closure"
+                                                            @onclick="() => OpenEditClosureModal(closure)">
+                                                        <AppIcon Name="edit" Size="14" />
+                                                    </button>
+                                                    <button type="button" class="rr-btn rr-btn-ghost rr-btn-xs text-danger"
+                                                            title="Delete Closure"
+                                                            @onclick="() => ConfirmDeleteClosure(closure)">
+                                                        <AppIcon Name="trash" Size="14" />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </section>
+            }
+        </div>
+    }
+</div>
+
+<!-- ========================================================================= -->
+<!-- CREATE / EDIT SAFETY ZONE MODAL -->
+<!-- ========================================================================= -->
+@if (_zoneModalOpen)
+{
+    <RrModal Title="@(_editingZoneId.HasValue ? "Edit Safety Zone" : "Establish New Safety Zone")"
+             IsOpen="_zoneModalOpen" OnClose="CloseZoneModal">
+        <div class="d-flex flex-column gap-3">
+            <div class="cmd-field">
+                <label>Zone Name *</label>
+                <input type="text" class="rr-input" @bind="_zoneFormName" placeholder="e.g. Mirpur Flood Danger Zone" />
+            </div>
+
+            <div class="cmd-field">
+                <label>Description</label>
+                <textarea class="rr-input" rows="2" @bind="_zoneFormDesc" placeholder="Context, risks, safety guidelines..."></textarea>
+            </div>
+
+            <div class="row g-2">
+                <div class="col-6 cmd-field">
+                    <label>Zone Type</label>
+                    <select class="rr-input" @bind="_zoneFormType">
+                        @foreach (var type in Enum.GetValues<ZoneType>())
+                        {
+                            <option value="@type">@type</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-6 cmd-field">
+                    <label>Severity</label>
+                    <select class="rr-input" @bind="_zoneFormSeverity">
+                        @foreach (var sev in Enum.GetValues<Severity>())
+                        {
+                            <option value="@sev">@sev</option>
+                        }
+                    </select>
+                </div>
+            </div>
+
+            <div class="row g-2">
+                <div class="col-4 cmd-field">
+                    <label>Geometry</label>
+                    <select class="rr-input" @bind="_zoneFormGeometry">
+                        <option value="Circle">Circle</option>
+                        <option value="Polygon">Polygon</option>
+                    </select>
+                </div>
+                <div class="col-4 cmd-field">
+                    <label>Center Lat</label>
+                    <input type="number" step="0.0001" class="rr-input" @bind="_zoneFormLat" />
+                </div>
+                <div class="col-4 cmd-field">
+                    <label>Center Lng</label>
+                    <input type="number" step="0.0001" class="rr-input" @bind="_zoneFormLng" />
+                </div>
+            </div>
+
+            @if (_zoneFormGeometry == "Circle")
+            {
+                <div class="cmd-field">
+                    <label>Radius (Meters) *</label>
+                    <input type="number" step="10" min="10" class="rr-input" @bind="_zoneFormRadius" placeholder="e.g. 500" />
+                </div>
+            }
+            else
+            {
+                <div class="cmd-field">
+                    <label>Polygon Coordinates JSON</label>
+                    <input type="text" class="rr-input font-monospace" @bind="_zoneFormCoords" placeholder="[[23.83,90.32],[23.84,90.33],[23.83,90.34]]" />
+                </div>
+            }
+
+            @if (_formError is not null)
+            {
+                <div class="alert alert-danger py-2 small mb-0">@_formError</div>
+            }
+
+            <div class="d-flex justify-content-end gap-2 mt-3">
+                <button type="button" class="rr-btn rr-btn-ghost rr-btn-sm" @onclick="CloseZoneModal">Cancel</button>
+                <button type="button" class="rr-btn rr-btn-primary rr-btn-sm" @onclick="SaveZoneAsync" disabled="@_saving">
+                    @(_saving ? "Saving…" : "Save Zone")
+                </button>
+            </div>
+        </div>
+    </RrModal>
+}
+
+<!-- ========================================================================= -->
+<!-- CREATE / EDIT ROAD CLOSURE MODAL -->
+<!-- ========================================================================= -->
+@if (_closureModalOpen)
+{
+    <RrModal Title="@(_editingClosureId.HasValue ? "Edit Road Closure" : "Report Road Closure")"
+             IsOpen="_closureModalOpen" OnClose="CloseClosureModal">
+        <div class="d-flex flex-column gap-3">
+            <div class="cmd-field">
+                <label>Road / Highway Name *</label>
+                <input type="text" class="rr-input" @bind="_closureFormRoad" placeholder="e.g. Rampura Bridge Crossing" />
+            </div>
+
+            <div class="cmd-field">
+                <label>Description</label>
+                <textarea class="rr-input" rows="2" @bind="_closureFormDesc" placeholder="Situation details..."></textarea>
+            </div>
+
+            <div class="cmd-field">
+                <label>Severity Type</label>
+                <select class="rr-input" @bind="_closureFormSeverity">
+                    @foreach (var sev in Enum.GetValues<ClosureSeverity>())
+                    {
+                        <option value="@sev">@sev</option>
+                    }
+                </select>
+            </div>
+
+            <div class="cmd-field">
+                <label>Reason for Blockade *</label>
+                <input type="text" class="rr-input" @bind="_closureFormReason" placeholder="e.g. Flood water level rose 2m above deck" />
+            </div>
+
+            <div class="cmd-field">
+                <label>Alternate Detour Advice</label>
+                <input type="text" class="rr-input" @bind="_closureFormDetour" placeholder="e.g. Divert via Hatirjheel bypass" />
+            </div>
+
+            <div class="cmd-field">
+                <label>Coordinates Line JSON [[lat,lng],[lat,lng]]</label>
+                <input type="text" class="rr-input font-monospace" @bind="_closureFormCoords" placeholder="[[23.7615,90.4200],[23.7635,90.4245]]" />
+            </div>
+
+            @if (_formError is not null)
+            {
+                <div class="alert alert-danger py-2 small mb-0">@_formError</div>
+            }
+
+            <div class="d-flex justify-content-end gap-2 mt-3">
+                <button type="button" class="rr-btn rr-btn-ghost rr-btn-sm" @onclick="CloseClosureModal">Cancel</button>
+                <button type="button" class="rr-btn rr-btn-primary rr-btn-sm" @onclick="SaveClosureAsync" disabled="@_saving">
+                    @(_saving ? "Saving…" : "Save Closure")
+                </button>
+            </div>
+        </div>
+    </RrModal>
+}
+
+@code {
+    private enum TabMode { All, DangerZones, SafePoints, RoadClosures }
+
+    private TabMode _tab = TabMode.All;
+    private string _search = string.Empty;
+    private bool _loading = true;
+    private string? _error;
+    private bool _saving;
+    private string? _formError;
+
+    private List<SafetyZoneDto> _zones = [];
+    private List<RoadClosureDto> _closures = [];
+
+    // Zone Modal state
+    private bool _zoneModalOpen;
+    private Guid? _editingZoneId;
+    private string _zoneFormName = "";
+    private string _zoneFormDesc = "";
+    private ZoneType _zoneFormType = ZoneType.DangerZone;
+    private Severity _zoneFormSeverity = Severity.Severe;
+    private string _zoneFormGeometry = "Circle";
+    private double _zoneFormLat = 23.8103;
+    private double _zoneFormLng = 90.4125;
+    private double _zoneFormRadius = 500;
+    private string _zoneFormCoords = "[]";
+
+    // Closure Modal state
+    private bool _closureModalOpen;
+    private Guid? _editingClosureId;
+    private string _closureFormRoad = "";
+    private string _closureFormDesc = "";
+    private ClosureSeverity _closureFormSeverity = ClosureSeverity.Flooded;
+    private string _closureFormReason = "";
+    private string? _closureFormDetour = "";
+    private string _closureFormCoords = "[]";
+
+    private IDisposable? _liveSub;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _liveSub = Live.Subscribe(LoadDataAsync, RealtimeTopics.SafetyZoneUpdated, RealtimeTopics.RoadClosureUpdated);
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var zonesTask = Client.GetZonesAsync(all: true);
+            var closuresTask = Client.GetClosuresAsync(all: true);
+            await Task.WhenAll(zonesTask, closuresTask);
+
+            _zones = (await zonesTask).ToList();
+            _closures = (await closuresTask).ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private List<SafetyZoneDto> FilteredZones => _zones.Where(z =>
+    {
+        if (_tab == TabMode.DangerZones && z.ZoneType != ZoneType.DangerZone && z.ZoneType != ZoneType.EvacuationZone) return false;
+        if (_tab == TabMode.SafePoints && z.ZoneType != ZoneType.SafeAssemblyPoint) return false;
+        if (string.IsNullOrWhiteSpace(_search)) return true;
+        return z.Name.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+               z.Description.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+               z.ZoneType.ToString().Contains(_search, StringComparison.OrdinalIgnoreCase);
+    }).ToList();
+
+    private List<RoadClosureDto> FilteredClosures => _closures.Where(c =>
+    {
+        if (string.IsNullOrWhiteSpace(_search)) return true;
+        return c.RoadName.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+               c.Description.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+               c.BlockedReason.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+               (c.AlternateRouteAdvice?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false);
+    }).ToList();
+
+    // =========================================================================
+    // SAFETY ZONE ACTIONS
+    // =========================================================================
+
+    private void OpenCreateZoneModal()
+    {
+        _editingZoneId = null;
+        _zoneFormName = "";
+        _zoneFormDesc = "";
+        _zoneFormType = ZoneType.DangerZone;
+        _zoneFormSeverity = Severity.Severe;
+        _zoneFormGeometry = "Circle";
+        _zoneFormLat = 23.8103;
+        _zoneFormLng = 90.4125;
+        _zoneFormRadius = 500;
+        _zoneFormCoords = "[]";
+        _formError = null;
+        _zoneModalOpen = true;
+    }
+
+    private void OpenEditZoneModal(SafetyZoneDto z)
+    {
+        _editingZoneId = z.Id;
+        _zoneFormName = z.Name;
+        _zoneFormDesc = z.Description;
+        _zoneFormType = z.ZoneType;
+        _zoneFormSeverity = z.Severity;
+        _zoneFormGeometry = z.GeometryType;
+        _zoneFormLat = z.CenterLat;
+        _zoneFormLng = z.CenterLng;
+        _zoneFormRadius = z.RadiusMeters;
+        _zoneFormCoords = z.CoordinatesJson;
+        _formError = null;
+        _zoneModalOpen = true;
+    }
+
+    private void CloseZoneModal() => _zoneModalOpen = false;
+
+    private async Task SaveZoneAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_zoneFormName))
+        {
+            _formError = "Zone name is required.";
+            return;
+        }
+
+        _saving = true;
+        _formError = null;
+        try
+        {
+            if (_editingZoneId.HasValue)
+            {
+                var existing = _zones.FirstOrDefault(x => x.Id == _editingZoneId.Value);
+                var req = new UpdateSafetyZoneRequest(
+                    _zoneFormName,
+                    _zoneFormDesc,
+                    _zoneFormType,
+                    _zoneFormSeverity,
+                    _zoneFormGeometry,
+                    _zoneFormLat,
+                    _zoneFormLng,
+                    _zoneFormRadius,
+                    _zoneFormCoords,
+                    existing?.IsActive ?? true,
+                    null);
+
+                var res = await Client.UpdateZoneAsync(_editingZoneId.Value, req);
+                if (res is null) { _formError = "Failed to update zone."; return; }
+            }
+            else
+            {
+                var req = new CreateSafetyZoneRequest(
+                    _zoneFormName,
+                    _zoneFormDesc,
+                    _zoneFormType,
+                    _zoneFormSeverity,
+                    _zoneFormGeometry,
+                    _zoneFormLat,
+                    _zoneFormLng,
+                    _zoneFormRadius,
+                    _zoneFormCoords,
+                    null);
+
+                var res = await Client.CreateZoneAsync(req);
+                if (res is null) { _formError = "Failed to establish zone."; return; }
+            }
+
+            CloseZoneModal();
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            _formError = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task ToggleZoneActiveAsync(SafetyZoneDto z)
+    {
+        var req = new UpdateSafetyZoneRequest(
+            z.Name,
+            z.Description,
+            z.ZoneType,
+            z.Severity,
+            z.GeometryType,
+            z.CenterLat,
+            z.CenterLng,
+            z.RadiusMeters,
+            z.CoordinatesJson,
+            !z.IsActive,
+            z.ExpiresAtUtc);
+
+        await Client.UpdateZoneAsync(z.Id, req);
+        await LoadDataAsync();
+    }
+
+    private async Task ConfirmDeleteZone(SafetyZoneDto z)
+    {
+        await Client.DeleteZoneAsync(z.Id);
+        await LoadDataAsync();
+    }
+
+    // =========================================================================
+    // ROAD CLOSURE ACTIONS
+    // =========================================================================
+
+    private void OpenCreateClosureModal()
+    {
+        _editingClosureId = null;
+        _closureFormRoad = "";
+        _closureFormDesc = "";
+        _closureFormSeverity = ClosureSeverity.Flooded;
+        _closureFormReason = "";
+        _closureFormDetour = "";
+        _closureFormCoords = "[]";
+        _formError = null;
+        _closureModalOpen = true;
+    }
+
+    private void OpenEditClosureModal(RoadClosureDto c)
+    {
+        _editingClosureId = c.Id;
+        _closureFormRoad = c.RoadName;
+        _closureFormDesc = c.Description;
+        _closureFormSeverity = c.Severity;
+        _closureFormReason = c.BlockedReason;
+        _closureFormDetour = c.AlternateRouteAdvice;
+        _closureFormCoords = c.CoordinatesJson;
+        _formError = null;
+        _closureModalOpen = true;
+    }
+
+    private void CloseClosureModal() => _closureModalOpen = false;
+
+    private async Task SaveClosureAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_closureFormRoad) || string.IsNullOrWhiteSpace(_closureFormReason))
+        {
+            _formError = "Road name and blocked reason are required.";
+            return;
+        }
+
+        _saving = true;
+        _formError = null;
+        try
+        {
+            if (_editingClosureId.HasValue)
+            {
+                var existing = _closures.FirstOrDefault(x => x.Id == _editingClosureId.Value);
+                var req = new UpdateRoadClosureRequest(
+                    _closureFormRoad,
+                    _closureFormDesc,
+                    _closureFormSeverity,
+                    _closureFormCoords,
+                    _closureFormReason,
+                    _closureFormDetour,
+                    existing?.IsActive ?? true,
+                    null);
+
+                var res = await Client.UpdateClosureAsync(_editingClosureId.Value, req);
+                if (res is null) { _formError = "Failed to update road closure."; return; }
+            }
+            else
+            {
+                var req = new CreateRoadClosureRequest(
+                    _closureFormRoad,
+                    _closureFormDesc,
+                    _closureFormSeverity,
+                    _closureFormCoords,
+                    _closureFormReason,
+                    _closureFormDetour,
+                    null);
+
+                var res = await Client.CreateClosureAsync(req);
+                if (res is null) { _formError = "Failed to report road closure."; return; }
+            }
+
+            CloseClosureModal();
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            _formError = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task ToggleClosureActiveAsync(RoadClosureDto c)
+    {
+        var req = new UpdateRoadClosureRequest(
+            c.RoadName,
+            c.Description,
+            c.Severity,
+            c.CoordinatesJson,
+            c.BlockedReason,
+            c.AlternateRouteAdvice,
+            !c.IsActive,
+            c.EstimatedReopenUtc);
+
+        await Client.UpdateClosureAsync(c.Id, req);
+        await LoadDataAsync();
+    }
+
+    private async Task ConfirmDeleteClosure(RoadClosureDto c)
+    {
+        await Client.DeleteClosureAsync(c.Id);
+        await LoadDataAsync();
+    }
+
+    // =========================================================================
+    // UI HELPERS
+    // =========================================================================
+
+    private static string ZoneTypeChip(ZoneType type) => type switch
+    {
+        ZoneType.DangerZone => "rr-chip-danger",
+        ZoneType.EvacuationZone => "rr-chip-danger",
+        ZoneType.SafeAssemblyPoint => "rr-chip-success",
+        ZoneType.RestrictedArea => "rr-chip-warning",
+        _ => ""
+    };
+
+    private static string SeverityChip(Severity severity) => severity switch
+    {
+        Severity.Catastrophic => "rr-chip-danger",
+        Severity.Severe => "rr-chip-danger",
+        Severity.Moderate => "rr-chip-warning",
+        _ => "rr-chip-info"
+    };
+
+    public void Dispose()
+    {
+        _liveSub?.Dispose();
+    }
+}
