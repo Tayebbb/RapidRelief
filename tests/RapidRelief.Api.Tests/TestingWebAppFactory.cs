@@ -50,7 +50,6 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
         builder.UseSetting("Ai:FreeLlmPool:BaseUrl", "");
         builder.ConfigureServices(services =>
         {
-            services.AddTransient<Microsoft.AspNetCore.Http.IProblemDetailsService, TestProblemDetailsService>();
             AddSqliteContext<SampleDbContext>(services);
             AddSqliteContext<AuthDbContext>(services);
             AddSqliteContext<RapidRelief.Api.Features.Shelters.Data.OpsDbContext>(services);
@@ -63,6 +62,7 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
             AddSqliteContext<RapidRelief.Api.Features.Audit.Data.AuditDbContext>(services);
             AddSqliteContext<RapidRelief.Api.Features.Registry.Data.RegistryDbContext>(services);
             AddSqliteContext<SafetyZonesDbContext>(services);
+            services.AddTransient<Microsoft.AspNetCore.Http.IProblemDetailsService, TestProblemDetailsService>();
         });
     }
 
@@ -78,7 +78,7 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
 
             response.ContentType = "application/problem+json";
             response.StatusCode = context.ProblemDetails.Status ?? response.StatusCode;
-            var json = System.Text.Json.JsonSerializer.Serialize(context.ProblemDetails, System.Text.Json.JsonSerializerOptions.Web);
+            var json = System.Text.Json.JsonSerializer.Serialize(context.ProblemDetails, context.ProblemDetails.GetType(), System.Text.Json.JsonSerializerOptions.Web);
             await response.WriteAsync(json, context.HttpContext.RequestAborted);
             return true;
         }

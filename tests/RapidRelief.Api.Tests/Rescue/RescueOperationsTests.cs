@@ -10,6 +10,8 @@ using RapidRelief.Api.Features.Rescue.Endpoints;
 using RapidRelief.Api.Infrastructure.Auth;
 using RapidRelief.Shared.Contracts.Common;
 using RapidRelief.Shared.Contracts.Enums;
+using RapidRelief.Shared.Contracts.ReadModels;
+using RapidRelief.Shared.Contracts.Services;
 
 namespace RapidRelief.Api.Tests.Rescue;
 
@@ -330,6 +332,83 @@ public sealed class RescueOperationsTests : IClassFixture<TestingWebAppFactory>
 
         Assert.NotEmpty(pushed);
         Assert.Contains(pushed, x => x.Summary.Contains("New mission", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Live_teams_endpoint_is_accessible_to_citizens_and_excludes_private_contact_info()
+    {
+        await ResetAsync();
+        var teamId = await CreateTeamAsync("Alpha Unit", "WaterRescue", FakeAuthHandler.SeedUserIds[Roles.Rescuer]);
+
+        // Rescuer updates their position
+        var posRes = await Client(Roles.Rescuer).PostAsJsonAsync($"{RescuePath}/teams/mine/position", new
+        {
+            latitude = 23.795,
+            longitude = 90.405,
+            status = TeamStatus.Available
+        });
+        Assert.Equal(HttpStatusCode.NoContent, posRes.StatusCode);
+
+        // Also create an off-duty team to verify it is filtered out
+        var offDutyTeamId = await CreateTeamAsync("Beta Unit", "Medical", Guid.NewGuid());
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<RescueDbContext>();
+            var beta = await db.Teams.FindAsync(offDutyTeamId);
+            beta!.Status = TeamStatus.OffDuty;
+            beta.CurrentLatitude = 23.80;
+            beta.CurrentLongitude = 90.41;
+            await db.SaveChangesAsync();
+        }
+
+        // Citizen calls /api/rescue/teams/live
+        var citizenClient = Client(Roles.Citizen);
+        var response = await citizenClient.GetAsync($"{RescuePath}/teams/live");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<List<RescueTeamLiveDto>>>();
+        Assert.NotNull(envelope);
+        Assert.NotNull(envelope!.Data);
+        Assert.Single(envelope.Data!);
+
+        var liveTeam = envelope.Data![0];
+        Assert.Equal(teamId, liveTeam.Id);
+        Assert.Equal("Alpha Unit", liveTeam.TeamName);
+        Assert.Equal("WaterRescue", liveTeam.Speciality);
+        Assert.Equal(TeamStatus.Available, liveTeam.Status);
+        Assert.Equal(23.795, liveTeam.Latitude);
+        Assert.Equal(90.405, liveTeam.Longitude);
+
+        // Anonymous client can also access
+        var anonClient = _factory.CreateClient();
+        var anonResponse = await anonClient.GetAsync($"{RescuePath}/teams/live");
+        Assert.Equal(HttpStatusCode.OK, anonResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task Updating_team_position_publishes_realtime_position_topic()
+    {
+        await ResetAsync();
+        await CreateTeamAsync("Bravo Unit", "Fire", FakeAuthHandler.SeedUserIds[Roles.Rescuer]);
+
+        var response = await Client(Roles.Rescuer).PostAsJsonAsync($"{RescuePath}/teams/mine/position", new
+        {
+            latitude = 23.821,
+            longitude = 90.422
+        });
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        using var scope = _factory.Services.CreateScope();
+        var notifications = await scope.ServiceProvider.GetRequiredService<NotificationsDbContext>()
+            .Notifications.AsNoTracking()
+            .Where(x => x.Topic == RealtimeTopics.RescueTeamPosition)
+            .ToListAsync();
+
+        Assert.NotEmpty(notifications);
+        // Pushed to Government, Rescue, and Citizen roles
+        Assert.Contains(notifications, n => n.Role == Roles.Government);
+        Assert.Contains(notifications, n => n.Role == Roles.Rescue);
+        Assert.Contains(notifications, n => n.Role == Roles.Citizen);
     }
 
     private sealed record IncidentView(Guid Id, IncidentStatus Status, string? ContactPhone);

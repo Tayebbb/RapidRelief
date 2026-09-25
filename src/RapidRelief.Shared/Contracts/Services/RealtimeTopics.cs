@@ -24,6 +24,9 @@ public static class RealtimeTopics
     /// <summary>A team went available / dispatched / off duty, or moved.</summary>
     public const string RescueTeamAvailability = "rescue.team.availability";
 
+    /// <summary>Live GPS coordinate movement stream for active rescue units.</summary>
+    public const string RescueTeamPosition = "rescue.team.position";
+
     public const string ReliefStatus = "relief.request.status";
     public const string AlertPublished = "alerts.published";
     public const string SafetyZoneUpdated = "safety.zone.updated";
@@ -35,7 +38,7 @@ public static class RealtimeTopics
 
     /// <summary>Everything that can change a mission, a team or the operations picture.</summary>
     public static readonly string[] RescueFeed =
-        [RescueMissionAssigned, RescueMissionStatus, RescueOperations, RescueTeamAvailability, SafetyZoneUpdated, RoadClosureUpdated];
+        [RescueMissionAssigned, RescueMissionStatus, RescueOperations, RescueTeamAvailability, RescueTeamPosition, SafetyZoneUpdated, RoadClosureUpdated];
 
     /// <summary>The government dashboard reacts to the whole operational surface.</summary>
     public static readonly string[] CommandFeed =
@@ -43,7 +46,7 @@ public static class RealtimeTopics
 
     /// <summary>What a citizen's own view depends on.</summary>
     public static readonly string[] CitizenFeed =
-        [IncidentStatus, IncidentAssessed, RescueMissionStatus, ReliefStatus, AlertPublished, SafetyZoneUpdated, RoadClosureUpdated];
+        [IncidentStatus, IncidentAssessed, RescueMissionStatus, RescueTeamPosition, ReliefStatus, AlertPublished, SafetyZoneUpdated, RoadClosureUpdated];
 
     /// <summary>
     /// True when <paramref name="topic"/> is one of <paramref name="subscriptions"/>, or sits
