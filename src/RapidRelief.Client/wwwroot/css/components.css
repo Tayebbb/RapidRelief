@@ -1191,3 +1191,28 @@ h2[tabindex="-1"]:focus-visible {
         animation-iteration-count: infinite !important;
     }
 }
+
+/* Responsive input group with buttons on small screens */
+@media (max-width: 480px) {
+    .input-group:has(button),
+    .input-group:has(.btn),
+    .input-group-responsive {
+        flex-wrap: wrap !important;
+    }
+
+    .input-group:has(button) > button,
+    .input-group:has(.btn) > .btn,
+    .input-group-responsive > button,
+    .input-group-responsive > .btn {
+        width: 100% !important;
+        margin-top: var(--space-1) !important;
+        border-radius: var(--rr-radius) !important;
+    }
+
+    .input-group:has(button) > .form-control,
+    .input-group:has(.btn) > .form-control,
+    .input-group-responsive > .form-control {
+        border-top-right-radius: var(--rr-radius) !important;
+        border-bottom-right-radius: var(--rr-radius) !important;
+    }
+}

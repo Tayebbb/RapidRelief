@@ -456,6 +456,9 @@
   top: 75px;
   left: 1.5rem;
   right: 1.5rem;
+  max-height: calc(100vh - 90px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background: var(--rr-landing-surface);
   border: 1px solid var(--rr-landing-border);
   border-radius: var(--rr-radius-l);

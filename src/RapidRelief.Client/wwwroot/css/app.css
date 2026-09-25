@@ -1701,6 +1701,33 @@ ul.rr-field-error {
     border-bottom-right-radius: var(--rr-radius-l);
 }
 
+@media (max-width: 640px) {
+    .rr-modal-container {
+        padding: var(--space-2);
+    }
+    .rr-modal-dialog {
+        max-height: calc(100vh - 1rem);
+    }
+    .rr-modal-head {
+        padding: var(--space-3) var(--space-4);
+    }
+    .rr-modal-body {
+        padding: var(--space-4);
+    }
+    .rr-modal-foot {
+        padding: var(--space-3) var(--space-4);
+        flex-direction: column-reverse;
+        align-items: stretch;
+        gap: var(--space-2);
+    }
+    .rr-modal-foot > button,
+    .rr-modal-foot > .rr-btn,
+    .rr-modal-foot > [class*='btn-'] {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
 /* 6.6 ─ RrSkeleton shapes */
 .rr-skeleton-group {
     display: flex;

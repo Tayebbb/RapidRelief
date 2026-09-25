@@ -36,47 +36,49 @@ else if (_shelters is not null && _shelters.Count == 0)
 }
 else if (_shelters is not null)
 {
-    <table class="table align-middle">
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>Status</th>
-                <th>Occupancy / Capacity</th>
-                <th>Location</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var shelter in _shelters)
-            {
+    <div class="rr-table-wrap table-responsive">
+        <table class="table align-middle">
+            <thead>
                 <tr>
-                    <td>@shelter.Name</td>
-                    <td>
-                        @if (shelter.IsOpen)
-                        {
-                            <span class="badge bg-success">Open</span>
-                        }
-                        else
-                        {
-                            <span class="badge bg-danger">Closed</span>
-                        }
-                    </td>
-                    <td>
-                        <div class="d-flex align-items-center gap-2">
-                            <input type="number" class="form-control form-control-sm rr-input-narrow"
-                                   value="@shelter.Occupancy"
-                                   @onchange="@(e => UpdateOccupancyAsync(shelter.Id, e.Value))" />
-                            <span>/ @shelter.Capacity</span>
-                        </div>
-                    </td>
-                    <td>@shelter.Location.Latitude.ToString("F4"), @shelter.Location.Longitude.ToString("F4")</td>
-                    <td>
-                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => EditShelter(shelter)">Edit</button>
-                    </td>
+                    <th>Name</th>
+                    <th>Status</th>
+                    <th>Occupancy / Capacity</th>
+                    <th>Location</th>
+                    <th>Actions</th>
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @foreach (var shelter in _shelters)
+                {
+                    <tr>
+                        <td>@shelter.Name</td>
+                        <td>
+                            @if (shelter.IsOpen)
+                            {
+                                <span class="badge bg-success">Open</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-danger">Closed</span>
+                            }
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <input type="number" class="form-control form-control-sm rr-input-narrow"
+                                       value="@shelter.Occupancy"
+                                       @onchange="@(e => UpdateOccupancyAsync(shelter.Id, e.Value))" />
+                                <span>/ @shelter.Capacity</span>
+                            </div>
+                        </td>
+                        <td>@shelter.Location.Latitude.ToString("F4"), @shelter.Location.Longitude.ToString("F4")</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => EditShelter(shelter)">Edit</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
 }
 
 @if (_showForm)
@@ -91,22 +93,22 @@ else if (_shelters is not null)
                     <label class="form-label">Name</label>
                     <input class="form-control" @bind="_formModel.Name" required />
                 </div>
-                <div class="row mb-3">
-                    <div class="col">
+                <div class="row g-3 mb-3">
+                    <div class="col-12 col-sm-6">
                         <label class="form-label">Latitude</label>
                         <input type="number" step="any" class="form-control" @bind="_formModel.Latitude" required />
                     </div>
-                    <div class="col">
+                    <div class="col-12 col-sm-6">
                         <label class="form-label">Longitude</label>
                         <input type="number" step="any" class="form-control" @bind="_formModel.Longitude" required />
                     </div>
                 </div>
-                <div class="row mb-3">
-                    <div class="col">
+                <div class="row g-3 mb-3">
+                    <div class="col-12 col-sm-6">
                         <label class="form-label">Capacity</label>
                         <input type="number" class="form-control" @bind="_formModel.Capacity" required />
                     </div>
-                    <div class="col">
+                    <div class="col-12 col-sm-6">
                         <label class="form-label">Status</label>
                         <select class="form-select" @bind="_formModel.Status">
                             <option value="@ShelterStatus.Open">Open</option>
@@ -115,7 +117,7 @@ else if (_shelters is not null)
                         </select>
                     </div>
                 </div>
-                <div class="d-flex justify-content-end gap-2">
+                <div class="d-flex justify-content-end flex-wrap gap-2">
                     <button type="button" class="btn btn-secondary" @onclick="CancelForm">Cancel</button>
                     <button type="submit" class="btn btn-primary" disabled="@_saving">
                         @(_saving ? "Saving..." : "Save")

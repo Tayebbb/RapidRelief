@@ -44,7 +44,7 @@
     @if (_submitted is not null)
     {
         <div class="dash-card">
-            <div class="alert alert-success d-flex align-items-center justify-content-between p-4 rounded-3 mb-0">
+            <div class="alert alert-success d-flex align-items-center justify-content-between flex-wrap gap-3 p-4 rounded-3 mb-0">
                 <div class="d-flex align-items-center gap-3">
                     <AppIcon Name="check-circle" Size="24" />
                     <div>
@@ -230,7 +230,7 @@
                 </div>
             </div>
 
-            <div class="d-flex justify-content-end gap-3">
+            <div class="d-flex justify-content-end flex-wrap gap-3">
                 <a href="reports/my" class="btn-dash-outline">Cancel</a>
                 <button type="button" class="btn-dash-primary" disabled="@_submitting" @onclick="SubmitAsync">
                     <AppIcon Name="send" Size="16" />

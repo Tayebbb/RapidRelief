@@ -182,43 +182,45 @@
                                                 }
                                                 else
                                                 {
-                                                    <table class="cmd-table" style="font-size: 0.85rem; width: 100%;">
-                                                        <thead>
-                                                            <tr>
-                                                                <th>Item</th>
-                                                                <th>Quantity</th>
-                                                                <th>Carrier / Partner</th>
-                                                                <th>Dispatched</th>
-                                                                <th>Status</th>
-                                                                <th class="cmd-col-action">Action</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            @foreach (var d in _dispatches)
-                                                            {
+                                                    <div class="cmd-table-wrap">
+                                                        <table class="cmd-table" style="font-size: 0.85rem; width: 100%;">
+                                                            <thead>
                                                                 <tr>
-                                                                    <td>@d.ResourceName</td>
-                                                                    <td>@d.DispatchedQuantity</td>
-                                                                    <td>@d.CarrierOrPartner</td>
-                                                                    <td>@RelativeTime(d.DispatchedAtUtc)</td>
-                                                                    <td><span class="cmd-pill @(d.Status == "Delivered" ? "ok" : "warn")">@d.Status</span></td>
-                                                                    <td class="cmd-col-action">
-                                                                        @if (d.Status != "Delivered")
-                                                                        {
-                                                                            <button type="button" class="rr-btn rr-btn-primary rr-btn-xs" disabled="@_busy"
-                                                                                    @onclick="() => MarkDeliveredAsync(d.Id)">
-                                                                                Mark delivered
-                                                                            </button>
-                                                                        }
-                                                                        else
-                                                                        {
-                                                                            <span class="cmd-sub">Delivered</span>
-                                                                        }
-                                                                    </td>
+                                                                    <th>Item</th>
+                                                                    <th>Quantity</th>
+                                                                    <th>Carrier / Partner</th>
+                                                                    <th>Dispatched</th>
+                                                                    <th>Status</th>
+                                                                    <th class="cmd-col-action">Action</th>
                                                                 </tr>
-                                                            }
-                                                        </tbody>
-                                                    </table>
+                                                            </thead>
+                                                            <tbody>
+                                                                @foreach (var d in _dispatches)
+                                                                {
+                                                                    <tr>
+                                                                        <td>@d.ResourceName</td>
+                                                                        <td>@d.DispatchedQuantity</td>
+                                                                        <td>@d.CarrierOrPartner</td>
+                                                                        <td>@RelativeTime(d.DispatchedAtUtc)</td>
+                                                                        <td><span class="cmd-pill @(d.Status == "Delivered" ? "ok" : "warn")">@d.Status</span></td>
+                                                                        <td class="cmd-col-action">
+                                                                            @if (d.Status != "Delivered")
+                                                                            {
+                                                                                <button type="button" class="rr-btn rr-btn-primary rr-btn-xs" disabled="@_busy"
+                                                                                        @onclick="() => MarkDeliveredAsync(d.Id)">
+                                                                                    Mark delivered
+                                                                                </button>
+                                                                            }
+                                                                            else
+                                                                            {
+                                                                                <span class="cmd-sub">Delivered</span>
+                                                                            }
+                                                                        </td>
+                                                                    </tr>
+                                                                }
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
                                                 }
                                             </div>
                                         </td>

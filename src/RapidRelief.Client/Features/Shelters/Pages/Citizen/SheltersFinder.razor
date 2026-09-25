@@ -18,15 +18,15 @@
 }
 @if (_geoNote is not null)
 {
-    <div class="alert alert-warning" role="alert">
-        @_geoNote Showing shelters near central Dhaka instead.
-        <button class="btn btn-sm btn-outline-secondary ms-2" type="button" @onclick="RetryLocateAsync"
+    <div class="alert alert-warning d-flex align-items-center justify-content-between flex-wrap gap-2" role="alert">
+        <span>@_geoNote Showing shelters near central Dhaka instead.</span>
+        <button class="btn btn-sm btn-outline-secondary" type="button" @onclick="RetryLocateAsync"
                 disabled="@_locating">Try again</button>
     </div>
 }
 
 <div class="row">
-    <div class="col-md-4">
+    <div class="col-md-4 order-2 order-md-1">
         @if (_locating)
         {
             <p aria-live="polite"><em>Determining your location…</em></p>
@@ -130,7 +130,7 @@
             }
         }
     </div>
-    <div class="col-md-8 mt-3 mt-md-0">
+    <div class="col-md-8 order-1 order-md-2 mb-3 mb-md-0">
         @* Fixed 600px overflowed short phones; cap against the viewport instead. *@
         <div style="height: min(600px, calc(100vh - 220px)); min-height: 320px;">
             @if (_shelters is not null)
