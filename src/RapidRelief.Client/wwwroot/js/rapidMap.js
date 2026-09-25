@@ -315,6 +315,227 @@ export function clearHeatmap(elementId) {
     }
 }
 
+// ── Safety Zones & Road Closures ─────────────────────────────────────────────
+
+export function setSafetyZones(elementId, zones) {
+    const instance = instances.get(elementId);
+    if (!instance) return;
+
+    if (!instance.safetyZones) {
+        instance.safetyZones = new Map();
+    }
+
+    clearSafetyZones(elementId);
+
+    if (!zones || zones.length === 0) return;
+
+    for (const z of zones) {
+        if (z.isActive === false) continue;
+
+        let color = "#e53935";
+        let fillOpacity = 0.22;
+        const typeLower = (z.zoneType || "").toLowerCase();
+        if (typeLower.includes("safe") || typeLower.includes("assembly")) {
+            color = "#1e7a5a";
+            fillOpacity = 0.20;
+        } else if (typeLower.includes("restricted") || typeLower.includes("caution")) {
+            color = "#fb8c00";
+            fillOpacity = 0.20;
+        } else if (typeLower.includes("evacuation")) {
+            color = "#d32f2f";
+            fillOpacity = 0.28;
+        }
+
+        let layer = null;
+        const isPolygon = (z.geometryType || "").toLowerCase() === "polygon";
+        let coords = [];
+        try {
+            if (z.coordinatesJson && z.coordinatesJson !== "[]") {
+                coords = typeof z.coordinatesJson === "string" ? JSON.parse(z.coordinatesJson) : z.coordinatesJson;
+            }
+        } catch (_) {
+            coords = [];
+        }
+
+        if (isPolygon && Array.isArray(coords) && coords.length >= 3) {
+            layer = L.polygon(coords, {
+                color: color,
+                fillColor: color,
+                fillOpacity: fillOpacity,
+                weight: 2,
+                dashArray: "4, 4"
+            });
+        } else if (z.centerLat && z.centerLng) {
+            layer = L.circle([z.centerLat, z.centerLng], {
+                radius: Math.max(z.radiusMeters || 100, 30),
+                color: color,
+                fillColor: color,
+                fillOpacity: fillOpacity,
+                weight: 2
+            });
+        }
+
+        if (layer) {
+            layer.bindPopup(safetyZonePopupHtml(z));
+            layer.addTo(instance.map);
+            instance.safetyZones.set(z.id, layer);
+        }
+    }
+}
+
+export function clearSafetyZones(elementId) {
+    const instance = instances.get(elementId);
+    if (!instance || !instance.safetyZones) return;
+
+    for (const layer of instance.safetyZones.values()) {
+        layer.remove();
+    }
+    instance.safetyZones.clear();
+}
+
+export function setRoadClosures(elementId, closures) {
+    const instance = instances.get(elementId);
+    if (!instance) return;
+
+    if (!instance.roadClosures) {
+        instance.roadClosures = new Map();
+    }
+
+    clearRoadClosures(elementId);
+
+    if (!closures || closures.length === 0) return;
+
+    for (const c of closures) {
+        if (c.isActive === false) continue;
+
+        let coords = [];
+        try {
+            if (c.coordinatesJson && c.coordinatesJson !== "[]") {
+                coords = typeof c.coordinatesJson === "string" ? JSON.parse(c.coordinatesJson) : c.coordinatesJson;
+            }
+        } catch (_) {
+            coords = [];
+        }
+
+        const layers = [];
+        if (Array.isArray(coords) && coords.length >= 2) {
+            // Striped barricade line
+            const line = L.polyline(coords, {
+                color: "#e53935",
+                weight: 6,
+                opacity: 0.9,
+                dashArray: "10, 8"
+            });
+            line.bindPopup(roadClosurePopupHtml(c));
+            line.addTo(instance.map);
+            layers.push(line);
+
+            // Warning icon marker at midpoint
+            const mid = coords[Math.floor(coords.length / 2)];
+            if (Array.isArray(mid) && mid.length >= 2) {
+                const marker = L.marker([mid[0], mid[1]], {
+                    icon: L.divIcon({
+                        className: "rapid-marker-wrap",
+                        html: '<span class="rapid-marker rapid-marker-ring" style="--marker-color:#e53935">✕</span>',
+                        iconSize: [22, 22],
+                        iconAnchor: [11, 11]
+                    })
+                });
+                marker.bindPopup(roadClosurePopupHtml(c));
+                marker.addTo(instance.map);
+                layers.push(marker);
+            }
+        }
+
+        if (layers.length > 0) {
+            instance.roadClosures.set(c.id, layers);
+        }
+    }
+}
+
+export function clearRoadClosures(elementId) {
+    const instance = instances.get(elementId);
+    if (!instance || !instance.roadClosures) return;
+
+    for (const layers of instance.roadClosures.values()) {
+        for (const l of layers) {
+            l.remove();
+        }
+    }
+    instance.roadClosures.clear();
+}
+
+function safetyZonePopupHtml(z) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "rapid-map-popup";
+
+    const title = document.createElement("strong");
+    title.textContent = z.name;
+    wrapper.appendChild(title);
+
+    const badge = document.createElement("div");
+    badge.style.marginTop = "4px";
+    badge.style.fontSize = "12px";
+    badge.style.fontWeight = "600";
+    badge.textContent = `${z.zoneType || "Zone"} · ${z.severity || "Alert"}`;
+    wrapper.appendChild(badge);
+
+    if (z.description) {
+        const desc = document.createElement("p");
+        desc.style.margin = "6px 0 0 0";
+        desc.style.fontSize = "12px";
+        desc.textContent = z.description;
+        wrapper.appendChild(desc);
+    }
+
+    if (z.radiusMeters > 0) {
+        const rad = document.createElement("small");
+        rad.style.display = "block";
+        rad.style.marginTop = "4px";
+        rad.style.color = "#6b7280";
+        rad.textContent = `Perimeter radius: ${z.radiusMeters}m`;
+        wrapper.appendChild(rad);
+    }
+
+    return wrapper;
+}
+
+function roadClosurePopupHtml(c) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "rapid-map-popup";
+
+    const title = document.createElement("strong");
+    title.textContent = c.roadName;
+    wrapper.appendChild(title);
+
+    const badge = document.createElement("div");
+    badge.style.marginTop = "4px";
+    badge.style.fontSize = "12px";
+    badge.style.color = "#e53935";
+    badge.style.fontWeight = "bold";
+    badge.textContent = `ROAD CLOSED · ${c.severity || "Blocked"}`;
+    wrapper.appendChild(badge);
+
+    if (c.blockedReason) {
+        const reason = document.createElement("p");
+        reason.style.margin = "6px 0 0 0";
+        reason.style.fontSize = "12px";
+        reason.textContent = `Reason: ${c.blockedReason}`;
+        wrapper.appendChild(reason);
+    }
+
+    if (c.alternateRouteAdvice) {
+        const alt = document.createElement("p");
+        alt.style.margin = "4px 0 0 0";
+        alt.style.fontSize = "12px";
+        alt.style.color = "#1e7a5a";
+        alt.textContent = `Detour: ${c.alternateRouteAdvice}`;
+        wrapper.appendChild(alt);
+    }
+
+    return wrapper;
+}
+
 function popupHtml(m) {
     const wrapper = document.createElement("div");
     wrapper.className = "rapid-map-popup";
@@ -339,6 +560,8 @@ export function dispose(elementId) {
     }
 
     clearHeatmap(elementId);
+    clearSafetyZones(elementId);
+    clearRoadClosures(elementId);
     instance.map.remove();
     instances.delete(elementId);
 }

@@ -9,6 +9,8 @@ public enum MapLayerId
     Teams,
     Shelters,
     Relief,
+    SafetyZones,
+    RoadClosures,
 
     /// <summary>Ad-hoc points a page owns — a report pin, a search result, a destination.</summary>
     Pins,
@@ -48,6 +50,8 @@ internal static class MapLayerDefaults
         MapLayerId.Teams => "Rescue teams",
         MapLayerId.Shelters => "Shelters",
         MapLayerId.Relief => "Relief drop-offs",
+        MapLayerId.SafetyZones => "Safety zones",
+        MapLayerId.RoadClosures => "Road closures",
         _ => "Pins",
     };
 
@@ -57,6 +61,8 @@ internal static class MapLayerDefaults
         MapLayerId.Teams => MapMarkerKind.Team,
         MapLayerId.Shelters => MapMarkerKind.Shelter,
         MapLayerId.Relief => MapMarkerKind.Relief,
+        MapLayerId.SafetyZones => MapMarkerKind.DangerZone,
+        MapLayerId.RoadClosures => MapMarkerKind.RoadClosure,
         _ => MapMarkerKind.Pin,
     };
 
@@ -67,6 +73,8 @@ internal static class MapLayerDefaults
         MapLayerId.Teams => "t",
         MapLayerId.Shelters => "s",
         MapLayerId.Relief => "r",
+        MapLayerId.SafetyZones => "z",
+        MapLayerId.RoadClosures => "c",
         _ => "p",
     };
 }

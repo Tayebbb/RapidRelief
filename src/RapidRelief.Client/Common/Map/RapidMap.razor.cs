@@ -39,6 +39,12 @@ public sealed partial class RapidMap : ComponentBase, IAsyncDisposable
     [Parameter] public GeoPoint? UserLocation { get; set; }
     [Parameter] public double UserLocationAccuracyMeters { get; set; }
 
+    /// <summary>Active safety & danger perimeters rendered as circle/polygon overlays.</summary>
+    [Parameter] public IReadOnlyList<RapidRelief.Shared.Contracts.ReadModels.SafetyZoneDto> SafetyZones { get; set; } = [];
+
+    /// <summary>Active road closures rendered as striped polylines and blockade markers.</summary>
+    [Parameter] public IReadOnlyList<RapidRelief.Shared.Contracts.ReadModels.RoadClosureDto> RoadClosures { get; set; } = [];
+
     private IReadOnlyList<MapMarker> EffectiveMarkers => View?.Markers ?? Markers;
 
     private IReadOnlyList<MapHeatPoint> EffectiveHeat => View?.HeatPoints ?? HeatPoints;
@@ -96,6 +102,8 @@ public sealed partial class RapidMap : ComponentBase, IAsyncDisposable
             await SyncMarkersAsync();
             await SyncHeatAsync();
             await SyncUserLocationAsync();
+            await SyncSafetyZonesAsync();
+            await SyncRoadClosuresAsync();
         }
         catch (JSException ex)
         {
@@ -120,6 +128,8 @@ public sealed partial class RapidMap : ComponentBase, IAsyncDisposable
             await SyncMarkersAsync();
             await SyncHeatAsync();
             await SyncUserLocationAsync();
+            await SyncSafetyZonesAsync();
+            await SyncRoadClosuresAsync();
         }
     }
 
@@ -234,6 +244,54 @@ public sealed partial class RapidMap : ComponentBase, IAsyncDisposable
                 location.Latitude, location.Longitude, accuracy);
             _renderedUserLocation = location;
             _renderedUserAccuracy = accuracy;
+        }
+    }
+
+    private async Task SyncSafetyZonesAsync()
+    {
+        if (_module is null || _disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            if (SafetyZones.Count == 0)
+            {
+                await _module.InvokeVoidAsync("clearSafetyZones", ElementId);
+            }
+            else
+            {
+                await _module.InvokeVoidAsync("setSafetyZones", ElementId, SafetyZones);
+            }
+        }
+        catch (JSException ex)
+        {
+            Logger.LogWarning(ex, "Failed to sync safety zones for {ElementId}", ElementId);
+        }
+    }
+
+    private async Task SyncRoadClosuresAsync()
+    {
+        if (_module is null || _disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            if (RoadClosures.Count == 0)
+            {
+                await _module.InvokeVoidAsync("clearRoadClosures", ElementId);
+            }
+            else
+            {
+                await _module.InvokeVoidAsync("setRoadClosures", ElementId, RoadClosures);
+            }
+        }
+        catch (JSException ex)
+        {
+            Logger.LogWarning(ex, "Failed to sync road closures for {ElementId}", ElementId);
         }
     }
 

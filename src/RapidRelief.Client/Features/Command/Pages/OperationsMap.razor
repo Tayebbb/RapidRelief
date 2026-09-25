@@ -12,12 +12,14 @@
 @using RapidRelief.Client.Features.Rescue
 @using RapidRelief.Client.Features.Shelters
 @using RapidRelief.Client.Features.Relief
+@using RapidRelief.Client.Features.SafetyZones
 @using RapidRelief.Shared.Contracts.Services
 @attribute [Authorize(Roles = "Government")]
 @inject CommandClient Command
 @inject RescueClient Rescue
 @inject SheltersClient Shelters
 @inject ReliefClient Relief
+@inject SafetyZonesClient SafetyZonesClient
 @inject MapConfigService MapConfig
 @inject LiveUpdateService Live
 @implements IDisposable
@@ -47,7 +49,7 @@
 
     <div class="cmd-map-shell">
         <div class="cmd-map-frame">
-            <RapidMap View="_map" InitialCenter="@_map.Center" InitialZoom="12" />
+            <RapidMap View="_map" InitialCenter="@_map.Center" InitialZoom="12" SafetyZones="_safetyZones" RoadClosures="_roadClosures" />
         </div>
 
         <aside class="cmd-card">
@@ -139,6 +141,8 @@
     private List<RescueTeamDto> _teams = new();
     private List<ShelterSummaryDto> _shelters = new();
     private List<ReliefRequestDto> _relief = new();
+    private List<SafetyZoneDto> _safetyZones = new();
+    private List<RoadClosureDto> _roadClosures = new();
 
     private IncidentStatus? _status;
     private bool _loading = true;
@@ -164,8 +168,10 @@
         var teamsTask = Rescue.GetTeamsAsync();
         var sheltersTask = Shelters.GetSheltersAsync();
         var reliefTask = Relief.GetQueueAsync();
+        var zonesTask = SafetyZonesClient.GetZonesAsync();
+        var closuresTask = SafetyZonesClient.GetClosuresAsync();
 
-        await Task.WhenAll(incidentsTask, teamsTask, sheltersTask, reliefTask);
+        await Task.WhenAll(incidentsTask, teamsTask, sheltersTask, reliefTask, zonesTask, closuresTask);
 
         var incidents = await incidentsTask;
         _incidents = _status is null
@@ -174,11 +180,15 @@
         _teams = (await teamsTask).ToList();
         _shelters = (await sheltersTask)?.Data?.Items?.ToList() ?? new List<ShelterSummaryDto>();
         _relief = (await reliefTask).ToList();
+        _safetyZones = (await zonesTask).ToList();
+        _roadClosures = (await closuresTask).ToList();
 
         _map.SetLayer(MapLayerId.Incidents, _incidents.ToPlacemarks())
             .SetLayer(MapLayerId.Teams, _teams.ToPlacemarks())
             .SetLayer(MapLayerId.Shelters, _shelters.ToPlacemarks())
-            .SetLayer(MapLayerId.Relief, _relief.Where(r => r.IsOpen()).ToPlacemarks());
+            .SetLayer(MapLayerId.Relief, _relief.Where(r => r.IsOpen()).ToPlacemarks())
+            .SetLayer(MapLayerId.SafetyZones, _safetyZones.ToPlacemarks())
+            .SetLayer(MapLayerId.RoadClosures, _roadClosures.ToPlacemarks());
 
         _loading = false;
         StateHasChanged();
@@ -194,6 +204,8 @@
     {
         MapLayerId.Incidents => "warn",
         MapLayerId.Teams => "ok",
+        MapLayerId.SafetyZones => "critical",
+        MapLayerId.RoadClosures => "warn",
         _ => "idle",
     };
 

@@ -4,6 +4,7 @@
 @using System.Globalization
 @using RapidRelief.Shared.Contracts.Common
 @using RapidRelief.Shared.Contracts.Enums
+@using RapidRelief.Shared.Contracts.ReadModels
 @using RapidRelief.Shared.Contracts.Services
 @using RapidRelief.Client.Common.Ai
 @using RapidRelief.Client.Common.Map
@@ -11,10 +12,12 @@
 @using RapidRelief.Client.Common.Ui
 @using RapidRelief.Client.Features.Reports
 @using RapidRelief.Client.Features.Rescue
+@using RapidRelief.Client.Features.SafetyZones
 @attribute [Authorize(Roles = "Rescuer,Rescue,Government,Admin")]
 @inject IncidentsClient Incidents
 @inject RescueClient Rescue
 @inject AiClient Ai
+@inject SafetyZonesClient SafetyZonesClient
 @inject NavigationManager Navigation
 @inject LiveUpdateService Live
 @implements IDisposable
@@ -138,7 +141,7 @@
                     </div>
                 </div>
 
-                <RapidMap View="_map" InitialCenter="_incident.Location" InitialZoom="15" />
+                <RapidMap View="_map" InitialCenter="_incident.Location" InitialZoom="15" SafetyZones="_safetyZones" RoadClosures="_roadClosures" />
 
                 <div class="d-flex gap-2 mt-3">
                     <a href="@DirectionsUrl()" target="_blank" rel="noopener" class="btn-dash-primary flex-fill justify-content-center">
@@ -241,9 +244,11 @@
     [Parameter] public Guid IncidentId { get; set; }
 
     private IncidentDto? _incident;
-    private AiInsightDto? _insight;
+    private RapidRelief.Client.Common.Ai.AiInsightDto? _insight;
     private RescueMissionDto? _mission;
     private IReadOnlyList<TeamSuitabilityDto> _teams = [];
+    private List<SafetyZoneDto> _safetyZones = [];
+    private List<RoadClosureDto> _roadClosures = [];
     private readonly MapView _map = new();
     private bool _loading = true;
     private bool _busy;
@@ -278,6 +283,17 @@
             return;
         }
 
+        var zonesTask = SafetyZonesClient.GetZonesAsync();
+        var closuresTask = SafetyZonesClient.GetClosuresAsync();
+        var missionsTask = Rescue.GetMissionsAsync(mine: false, incidentId: IncidentId);
+        var teamsTask = Rescue.GetSuitableTeamsAsync(IncidentId);
+        var insightTask = Ai.GetInsightAsync(IncidentId);
+
+        await Task.WhenAll(zonesTask, closuresTask, missionsTask, teamsTask, insightTask);
+
+        _safetyZones = (await zonesTask).ToList();
+        _roadClosures = (await closuresTask).ToList();
+
         _map.SetLayer(MapLayerId.Incidents, [new MapPlacemark(
             _incident.Id.ToString("N"),
             _incident.Location,
@@ -286,12 +302,15 @@
             Status: _incident.Status.ToString(),
             IsCritical: SharedMapAdapters.IsCritical(_incident.IsSos, _incident.Severity))]);
 
-        var missions = await Rescue.GetMissionsAsync(mine: false, incidentId: IncidentId);
+        _map.SetLayer(MapLayerId.SafetyZones, _safetyZones.ToPlacemarks());
+        _map.SetLayer(MapLayerId.RoadClosures, _roadClosures.ToPlacemarks());
+
+        var missions = await missionsTask;
         _mission = missions.FirstOrDefault(m => m.Status is not (MissionStatus.Completed or MissionStatus.Cancelled))
             ?? missions.FirstOrDefault();
 
-        _teams = await Rescue.GetSuitableTeamsAsync(IncidentId);
-        _insight = await Ai.GetInsightAsync(IncidentId);
+        _teams = await teamsTask;
+        _insight = await insightTask;
         StateHasChanged();
     }
 
