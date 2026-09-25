@@ -296,7 +296,7 @@ html {
     -webkit-text-size-adjust: 100%;
     width: 100%;
     max-width: 100%;
-    overflow-x: hidden;
+    overflow-x: clip;
 }
 
 html, body {
@@ -311,7 +311,7 @@ body {
     color: var(--rr-text);
     font-size: 1rem;
     line-height: 1.6;
-    overflow-x: hidden;
+    overflow-x: clip;
     margin: 0;
     padding: 0;
     transition: background-color var(--rr-base) var(--rr-ease), color var(--rr-base) var(--rr-ease);

@@ -18,6 +18,15 @@
 .sidebar {
     background: var(--rr-surface);
     border-right: 1px solid var(--rr-border);
+    overflow-x: hidden !important;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.sidebar::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
 }
 
 .backdrop {
@@ -29,6 +38,12 @@
     .page {
         display: grid;
         grid-template-columns: 264px minmax(0, 1fr);
+        min-height: 100vh;
+        transition: grid-template-columns 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .page.sidebar-collapsed {
+        grid-template-columns: 0px minmax(0, 1fr);
     }
 
     .page.no-sidebar {
@@ -38,10 +53,33 @@
     }
 
     .sidebar {
-        position: sticky;
+        position: fixed;
         top: 0;
+        bottom: 0;
+        left: 0;
+        width: 264px;
         height: 100vh;
+        height: 100dvh;
         overflow-y: auto;
+        overflow-x: hidden !important;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        z-index: var(--z-sticky);
+        background: var(--rr-surface);
+        border-right: 1px solid var(--rr-border);
+        transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease;
+    }
+
+    .page.sidebar-collapsed .sidebar {
+        transform: translateX(-100%);
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .main-col {
+        grid-column: 2;
+        min-width: 0;
+        min-height: 100vh;
     }
 
     .content {
@@ -62,6 +100,8 @@
     width: 100% !important;
     min-width: 0;
     min-height: 100vh;
+    grid-column: auto !important;
+    margin-left: 0 !important;
 }
 
 .content.content-fluid {
@@ -79,17 +119,38 @@
 
 /* Mobile: off-canvas drawer + backdrop */
 @media (max-width: 1023.98px) {
+    .page {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .main-col {
+        grid-column: auto;
+        width: 100%;
+        min-width: 0;
+    }
+
     .sidebar {
         position: fixed;
         top: 0;
         bottom: 0;
         left: 0;
         width: min(300px, 86vw);
+        height: 100vh;
+        height: 100dvh;
         z-index: var(--z-drawer);
         transform: translateX(-105%);
         transition: transform var(--rr-base) var(--rr-ease);
         overflow-y: auto;
+        overflow-x: hidden !important;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
         box-shadow: none;
+    }
+
+    .page.sidebar-collapsed .sidebar {
+        opacity: 1;
+        pointer-events: auto;
     }
 
     .page.nav-open .sidebar {

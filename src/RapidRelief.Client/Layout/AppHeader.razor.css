@@ -32,6 +32,10 @@
     display: none;
 }
 
+.menu-btn.show-desktop {
+    display: inline-flex !important;
+}
+
 .mobile-brand {
     display: none;
     align-items: center;

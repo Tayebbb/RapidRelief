@@ -200,6 +200,7 @@
 
 @code {
     [Parameter] public EventCallback OnNavigated { get; set; }
+    [Parameter] public EventCallback OnToggleCollapse { get; set; }
     [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
     private string DashboardLink = "";
     private bool _citizenExpanded = true;
@@ -251,6 +252,18 @@
     private void ToggleEmergencySection() => _emergencyExpanded = !_emergencyExpanded;
 
     private Task Navigated() => OnNavigated.InvokeAsync();
+
+    private async Task HandleToggleCollapse()
+    {
+        if (OnToggleCollapse.HasDelegate)
+        {
+            await OnToggleCollapse.InvokeAsync();
+        }
+        else
+        {
+            await Navigated();
+        }
+    }
 
     public void Dispose()
     {

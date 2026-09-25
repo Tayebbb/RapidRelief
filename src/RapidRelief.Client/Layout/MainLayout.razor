@@ -5,18 +5,18 @@
 
 <a class="skip-link" href="#rr-main">Skip to main content</a>
 
-<div class="page @(HideSidebar ? "no-sidebar" : null) @(_navOpen && !HideSidebar ? "nav-open" : null)">
+<div class="page @(HideSidebar ? "no-sidebar" : null) @(_sidebarCollapsed ? "sidebar-collapsed" : null) @(_navOpen && !HideSidebar ? "nav-open" : null)">
     @if (!HideSidebar)
     {
         <aside class="sidebar" aria-label="Primary navigation">
-            <NavMenu OnNavigated="CloseNav" />
+            <NavMenu OnNavigated="CloseNav" OnToggleCollapse="ToggleSidebar" />
         </aside>
         <div class="backdrop" @onclick="CloseNav" aria-hidden="true"></div>
     }
 
     <div class="main-col">
 
-        <AppHeader MenuOpen="_navOpen" OnMenuToggle="ToggleNav" ShowMenuButton="@(!HideSidebar)" AlwaysShowBrand="@HideSidebar" />
+        <AppHeader MenuOpen="_navOpen" OnMenuToggle="ToggleSidebarFromHeader" ShowMenuButton="@(!HideSidebar)" AlwaysShowBrand="@(HideSidebar || _sidebarCollapsed)" SidebarCollapsed="_sidebarCollapsed" />
 
         <main id="rr-main" class="content @(HideSidebar ? "content-fluid" : null)">
             @Body
@@ -38,6 +38,7 @@
     [CascadingParameter] private Task<AuthenticationState>? AuthStateTask { get; set; }
 
     private bool _navOpen;
+    private bool _sidebarCollapsed;
     private bool _isAuthenticated;
 
     protected override void OnInitialized()
@@ -83,7 +84,29 @@
 
     private bool HideSidebar => !_isAuthenticated && IsPublicMapOrShelterRoute();
 
-    private void ToggleNav() => _navOpen = !_navOpen;
+    private void ToggleSidebar()
+    {
+        if (_navOpen)
+        {
+            _navOpen = false;
+        }
+        else
+        {
+            _sidebarCollapsed = !_sidebarCollapsed;
+        }
+    }
+
+    private void ToggleSidebarFromHeader()
+    {
+        if (_sidebarCollapsed)
+        {
+            _sidebarCollapsed = false;
+        }
+        else
+        {
+            _navOpen = !_navOpen;
+        }
+    }
 
     private void CloseNav() => _navOpen = false;
 
