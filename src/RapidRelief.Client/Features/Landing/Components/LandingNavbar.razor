@@ -1,7 +1,9 @@
 @namespace RapidRelief.Client.Features.Landing.Components
 @using RapidRelief.Client.Features.Auth
+@implements IAsyncDisposable
 @inject AuthApi Auth
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 <header class="landing-nav-container" aria-label="Main landing navigation">
     <nav class="landing-nav">
@@ -27,7 +29,7 @@
                     <NotificationBell />
 
                     <!-- Profile Icon & Dropdown -->
-                    <div class="nav-profile-wrapper">
+                    <div id="@_profileWrapperId" class="nav-profile-wrapper">
                         <button type="button" class="nav-profile-btn @(_profileMenuOpen ? "is-active" : null)" 
                                 @onclick="ToggleProfileMenu" title="Account: @context.User.Identity?.Name" aria-label="Open profile menu">
                             <AppIcon Name="user" Size="18" />
@@ -35,7 +37,6 @@
 
                         @if (_profileMenuOpen)
                         {
-                            <div class="nav-profile-backdrop" @onclick="CloseProfileMenu"></div>
                             <div class="nav-profile-dropdown" @onclick:stopPropagation="true">
                                 <div class="nav-profile-dropdown-header">
                                     <div class="nav-profile-dropdown-avatar">
@@ -147,6 +148,9 @@
 
 @code {
     [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
+    private readonly string _profileWrapperId = "nav-profile-" + Guid.NewGuid().ToString("N");
+    private DotNetObjectReference<LandingNavbar>? _dotNetRef;
+    private bool _listenerActive;
     private string UserRole = "Citizen";
     private string DashboardLink = "c";
     private bool _mobileOpen;
@@ -167,6 +171,44 @@
         }
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_profileMenuOpen && !_listenerActive)
+        {
+            _listenerActive = true;
+            _dotNetRef ??= DotNetObjectReference.Create(this);
+            try
+            {
+                await JS.InvokeVoidAsync("rrDropdown.listen", _profileWrapperId, _dotNetRef, nameof(CloseProfileMenuFromOutside));
+            }
+            catch
+            {
+            }
+        }
+        else if (!_profileMenuOpen && _listenerActive)
+        {
+            _listenerActive = false;
+            try
+            {
+                await JS.InvokeVoidAsync("rrDropdown.unlisten", _profileWrapperId);
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    [JSInvokable]
+    public async Task CloseProfileMenuFromOutside()
+    {
+        if (_profileMenuOpen)
+        {
+            _profileMenuOpen = false;
+            _listenerActive = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
     private void ToggleProfileMenu() => _profileMenuOpen = !_profileMenuOpen;
     private void CloseProfileMenu() => _profileMenuOpen = false;
 
@@ -179,4 +221,21 @@
 
     private void ToggleMobileMenu() => _mobileOpen = !_mobileOpen;
     private void CloseMobileMenu() => _mobileOpen = false;
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_listenerActive)
+        {
+            _listenerActive = false;
+            try
+            {
+                await JS.InvokeVoidAsync("rrDropdown.unlisten", _profileWrapperId);
+            }
+            catch
+            {
+            }
+        }
+        _dotNetRef?.Dispose();
+        _dotNetRef = null;
+    }
 }

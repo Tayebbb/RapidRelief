@@ -162,4 +162,57 @@
             return true;
         }
     };
+
+    // Generic click-outside & Escape key handler for popups / dropdowns (e.g. NotificationBell).
+    window.rrDropdown = {
+        _listeners: {},
+
+        listen: function (elementId, dotNetRef, methodName) {
+            this.unlisten(elementId);
+
+            var handler = function (e) {
+                var el = document.getElementById(elementId);
+                if (!el) {
+                    window.rrDropdown.unlisten(elementId);
+                    return;
+                }
+                if (!el.contains(e.target)) {
+                    try {
+                        dotNetRef.invokeMethodAsync(methodName || 'CloseFromOutside');
+                    } catch (err) {
+                        // Ignore if already disposed
+                    }
+                }
+            };
+
+            var keyHandler = function (e) {
+                if (e.key === 'Escape') {
+                    try {
+                        dotNetRef.invokeMethodAsync(methodName || 'CloseFromOutside');
+                    } catch (err) {
+                        // Ignore
+                    }
+                }
+            };
+
+            var timer = setTimeout(function () {
+                document.addEventListener('pointerdown', handler, true);
+                document.addEventListener('keydown', keyHandler, true);
+            }, 10);
+
+            this._listeners[elementId] = function () {
+                clearTimeout(timer);
+                document.removeEventListener('pointerdown', handler, true);
+                document.removeEventListener('keydown', keyHandler, true);
+            };
+        },
+
+        unlisten: function (elementId) {
+            var cleanup = this._listeners[elementId];
+            if (cleanup) {
+                cleanup();
+                delete this._listeners[elementId];
+            }
+        }
+    };
 })();
