@@ -534,7 +534,7 @@ the AI duplicate detector helps but is not a substitute.
 | P2-5 | ~~Resource inventory~~ **✅ DONE §0d** (`/api/relief/resources` + `/g/relief`); allocation, dispatch and delivery tracking outstanding | P1-6 | 1.5 d |
 | P2-6 | ~~AI human override + confidence/explanation surfaced in the UI~~ **✅ PARTLY DONE §0e** — confidence, urgency, damage indicators, reasoning and scored priority factors are rendered as labelled decision support, and duplicate flags are reviewable; overriding the classification itself is the remainder | P1-5 | 0.5 d |
 | P2-7 | Enforce or delete the permission matrix (T5) | — | 0.5–1 d |
-| P2-8 | Rescue-team live location layer — **position reporting done §0c**; map layer outstanding | P1-3 | 0.5 d |
+| P2-8 | ~~Rescue-team live location layer~~ **✅ DONE (D-121)** — public live teams endpoint, realtime position publishing, and dynamic shared map marker updates | P1-3 | 0.5 d |
 
 ### P3 — Polish
 
