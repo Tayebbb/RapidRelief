@@ -34,17 +34,16 @@ public static class CommandCenterEndpoints
 
         var incidentsTask = incidentReadService.GetIncidentsAsync(new IncidentQuery(), ct);
         var sheltersTask = shelterReadService.GetSheltersAsync(ct);
-        var hospitalsTask = registryReadService.GetHospitalsAsync(ct);
-        var volunteersTask = registryReadService.GetVolunteersAsync(ct);
-        var ngosTask = registryReadService.GetNgosAsync(ct);
 
-        await Task.WhenAll(incidentsTask, sheltersTask, hospitalsTask, volunteersTask, ngosTask);
+        // RegistryReadService methods all query the same scoped RegistryDbContext instance.
+        // EF Core DbContext is not thread-safe, so query registry entities sequentially.
+        var hospitals = await registryReadService.GetHospitalsAsync(ct);
+        var volunteers = await registryReadService.GetVolunteersAsync(ct);
+        var ngos = await registryReadService.GetNgosAsync(ct);
 
-        var incidents = incidentsTask.Result.Items;
-        var shelters = sheltersTask.Result;
-        var hospitals = hospitalsTask.Result;
-        var volunteers = volunteersTask.Result;
-        var ngos = ngosTask.Result;
+        var incidentsPage = await incidentsTask;
+        var shelters = await sheltersTask;
+        var incidents = incidentsPage.Items;
 
         var totalActiveIncidents = incidents.Count(i => i.Status != IncidentStatus.Resolved);
         var totalCriticalIncidents = incidents.Count(i => (i.Severity == Severity.Severe || i.Severity == Severity.Catastrophic) && i.Status != IncidentStatus.Resolved);

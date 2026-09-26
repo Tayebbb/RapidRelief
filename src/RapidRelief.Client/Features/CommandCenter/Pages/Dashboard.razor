@@ -3,113 +3,135 @@
 @attribute [Authorize(Roles = "Government,Admin")]
 
 @using RapidRelief.Shared.Contracts.ReadModels
+@using RapidRelief.Client.Features.Command.Components
+@using RapidRelief.Client.Common.Ui
 @inject CommandCenterClient Client
 
-<PageTitle>Command Center Overview</PageTitle>
+<PageTitle>Command Center Overview — RapidRelief</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="mb-0 fw-bold" style="color: #2c3e50;">Command Center Overview</h1>
-    <button class="btn btn-outline-primary" @onclick="LoadDataAsync">
-        <i class="bi bi-arrow-clockwise"></i> Refresh
-    </button>
-</div>
-
-@if (_error != null)
-{
-    <div class="alert alert-danger shadow-sm d-flex align-items-center" role="alert">
-        <i class="bi bi-exclamation-triangle-fill fs-4 me-3"></i>
+<div class="cmd-layout">
+    <header class="cmd-header">
         <div>
-            <h5 class="alert-heading mb-1">System Degraded</h5>
-            <div>@_error</div>
+            <div class="cmd-role-badge">
+                <AppIcon Name="shield" Size="14" />
+                <span>Emergency Operations Centre</span>
+            </div>
+            <h1 class="cmd-title">Command Overview</h1>
+            <p class="cmd-subtitle">High-level summary of active incidents, shelter capacity, and community resource registry.</p>
         </div>
-    </div>
-}
-else if (_data == null)
-{
-    <div class="text-center py-5">
-        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
-            <span class="visually-hidden">Loading...</span>
+
+        <div class="cmd-header-actions">
+            <button type="button" class="rr-btn rr-btn-ghost rr-btn-sm" @onclick="LoadDataAsync" disabled="@_loading">
+                <AppIcon Name="refresh" Size="15" />
+                <span>@(_loading ? "Refreshing…" : "Refresh")</span>
+            </button>
+            <a href="g" class="rr-btn rr-btn-primary rr-btn-sm">
+                <AppIcon Name="activity" Size="15" />
+                <span>Live EOC Console</span>
+            </a>
         </div>
-        <p class="mt-3 text-muted">Loading system metrics...</p>
-    </div>
-}
-else
-{
-    <div class="row g-4 mb-4">
-        <!-- Incidents Card -->
-        <div class="col-md-6 col-lg-3">
-            <div class="card h-100 shadow-sm border-0 bg-light">
-                <div class="card-body">
-                    <h6 class="text-uppercase text-muted fw-semibold mb-2">Active Incidents</h6>
-                    <h2 class="display-5 fw-bold text-dark mb-2">@_data.TotalActiveIncidents</h2>
+    </header>
+
+    <CommandTabs Active="g" />
+
+    @if (_error != null)
+    {
+        <div class="cmd-banner error" role="alert">
+            <AppIcon Name="alert-triangle" Size="18" />
+            <div>
+                <strong>System Degraded:</strong> @_error
+            </div>
+        </div>
+    }
+    else if (_loading && _data == null)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-3 text-muted">Loading system metrics...</p>
+        </div>
+    }
+    else if (_data != null)
+    {
+        <section class="cmd-kpi-grid mb-4" aria-label="Overview indicators">
+            <a class="cmd-kpi critical" href="g/incidents?filter=critical">
+                <span class="cmd-kpi-label">Active Incidents</span>
+                <span class="cmd-kpi-value">@_data.TotalActiveIncidents</span>
+                <span class="cmd-kpi-note">
                     @if (_data.TotalCriticalIncidents > 0)
                     {
-                        <span class="badge bg-danger rounded-pill px-3 py-2">
-                            @_data.TotalCriticalIncidents Critical
-                        </span>
+                        <span class="text-danger fw-bold">@_data.TotalCriticalIncidents critical</span>
                     }
                     else
                     {
-                        <span class="badge bg-success rounded-pill px-3 py-2">
-                            0 Critical
-                        </span>
+                        <span>0 critical</span>
                     }
+                    · tap to view queue
+                </span>
+            </a>
+
+            <a class="cmd-kpi" href="admin/shelters">
+                <span class="cmd-kpi-label">Open Shelters</span>
+                <span class="cmd-kpi-value">@_data.TotalOpenShelters</span>
+                <span class="cmd-kpi-note">@_data.TotalShelterCapacity.ToString("N0") available beds</span>
+            </a>
+
+            <a class="cmd-kpi" href="g/registry">
+                <span class="cmd-kpi-label">Registered Hospitals</span>
+                <span class="cmd-kpi-value">@_data.TotalHospitals</span>
+                <span class="cmd-kpi-note">Medical facilities reporting</span>
+            </a>
+
+            <a class="cmd-kpi" href="g/registry">
+                <span class="cmd-kpi-label">Active Volunteers</span>
+                <span class="cmd-kpi-value">@_data.TotalVolunteers</span>
+                <span class="cmd-kpi-note">Verified community helpers</span>
+            </a>
+
+            <a class="cmd-kpi" href="g/registry">
+                <span class="cmd-kpi-label">Partner NGOs</span>
+                <span class="cmd-kpi-value">@_data.TotalNgos</span>
+                <span class="cmd-kpi-note">Coordinating relief agencies</span>
+            </a>
+        </section>
+
+        <div class="row g-4 mt-2">
+            <div class="col-md-6">
+                <div class="card p-3 border-0 shadow-sm" style="background: var(--rr-card, #fff); border: 1px solid var(--rr-border, #e5e7eb) !important; border-radius: 12px;">
+                    <div class="d-flex align-items-center gap-2 mb-3">
+                        <AppIcon Name="layers" Size="18" />
+                        <h6 class="mb-0 fw-bold" style="color: var(--rr-text);">Incident Management</h6>
+                    </div>
+                    <p class="text-muted small mb-3">Monitor live reports from citizens, review AI priority classifications, and dispatch rescue teams.</p>
+                    <div class="d-flex gap-2">
+                        <a href="g/incidents" class="rr-btn rr-btn-secondary rr-btn-sm">Incident Queue</a>
+                        <a href="g/duplicates" class="rr-btn rr-btn-ghost rr-btn-sm">AI Duplicate Review</a>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Shelters Card -->
-        <div class="col-md-6 col-lg-3">
-            <div class="card h-100 shadow-sm border-0 bg-light">
-                <div class="card-body">
-                    <h6 class="text-uppercase text-muted fw-semibold mb-2">Open Shelters</h6>
-                    <h2 class="display-5 fw-bold text-dark mb-2">@_data.TotalOpenShelters</h2>
-                    @if (_data.TotalShelterCapacity < 100)
-                    {
-                        <span class="badge bg-warning text-dark rounded-pill px-3 py-2">
-                            @_data.TotalShelterCapacity beds left
-                        </span>
-                    }
-                    else
-                    {
-                        <span class="badge bg-success rounded-pill px-3 py-2">
-                            @_data.TotalShelterCapacity beds left
-                        </span>
-                    }
-                </div>
-            </div>
-        </div>
-
-        <!-- Registry Cards -->
-        <div class="col-md-12 col-lg-6">
-            <div class="card h-100 shadow-sm border-0 bg-light">
-                <div class="card-body">
-                    <h6 class="text-uppercase text-muted fw-semibold mb-3">Resource Registry</h6>
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div class="text-center px-3">
-                            <h3 class="fw-bold text-primary mb-1">@_data.TotalHospitals</h3>
-                            <span class="text-muted small text-uppercase">Hospitals</span>
-                        </div>
-                        <div class="vr"></div>
-                        <div class="text-center px-3">
-                            <h3 class="fw-bold text-info mb-1">@_data.TotalNgos</h3>
-                            <span class="text-muted small text-uppercase">NGOs</span>
-                        </div>
-                        <div class="vr"></div>
-                        <div class="text-center px-3">
-                            <h3 class="fw-bold text-success mb-1">@_data.TotalVolunteers</h3>
-                            <span class="text-muted small text-uppercase">Volunteers</span>
-                        </div>
+            <div class="col-md-6">
+                <div class="card p-3 border-0 shadow-sm" style="background: var(--rr-card, #fff); border: 1px solid var(--rr-border, #e5e7eb) !important; border-radius: 12px;">
+                    <div class="d-flex align-items-center gap-2 mb-3">
+                        <AppIcon Name="map" Size="18" />
+                        <h6 class="mb-0 fw-bold" style="color: var(--rr-text);">Geographic Operations</h6>
+                    </div>
+                    <p class="text-muted small mb-3">Explore real-time map with incident pins, rescue units, shelter locations, and supply zones.</p>
+                    <div class="d-flex gap-2">
+                        <a href="g/map" class="rr-btn rr-btn-secondary rr-btn-sm">Operations Map</a>
+                        <a href="alerts/compose" class="rr-btn rr-btn-danger rr-btn-sm">Broadcast Emergency Alert</a>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
-}
+    }
+</div>
 
 @code {
     private CommandCenterOverviewDto? _data;
     private string? _error;
+    private bool _loading;
 
     protected override async Task OnInitializedAsync()
     {
@@ -119,7 +141,7 @@ else
     private async Task LoadDataAsync()
     {
         _error = null;
-        _data = null;
+        _loading = true;
         StateHasChanged();
 
         try
@@ -137,6 +159,11 @@ else
         catch (Exception ex)
         {
             _error = $"An error occurred while loading data: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
         }
     }
 }
