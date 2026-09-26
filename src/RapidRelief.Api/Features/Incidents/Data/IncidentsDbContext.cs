@@ -36,6 +36,7 @@ public sealed class IncidentsDbContext : DbContext
             r.Property(x => x.IdempotencyKey).HasMaxLength(80);
             r.Property(x => x.MissionStage).HasMaxLength(30);
             r.Property(x => x.RejectionReason).HasMaxLength(500);
+            r.Property(x => x.OverrideReason).HasMaxLength(500);
             r.Property(x => x.DisasterType).HasConversion<string>().HasMaxLength(50);
             r.Property(x => x.Severity).HasConversion<string>().HasMaxLength(30);
             r.Property(x => x.Status).HasConversion<string>().HasMaxLength(30);
@@ -57,6 +58,7 @@ public sealed class IncidentsDbContext : DbContext
                 r.Property(x => x.AssignedAtUtc).HasConversion(NullableTicksConverter());
                 r.Property(x => x.VerifiedAtUtc).HasConversion(NullableTicksConverter());
                 r.Property(x => x.ResolvedAtUtc).HasConversion(NullableTicksConverter());
+                r.Property(x => x.OverriddenAtUtc).HasConversion(NullableTicksConverter());
             }
         });
 

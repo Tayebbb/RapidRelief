@@ -4,6 +4,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using RapidRelief.Shared.Contracts.Common;
 using RapidRelief.Shared.Contracts.Enums;
+using RapidRelief.Shared.Contracts.ReadModels;
 
 namespace RapidRelief.Client.Features.Reports;
 
@@ -50,7 +51,11 @@ public sealed record IncidentDto(
     DateTimeOffset UpdatedAtUtc,
     DateTimeOffset? ResolvedAtUtc,
     IReadOnlyList<IncidentMediaDto> Media,
-    IReadOnlyList<IncidentStatusEntryDto> Timeline);
+    IReadOnlyList<IncidentStatusEntryDto> Timeline,
+    bool IsClassificationOverridden = false,
+    Guid? OverriddenByGovernmentId = null,
+    DateTimeOffset? OverriddenAtUtc = null,
+    string? OverrideReason = null);
 
 public sealed record UploadedMediaDto(string Path, string Url, long SizeBytes, string ContentType);
 
@@ -162,6 +167,30 @@ public sealed class IncidentsClient(HttpClient http)
                 return envelope?.Data is { } incident
                     ? IncidentSubmitResult.Success(incident)
                     : IncidentSubmitResult.Failure("The decision was saved but could not be read back.");
+            }
+
+            return await ToFailureAsync(response, ct);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return IncidentSubmitResult.Failure("Could not reach the server. Check your connection and try again.");
+        }
+    }
+
+    public async Task<IncidentSubmitResult> OverrideClassificationAsync(
+        Guid id,
+        OverrideClassificationRequest request,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var response = await http.PostAsJsonAsync($"{BasePath}/{id}/override", request, ct);
+            if (response.IsSuccessStatusCode)
+            {
+                var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<IncidentDto>>(cancellationToken: ct);
+                return envelope?.Data is { } incident
+                    ? IncidentSubmitResult.Success(incident)
+                    : IncidentSubmitResult.Failure("The classification was overridden but could not be read back.");
             }
 
             return await ToFailureAsync(response, ct);
