@@ -7,6 +7,7 @@
 @using RapidRelief.Shared.Contracts.ReadModels
 @using RapidRelief.Shared.Contracts.Services
 @using RapidRelief.Client.Common.Ai
+@using RapidRelief.Client.Common.Auth
 @using RapidRelief.Client.Common.Map
 @using RapidRelief.Client.Common.Realtime
 @using RapidRelief.Client.Common.Ui
@@ -20,6 +21,8 @@
 @inject SafetyZonesClient SafetyZonesClient
 @inject NavigationManager Navigation
 @inject LiveUpdateService Live
+@inject AuthenticationStateProvider AuthStateProvider
+@inject DevRoleState DevRoleState
 @implements IDisposable
 
 <PageTitle>Incident detail — RapidRelief</PageTitle>
@@ -80,11 +83,47 @@
                         <h2 class="dash-card-title"><AppIcon Name="alert-circle" Size="18" /><span>Situation</span></h2>
                         <p class="dash-card-subtitle">What the citizen reported and what the AI made of it.</p>
                     </div>
-                    <div class="d-flex gap-2">
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        @if (_isGovernment && _incident.Status is not (IncidentStatus.Resolved or IncidentStatus.Rejected))
+                        {
+                            <button type="button" class="btn btn-sm btn-outline-success rounded-pill d-inline-flex align-items-center gap-1 px-3 shadow-sm"
+                                    style="font-weight: 500;"
+                                    @onclick="OpenOverrideModal">
+                                <AppIcon Name="edit" Size="13" />
+                                <span>Override Classification</span>
+                            </button>
+                        }
                         <span class="badge @BandBadge() rounded-pill px-3 py-1">@(_incident.IsSos ? "SOS" : _incident.Severity.ToString())</span>
                         <span class="badge bg-secondary-subtle text-secondary rounded-pill px-3 py-1">@StatusLabel(_incident.Status)</span>
                     </div>
                 </div>
+
+                @if (_incident.IsClassificationOverridden)
+                {
+                    <div class="alert alert-warning d-flex flex-column gap-1 mb-3" role="alert" style="background: var(--rr-warning-soft); color: var(--rr-warning-soft-text); border: 1px solid var(--rr-warning-soft-border); border-radius: var(--rr-radius);">
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <span class="badge rounded-pill px-2 py-1" style="background: var(--rr-warning); color: #fff; font-weight: 600;">
+                                <AppIcon Name="check-circle" Size="13" /> Human Verified Override
+                            </span>
+                            <small class="text-secondary">
+                                @if (_incident.OverriddenAtUtc.HasValue)
+                                {
+                                    <text>Overridden on @_incident.OverriddenAtUtc.Value.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</text>
+                                }
+                                @if (_incident.OverriddenByGovernmentId.HasValue)
+                                {
+                                    <text>by Officer #@ShortId(_incident.OverriddenByGovernmentId.Value)</text>
+                                }
+                            </small>
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(_incident.OverrideReason))
+                        {
+                            <div class="small mt-1">
+                                <strong>Reason:</strong> @_incident.OverrideReason
+                            </div>
+                        }
+                    </div>
+                }
 
                 <dl class="row mb-0">
                     <dt class="col-sm-4">Type</dt>
@@ -240,6 +279,86 @@
     }
 </div>
 
+@if (_showOverrideModal && _incident is not null)
+{
+    <div class="cmd-modal-backdrop" role="dialog" aria-modal="true" aria-label="Override classification">
+        <div class="cmd-modal">
+            <div class="d-flex align-items-center justify-content-between">
+                <h2 class="h5 mb-0 d-flex align-items-center gap-2">
+                    <AppIcon Name="edit" Size="18" />
+                    <span>Override Classification</span>
+                </h2>
+                <button type="button" class="btn btn-sm btn-ghost" aria-label="Close" @onclick="() => _showOverrideModal = false">
+                    <AppIcon Name="close" Size="16" />
+                </button>
+            </div>
+            <p class="cmd-subtitle">
+                Manually correct the disaster type or severity rating for #RR-@ShortId(IncidentId). This change updates triage queues and responder routing with full audit tracking.
+            </p>
+
+            @if (!string.IsNullOrEmpty(_overrideError))
+            {
+                <div class="alert alert-danger py-2 small d-flex align-items-center gap-2" role="alert">
+                    <AppIcon Name="alert-circle" Size="16" />
+                    <span>@_overrideError</span>
+                </div>
+            }
+
+            <div class="cmd-field">
+                <label for="override-type">Disaster Type</label>
+                <select id="override-type" class="cmd-select" @bind="_overrideType">
+                    @foreach (var type in Enum.GetValues<DisasterType>())
+                    {
+                        <option value="@type">@type</option>
+                    }
+                </select>
+            </div>
+
+            <div class="cmd-field">
+                <label for="override-severity">Severity Rating</label>
+                <select id="override-severity" class="cmd-select" @bind="_overrideSeverity">
+                    @foreach (var sev in Enum.GetValues<Severity>())
+                    {
+                        <option value="@sev">@sev</option>
+                    }
+                </select>
+            </div>
+
+            <div class="cmd-field">
+                <label for="override-priority">Adjusted Priority Score (0–100, optional)</label>
+                <input id="override-priority" type="number" min="0" max="100" step="1" class="cmd-select"
+                       placeholder="Leave empty to retain score"
+                       @bind="_overridePriorityScore" />
+            </div>
+
+            <div class="cmd-field">
+                <label for="override-reason">Reason for Correction (Mandatory) *</label>
+                <textarea id="override-reason" rows="3" class="cmd-select"
+                          placeholder="Why is the AI/Reported classification being corrected? (e.g. Structural collapse verified on site rather than minor flooding)"
+                          @bind="_overrideReason"></textarea>
+                <div class="rr-field-help">Recorded in audit logs and status history.</div>
+            </div>
+
+            <div class="cmd-form-actions mt-2">
+                <button type="button" class="rr-btn rr-btn-primary rr-btn-sm" disabled="@_busy" @onclick="SaveOverrideAsync">
+                    @if (_busy)
+                    {
+                        <span>Saving…</span>
+                    }
+                    else
+                    {
+                        <AppIcon Name="check" Size="15" />
+                        <span>Save Correction</span>
+                    }
+                </button>
+                <button type="button" class="rr-btn rr-btn-ghost rr-btn-sm" disabled="@_busy" @onclick="() => _showOverrideModal = false">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [Parameter] public Guid IncidentId { get; set; }
 
@@ -256,15 +375,17 @@
     private string? _error;
     private IDisposable? _live;
 
-    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+    private bool _showOverrideModal;
+    private DisasterType _overrideType;
+    private Severity _overrideSeverity;
+    private double? _overridePriorityScore;
+    private string _overrideReason = string.Empty;
+    private string? _overrideError;
 
     protected override async Task OnInitializedAsync()
     {
-        if (AuthState is not null)
-        {
-            var state = await AuthState;
-            _isGovernment = state.User.IsInRole("Government") || state.User.IsInRole("Admin");
-        }
+        DevRoleState.Changed += OnDevRoleChanged;
+        await CheckRoleAsync();
 
         await LoadAsync();
         _loading = false;
@@ -272,6 +393,23 @@
         // No timer: the page reloads when this incident or its mission actually changes.
         _live = Live.Subscribe(() => InvokeAsync(LoadAsync),
             [.. RealtimeTopics.IncidentFeed, .. RealtimeTopics.RescueFeed]);
+    }
+
+    private async Task CheckRoleAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = auth.User;
+        _isGovernment = (user.Identity?.IsAuthenticated == true && (user.IsInRole(Roles.Government) || user.IsInRole("Admin") || user.IsInRole("Government") || user.IsInRole("Ngo")))
+            || DevRoleState.CurrentRole is Roles.Government or "Admin" or "Government";
+    }
+
+    private void OnDevRoleChanged()
+    {
+        _ = InvokeAsync(async () =>
+        {
+            await CheckRoleAsync();
+            StateHasChanged();
+        });
     }
 
     private async Task LoadAsync()
@@ -314,6 +452,47 @@
         StateHasChanged();
     }
 
+    private void OpenOverrideModal()
+    {
+        if (_incident is null) return;
+        _overrideType = _incident.DisasterType;
+        _overrideSeverity = _incident.Severity;
+        _overridePriorityScore = _incident.PriorityScore;
+        _overrideReason = string.Empty;
+        _overrideError = null;
+        _showOverrideModal = true;
+    }
+
+    private async Task SaveOverrideAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_overrideReason))
+        {
+            _overrideError = "Please enter a reason explaining why the classification is being corrected.";
+            return;
+        }
+
+        if (_incident is null) return;
+
+        _busy = true;
+        _overrideError = null;
+
+        var request = new OverrideClassificationRequest(_overrideType, _overrideSeverity, _overridePriorityScore, _overrideReason.Trim());
+        var result = await Incidents.OverrideClassificationAsync(IncidentId, request);
+
+        if (result.Ok)
+        {
+            _showOverrideModal = false;
+            _error = null;
+            await LoadAsync();
+        }
+        else
+        {
+            _overrideError = result.Error ?? "Failed to save classification override.";
+        }
+
+        _busy = false;
+    }
+
     private async Task TakeCallAsync()
     {
         _busy = true;
@@ -346,7 +525,11 @@
         _busy = false;
     }
 
-    public void Dispose() => _live?.Dispose();
+    public void Dispose()
+    {
+        _live?.Dispose();
+        DevRoleState.Changed -= OnDevRoleChanged;
+    }
 
     private string DirectionsUrl() => _incident is null
         ? "https://www.google.com/maps"

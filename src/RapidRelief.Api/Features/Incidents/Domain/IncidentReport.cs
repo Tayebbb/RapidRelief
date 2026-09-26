@@ -37,6 +37,10 @@ public sealed class IncidentReport
 
     public Guid? VerifiedByGovernmentId { get; set; }
     public DateTimeOffset? VerifiedAtUtc { get; set; }
+    public bool IsClassificationOverridden { get; set; }
+    public Guid? OverriddenByGovernmentId { get; set; }
+    public DateTimeOffset? OverriddenAtUtc { get; set; }
+    public string? OverrideReason { get; set; }
     public string? RejectionReason { get; set; }
     public DateTimeOffset? ResolvedAtUtc { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;

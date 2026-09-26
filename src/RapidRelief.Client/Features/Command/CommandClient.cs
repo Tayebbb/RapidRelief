@@ -286,7 +286,11 @@ public sealed record IncidentSearchRow(
     string? RejectionReason,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc,
-    DateTimeOffset? ResolvedAtUtc);
+    DateTimeOffset? ResolvedAtUtc,
+    bool IsClassificationOverridden = false,
+    Guid? OverriddenByGovernmentId = null,
+    DateTimeOffset? OverriddenAtUtc = null,
+    string? OverrideReason = null);
 
 internal static class ProblemDetailReader
 {

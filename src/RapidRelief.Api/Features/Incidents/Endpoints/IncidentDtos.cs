@@ -1,6 +1,7 @@
 using FluentValidation;
 using RapidRelief.Shared.Contracts.Common;
 using RapidRelief.Shared.Contracts.Enums;
+using RapidRelief.Shared.Contracts.ReadModels;
 using Severity = RapidRelief.Shared.Contracts.Enums.Severity;
 
 namespace RapidRelief.Api.Features.Incidents.Endpoints;
@@ -53,7 +54,11 @@ public sealed record IncidentDto(
     DateTimeOffset UpdatedAtUtc,
     DateTimeOffset? ResolvedAtUtc,
     IReadOnlyList<IncidentMediaDto> Media,
-    IReadOnlyList<IncidentStatusEntryDto> Timeline);
+    IReadOnlyList<IncidentStatusEntryDto> Timeline,
+    bool IsClassificationOverridden = false,
+    Guid? OverriddenByGovernmentId = null,
+    DateTimeOffset? OverriddenAtUtc = null,
+    string? OverrideReason = null);
 
 public sealed record UploadedMediaDto(string Path, string Url, long SizeBytes, string ContentType);
 
@@ -99,3 +104,19 @@ public sealed class ResolveIncidentValidator : AbstractValidator<ResolveIncident
             .WithMessage("Explain how the incident was resolved — the reporter is told.");
     }
 }
+
+public sealed class OverrideClassificationValidator : AbstractValidator<OverrideClassificationRequest>
+{
+    public OverrideClassificationValidator()
+    {
+        RuleFor(x => x.DisasterType).IsInEnum();
+        RuleFor(x => x.Severity).IsInEnum();
+        RuleFor(x => x.Reason)
+            .NotEmpty().WithMessage("An override reason must be provided.")
+            .MaximumLength(500).WithMessage("Override reason cannot exceed 500 characters.");
+        RuleFor(x => x.AdjustedPriorityScore)
+            .InclusiveBetween(0, 100)
+            .When(x => x.AdjustedPriorityScore is not null);
+    }
+}
+

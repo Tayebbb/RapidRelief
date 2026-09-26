@@ -165,7 +165,13 @@
                                         <span class="cmd-sub">#@ShortId(row.Id) · @row.AffectedPeopleCount affected</span>
                                     </td>
                                     <td>@AreaLabel(row)</td>
-                                    <td>@row.DisasterType</td>
+                                    <td>
+                                        @row.DisasterType
+                                        @if (row.IsClassificationOverridden)
+                                        {
+                                            <span class="badge rounded-pill bg-warning-subtle text-warning ms-1" title="Human override: @row.OverrideReason" style="font-size: 0.65rem;">Override</span>
+                                        }
+                                    </td>
                                     <td><span class="rr-sev @SeverityClass(row)">@(row.IsSos ? "SOS" :
                                                                         row.Severity.ToString())</span></td>
                                         <td>@(row.PriorityScore is { } score ? score.ToString("F0") : "—")</td>

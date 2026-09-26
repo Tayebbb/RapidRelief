@@ -36,6 +36,7 @@ public static class IncidentsEndpoints
         group.MapGet("/{id:guid}", GetAsync);
         group.MapPost("/{id:guid}/verify", VerifyAsync).RequireAuthorization(AuthPolicies.RequireGovernment);
         group.MapPost("/{id:guid}/resolve", ResolveAsync).RequireAuthorization(AuthPolicies.RequireGovernment);
+        group.MapPost("/{id:guid}/override", OverrideAsync).RequireAuthorization(AuthPolicies.RequireGovernment);
 
         IncidentOpsEndpoints.Map(endpoints);
     }
@@ -497,6 +498,122 @@ public static class IncidentsEndpoints
         return Results.Ok(new ApiEnvelope<IncidentDto>(ToDto(incident, includeContact: true)));
     }
 
+    private static async Task<IResult> OverrideAsync(
+        Guid id,
+        OverrideClassificationRequest request,
+        IValidator<OverrideClassificationRequest> validator,
+        IncidentsDbContext db,
+        IEventBus eventBus,
+        IRealtimeNotifier notifier,
+        IAuditTrail audit,
+        DatabaseHealth health,
+        HttpContext context,
+        TimeProvider clock,
+        CancellationToken ct)
+    {
+        if (health.PostgresAvailable != true)
+        {
+            return DatabaseUnavailable();
+        }
+
+        var validation = await validator.ValidateAsync(request, ct);
+        if (!validation.IsValid)
+        {
+            return Results.ValidationProblem(validation.ToDictionary());
+        }
+
+        if (!TryGetUserId(context, out var officerId))
+        {
+            return Results.Unauthorized();
+        }
+
+        var incident = await LoadTrackedAsync(db, id, ct);
+        if (incident is null)
+        {
+            return Results.NotFound();
+        }
+
+        if (incident.Status is IncidentStatus.Resolved or IncidentStatus.Rejected)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "Incident already closed",
+                detail: $"A report in status {incident.Status} can no longer have its classification overridden.");
+        }
+
+        var previousType = incident.DisasterType;
+        var previousSeverity = incident.Severity;
+        var now = clock.GetUtcNow();
+
+        incident.DisasterType = request.DisasterType;
+        incident.Severity = request.Severity;
+        incident.IsClassificationOverridden = true;
+        incident.OverriddenByGovernmentId = officerId;
+        incident.OverriddenAtUtc = now;
+        incident.OverrideReason = request.Reason.Trim();
+        if (request.AdjustedPriorityScore.HasValue)
+        {
+            incident.PriorityScore = request.AdjustedPriorityScore.Value;
+        }
+        incident.UpdatedAtUtc = now;
+
+        db.StatusHistory.Add(new IncidentStatusHistory
+        {
+            IncidentId = incident.Id,
+            FromStatus = incident.Status,
+            ToStatus = incident.Status,
+            ChangedByUserId = officerId,
+            Notes = $"Classification manually overridden by command: {previousType}/{previousSeverity} -> {request.DisasterType}/{request.Severity}. Reason: {request.Reason.Trim()}",
+            ChangedAtUtc = now,
+        });
+
+        await db.SaveChangesAsync(ct);
+
+        await eventBus.PublishAsync(
+            new IncidentClassificationOverridden(
+                incident.Id,
+                officerId,
+                previousType,
+                request.DisasterType,
+                previousSeverity,
+                request.Severity,
+                request.Reason.Trim(),
+                now),
+            ct);
+
+        await audit.RecordAsync(
+            new AuditRecord(
+                officerId,
+                string.Empty,
+                Roles.Government,
+                "Incident.ClassificationOverride",
+                "Incident",
+                incident.Id.ToString(),
+                $"Overrode {previousType} to {request.DisasterType}, {previousSeverity} to {request.Severity}: {request.Reason.Trim()}",
+                "Success"),
+            ct);
+
+        await notifier.NotifyRoleAsync(Roles.Rescuer, Topics.IncidentStatus, new
+        {
+            title = "Incident classification overridden by command",
+            incidentId = incident.Id,
+            disasterType = incident.DisasterType.ToString(),
+            severity = incident.Severity.ToString(),
+            status = incident.Status.ToString(),
+        }, ct);
+
+        await notifier.NotifyRoleAsync(Roles.Government, Topics.IncidentStatus, new
+        {
+            title = "Incident classification overridden by command",
+            incidentId = incident.Id,
+            disasterType = incident.DisasterType.ToString(),
+            severity = incident.Severity.ToString(),
+            status = incident.Status.ToString(),
+        }, ct);
+
+        return Results.Ok(new ApiEnvelope<IncidentDto>(ToDto(incident, includeContact: true)));
+    }
+
     /// <summary>
     /// Adds the history row through the DbSet: the entity assigns its own key, so attaching it via
     /// the tracked parent's collection would make EF treat it as an existing (Modified) row.
@@ -576,7 +693,11 @@ public static class IncidentsEndpoints
         report.Media.OrderBy(m => m.UploadedAtUtc)
             .Select(m => new IncidentMediaDto(m.Id, m.FileUrl, m.MediaType, m.FileSizeBytes, m.UploadedAtUtc)).ToList(),
         report.StatusHistory.OrderBy(h => h.ChangedAtUtc)
-            .Select(h => new IncidentStatusEntryDto(h.FromStatus, h.ToStatus, h.Notes, h.ChangedAtUtc)).ToList());
+            .Select(h => new IncidentStatusEntryDto(h.FromStatus, h.ToStatus, h.Notes, h.ChangedAtUtc)).ToList(),
+        report.IsClassificationOverridden,
+        report.OverriddenByGovernmentId,
+        report.OverriddenAtUtc,
+        report.OverrideReason);
 
     private static string ContentTypeFor(string path) => Path.GetExtension(path).ToLowerInvariant() switch
     {
