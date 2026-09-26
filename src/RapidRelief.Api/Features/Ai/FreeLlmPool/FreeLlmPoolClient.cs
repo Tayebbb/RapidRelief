@@ -90,9 +90,11 @@ internal sealed class FreeLlmPoolClient : IFreeLlmPoolClient
                 var prompt = ExtractLastUserPrompt(requestBody);
                 if (!string.IsNullOrWhiteSpace(prompt))
                 {
+                    var systemGuardrail = "System: You are the RapidRelief Emergency Assistant. Provide short, practical disaster-safety guidance in Bangladesh (floods, fires, cyclones, earthquakes). Maximum 6 lines. Always tell the user to call 999 for life risks. Plain prose only, no code, no HTML, no links.\nUser question: ";
+                    var fullPrompt = systemGuardrail + prompt;
                     using var onlineClient = _httpClientFactory.CreateClient();
                     using var fastCts = new CancellationTokenSource(TimeSpan.FromSeconds(25));
-                    var url = $"https://text.pollinations.ai/{Uri.EscapeDataString(prompt)}";
+                    var url = $"https://text.pollinations.ai/{Uri.EscapeDataString(fullPrompt)}";
                     using var onlineRequest = new HttpRequestMessage(HttpMethod.Get, url);
                     var onlineResponse = await onlineClient.SendAsync(onlineRequest, fastCts.Token);
                     if (onlineResponse.IsSuccessStatusCode)

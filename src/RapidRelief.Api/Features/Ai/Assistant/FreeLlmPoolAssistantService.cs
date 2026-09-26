@@ -36,6 +36,17 @@ internal sealed class FreeLlmPoolAssistantService : IAssistantService
     {
         var stopwatch = Stopwatch.StartNew();
 
+        var guardrailResult = AssistantGuardrails.EvaluateInput(ask.Question);
+        if (guardrailResult.IsRefusal)
+        {
+            stopwatch.Stop();
+            _logger.LogInformation(
+                "Assistant request refused by guardrails ({Reason}) after {LatencyMs} ms, question length {QuestionLength}",
+                guardrailResult.Reason, stopwatch.ElapsedMilliseconds, ask.Question.Length);
+            return new AssistantAnswer(guardrailResult.RefusalText, "Guardrail", Truncated: false,
+                LatencyMs(stopwatch), TokensUsed: 0, FinishReason: "guardrail_refusal");
+        }
+
         var baseUrl = _config["Ai:FreeLlmPool:BaseUrl"];
         if (string.IsNullOrWhiteSpace(baseUrl))
         {
@@ -68,7 +79,7 @@ internal sealed class FreeLlmPoolAssistantService : IAssistantService
                 return Canned(ask, stopwatch, read.Reason ?? "Blocked", read.FinishReason);
             }
 
-            var sanitized = AssistantSanitizer.Clean(read.Text, _options.MaxAnswerLength);
+            var sanitized = AssistantGuardrails.EvaluateOutput(read.Text, _options.MaxAnswerLength);
             if (sanitized.Empty)
             {
                 _breaker.AbandonProbe();
