@@ -118,8 +118,8 @@
 
 [data-theme='dark'] .dash-role-badge.government {
   color: var(--rr-text-2);
-  background: rgba(203, 213, 225, 0.12);
-  border-color: rgba(203, 213, 225, 0.3);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
 }
 
 .dash-title {
@@ -265,7 +265,7 @@
 }
 
 [data-theme='dark'] .dash-sos-box {
-  background: linear-gradient(135deg, rgba(220, 38, 38, 0.22) 0%, rgba(11, 17, 32, 0.7) 100%);
+  background: linear-gradient(135deg, rgba(220, 38, 38, 0.22) 0%, rgba(0, 0, 0, 0.8) 100%);
   border-color: rgba(220, 38, 38, 0.45);
 }
 

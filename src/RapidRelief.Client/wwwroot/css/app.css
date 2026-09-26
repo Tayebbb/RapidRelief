@@ -219,31 +219,31 @@
 }
 
 [data-theme='dark'] {
-    --rr-bg: #0b1120;
-    --rr-surface: #111a2b;
-    --rr-surface-2: #172236;
-    --rr-surface-3: #1f2d45;
-    --rr-surface-inset: #0d1524;
-    --rr-text: #e8edf5;
-    --rr-text-1: #e8edf5;
-    --rr-text-2: #9fb0c9;
-    --rr-text-3: #7d8fa8;
-    --rr-border: #22304a;
-    --rr-border-strong: #33445f;
+    --rr-bg: #000000;
+    --rr-surface: #0a0a0a;
+    --rr-surface-2: #141414;
+    --rr-surface-3: #1e1e1e;
+    --rr-surface-inset: #000000;
+    --rr-text: #f3f4f6;
+    --rr-text-1: #ffffff;
+    --rr-text-2: #a1a1aa;
+    --rr-text-3: #71717a;
+    --rr-border: #1f1f23;
+    --rr-border-strong: #2e2e34;
 
-    /* Navy IS the dark surface, so the dark-mode primary lifts to a pale ink. */
-    --rr-primary: #e8edf5;
+    /* Pitch black OLED background: primary lifts to crisp white text on pure dark canvas. */
+    --rr-primary: #f3f4f6;
     --rr-primary-hover: #ffffff;
-    --rr-on-primary: #0b1120;
-    --rr-brand: #e8edf5;
+    --rr-on-primary: #000000;
+    --rr-brand: #ffffff;
     /* Deliberately NOT inverted: see the light-mode note. */
-    --rr-fill-strong: #1e293b;
+    --rr-fill-strong: #18181b;
     --rr-on-fill-strong: #ffffff;
 
     --rr-accent: #22d3ee;
     --rr-accent-hover: #67e8f9;
     --rr-accent-bright: #22d3ee;
-    --rr-on-accent: #042f37;
+    --rr-on-accent: #000000;
     --rr-accent-soft: rgba(34, 211, 238, 0.12);
     --rr-accent-soft-text: #7dd3fc;
     --rr-accent-soft-border: rgba(34, 211, 238, 0.32);
@@ -277,11 +277,11 @@
     --rr-info-soft-border: rgba(148, 163, 184, 0.28);
 
     --rr-focus: rgba(34, 211, 238, 0.6);
-    --rr-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --rr-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.45);
-    --rr-shadow-md: 0 2px 4px rgba(0, 0, 0, 0.4), 0 8px 20px rgba(0, 0, 0, 0.5);
-    --rr-shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.6);
-    --rr-backdrop: rgba(3, 7, 18, 0.68);
+    --rr-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.6);
+    --rr-shadow: 0 1px 2px rgba(0, 0, 0, 0.6), 0 2px 6px rgba(0, 0, 0, 0.7);
+    --rr-shadow-md: 0 2px 4px rgba(0, 0, 0, 0.6), 0 8px 20px rgba(0, 0, 0, 0.8);
+    --rr-shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.85);
+    --rr-backdrop: rgba(0, 0, 0, 0.85);
 
     color-scheme: dark;
 }
@@ -304,6 +304,7 @@ html, body {
     width: 100%;
     max-width: 100%;
     min-width: 0;
+    background: var(--rr-bg);
 }
 
 body {
