@@ -13,7 +13,7 @@
         </a>
 
         <ul class="nav-links-desktop">
-            <li><a class="nav-link-item" href="#hero">Home</a></li>
+            <li><a class="nav-link-item" href="home" @onclick="ScrollToTopAsync">Home</a></li>
             <li><a class="nav-link-item" href="#quick-actions">Quick Actions</a></li>
             <li><a class="nav-link-item" href="#how-it-works">How It Works</a></li>
             <li><a class="nav-link-item" href="#features">Features</a></li>
@@ -93,7 +93,7 @@
 
     @* Mobile dropdown drawer *@
     <div class="mobile-nav-drawer @(_mobileOpen ? "is-open" : null)" role="dialog" aria-modal="true" aria-label="Mobile Navigation">
-        <a class="mobile-nav-link" href="#hero" @onclick="CloseMobileMenu">
+        <a class="mobile-nav-link" href="home" @onclick="OnMobileHomeClickAsync">
             <AppIcon Name="home" Size="18" />
             <span>Home</span>
         </a>
@@ -221,6 +221,23 @@
 
     private void ToggleMobileMenu() => _mobileOpen = !_mobileOpen;
     private void CloseMobileMenu() => _mobileOpen = false;
+
+    private async Task ScrollToTopAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("window.scrollTo", new { top = 0, behavior = "smooth" });
+        }
+        catch
+        {
+        }
+    }
+
+    private async Task OnMobileHomeClickAsync()
+    {
+        CloseMobileMenu();
+        await ScrollToTopAsync();
+    }
 
     public async ValueTask DisposeAsync()
     {
