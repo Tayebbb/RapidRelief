@@ -14,7 +14,7 @@
 
         <ul class="nav-links-desktop">
             <li><a class="nav-link-item" href="home" @onclick="ScrollToTopAsync">Home</a></li>
-            <li><a class="nav-link-item" href="#quick-actions">Quick Actions</a></li>
+            <li><a class="nav-link-item" href="quick-actions" @onclick="@(() => ScrollToSectionAsync("quick-actions"))">Quick Actions</a></li>
             <li><a class="nav-link-item" href="#how-it-works">How It Works</a></li>
             <li><a class="nav-link-item" href="#features">Features</a></li>
             <li><a class="nav-link-item" href="shelter">Shelters</a></li>
@@ -97,7 +97,7 @@
             <AppIcon Name="home" Size="18" />
             <span>Home</span>
         </a>
-        <a class="mobile-nav-link" href="#quick-actions" @onclick="CloseMobileMenu">
+        <a class="mobile-nav-link" href="quick-actions" @onclick="@(() => OnMobileSectionClickAsync("quick-actions"))">
             <AppIcon Name="activity" Size="18" />
             <span>Quick Actions</span>
         </a>
@@ -237,6 +237,23 @@
     {
         CloseMobileMenu();
         await ScrollToTopAsync();
+    }
+
+    private async Task ScrollToSectionAsync(string elementId)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("rapidReliefLanding.scrollToElement", elementId);
+        }
+        catch
+        {
+        }
+    }
+
+    private async Task OnMobileSectionClickAsync(string elementId)
+    {
+        CloseMobileMenu();
+        await ScrollToSectionAsync(elementId);
     }
 
     public async ValueTask DisposeAsync()
