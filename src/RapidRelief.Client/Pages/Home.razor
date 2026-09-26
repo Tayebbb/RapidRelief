@@ -1,7 +1,12 @@
 @page "/"
+@page "/home"
+@page "/quick-actions"
+@page "/how-it-works"
+@page "/features"
 @layout LandingLayout
 @namespace RapidRelief.Client.Pages
 @inject IJSRuntime JS
+@inject NavigationManager Navigation
 
 <PageTitle>RapidRelief — AI Disaster Response & Emergency Management</PageTitle>
 
@@ -44,6 +49,19 @@
             catch (JSException)
             {
                 // Gracefully continue if JS interop is disabled or running in test/prerender context
+            }
+        }
+
+        var relative = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0].Split('#')[0].Trim('/').ToLowerInvariant();
+        if (relative is "quick-actions" or "how-it-works" or "features")
+        {
+            try
+            {
+                await Task.Delay(50);
+                await JS.InvokeVoidAsync("rapidReliefLanding.scrollToElement", relative);
+            }
+            catch
+            {
             }
         }
     }

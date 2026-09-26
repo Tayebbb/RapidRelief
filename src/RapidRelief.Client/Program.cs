@@ -29,6 +29,9 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 var baseAddress = new Uri(builder.HostEnvironment.BaseAddress);
 var isDevelopment = builder.HostEnvironment.IsDevelopment();
 
+// Suppress internal authorization info logs when evaluating anonymous users on public views.
+builder.Logging.AddFilter("Microsoft.AspNetCore.Authorization", LogLevel.Warning);
+
 builder.Services.AddSingleton<DevRoleState>();
 
 builder.Services.AddAuthorizationCore();
@@ -40,7 +43,8 @@ builder.Services.AddSingleton<AuthenticationStateProvider>(sp => sp.GetRequiredS
 // attaches it same-origin), and refreshing outside the main chain prevents recursion (risk 10).
 builder.Services.AddSingleton(sp => new AuthApi(
     new HttpClient { BaseAddress = baseAddress },
-    sp.GetRequiredService<JwtAuthStateProvider>()));
+    sp.GetRequiredService<JwtAuthStateProvider>(),
+    sp.GetRequiredService<IJSRuntime>()));
 
 // Main client chain: DevRoleHandler (outer, stamps X-Dev-Role) → AuthMessageHandler (inner,
 // attaches Bearer and strips X-Dev-Role while signed in — real login wins) → fetch.

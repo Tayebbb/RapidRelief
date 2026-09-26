@@ -13,10 +13,10 @@
         </a>
 
         <ul class="nav-links-desktop">
-            <li><a class="nav-link-item" href="#hero">Home</a></li>
-            <li><a class="nav-link-item" href="#quick-actions">Quick Actions</a></li>
-            <li><a class="nav-link-item" href="#how-it-works">How It Works</a></li>
-            <li><a class="nav-link-item" href="#features">Features</a></li>
+            <li><a class="nav-link-item" href="home" @onclick="ScrollToTopAsync">Home</a></li>
+            <li><a class="nav-link-item" href="quick-actions" @onclick="@(() => ScrollToSectionAsync("quick-actions"))">Quick Actions</a></li>
+            <li><a class="nav-link-item" href="how-it-works" @onclick="@(() => ScrollToSectionAsync("how-it-works"))">How It Works</a></li>
+            <li><a class="nav-link-item" href="features" @onclick="@(() => ScrollToSectionAsync("features"))">Features</a></li>
             <li><a class="nav-link-item" href="shelter">Shelters</a></li>
             <li><a class="nav-link-item" href="livemap">Live Map</a></li>
         </ul>
@@ -93,19 +93,19 @@
 
     @* Mobile dropdown drawer *@
     <div class="mobile-nav-drawer @(_mobileOpen ? "is-open" : null)" role="dialog" aria-modal="true" aria-label="Mobile Navigation">
-        <a class="mobile-nav-link" href="#hero" @onclick="CloseMobileMenu">
+        <a class="mobile-nav-link" href="home" @onclick="OnMobileHomeClickAsync">
             <AppIcon Name="home" Size="18" />
             <span>Home</span>
         </a>
-        <a class="mobile-nav-link" href="#quick-actions" @onclick="CloseMobileMenu">
+        <a class="mobile-nav-link" href="quick-actions" @onclick="@(() => OnMobileSectionClickAsync("quick-actions"))">
             <AppIcon Name="activity" Size="18" />
             <span>Quick Actions</span>
         </a>
-        <a class="mobile-nav-link" href="#how-it-works" @onclick="CloseMobileMenu">
+        <a class="mobile-nav-link" href="how-it-works" @onclick="@(() => OnMobileSectionClickAsync("how-it-works"))">
             <AppIcon Name="clock" Size="18" />
             <span>How It Works</span>
         </a>
-        <a class="mobile-nav-link" href="#features" @onclick="CloseMobileMenu">
+        <a class="mobile-nav-link" href="features" @onclick="@(() => OnMobileSectionClickAsync("features"))">
             <AppIcon Name="layers" Size="18" />
             <span>Features</span>
         </a>
@@ -221,6 +221,40 @@
 
     private void ToggleMobileMenu() => _mobileOpen = !_mobileOpen;
     private void CloseMobileMenu() => _mobileOpen = false;
+
+    private async Task ScrollToTopAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("window.scrollTo", new { top = 0, behavior = "smooth" });
+        }
+        catch
+        {
+        }
+    }
+
+    private async Task OnMobileHomeClickAsync()
+    {
+        CloseMobileMenu();
+        await ScrollToTopAsync();
+    }
+
+    private async Task ScrollToSectionAsync(string elementId)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("rapidReliefLanding.scrollToElement", elementId);
+        }
+        catch
+        {
+        }
+    }
+
+    private async Task OnMobileSectionClickAsync(string elementId)
+    {
+        CloseMobileMenu();
+        await ScrollToSectionAsync(elementId);
+    }
 
     public async ValueTask DisposeAsync()
     {

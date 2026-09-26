@@ -58,9 +58,23 @@
         }
     }
 
+    function scrollToElement(id) {
+        var el = document.getElementById(id);
+        if (el) {
+            var navbar = document.querySelector('.landing-nav-container') || document.querySelector('.landing-nav');
+            var offset = navbar ? navbar.offsetHeight + 16 : 80;
+            var elementTop = el.getBoundingClientRect().top + window.pageYOffset;
+            window.scrollTo({
+                top: Math.max(0, elementTop - offset),
+                behavior: 'smooth'
+            });
+        }
+    }
+
     // Expose init helper for Blazor component invocations or DOM readiness
     window.rapidReliefLanding = {
-        init: initLandingInteractions
+        init: initLandingInteractions,
+        scrollToElement: scrollToElement
     };
 
     if (document.readyState === 'loading') {
