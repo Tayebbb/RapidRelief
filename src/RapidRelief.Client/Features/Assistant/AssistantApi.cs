@@ -52,8 +52,8 @@ public sealed class AssistantApi : IAssistantApi
     private const string DegradedNotice = "The assistant is busy right now. Try again in a moment.";
     private const string RejectedNotice = "That message couldn't be sent. Try a shorter one, or start a new chat.";
 
-    // Longer than the server's 10 s FreeLlmPool budget so a slow-but-successful answer still lands.
-    private static readonly TimeSpan RequestBudget = TimeSpan.FromSeconds(15);
+    // Longer budget (25s) so live online AI answers complete reliably.
+    private static readonly TimeSpan RequestBudget = TimeSpan.FromSeconds(25);
 
     private readonly HttpClient _http;
 

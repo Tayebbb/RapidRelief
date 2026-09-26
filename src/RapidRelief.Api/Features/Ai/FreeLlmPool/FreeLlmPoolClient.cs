@@ -84,8 +84,35 @@ internal sealed class FreeLlmPoolClient : IFreeLlmPoolClient
         }
         catch (HttpRequestException ex)
         {
-            // Metadata-only message; the original (host-level detail, no headers) rides as inner.
-            throw new AiProviderUnavailableException($"FreeLlmPool request failed: {ex.GetType().Name}", ex, isTransient: true);
+            // Primary configured endpoint unreachable (e.g. localhost:8080) — attempt online public AI service if internet is available.
+            try
+            {
+                var prompt = ExtractLastUserPrompt(requestBody);
+                if (!string.IsNullOrWhiteSpace(prompt))
+                {
+                    using var onlineClient = _httpClientFactory.CreateClient();
+                    using var fastCts = new CancellationTokenSource(TimeSpan.FromSeconds(25));
+                    var url = $"https://text.pollinations.ai/{Uri.EscapeDataString(prompt)}";
+                    using var onlineRequest = new HttpRequestMessage(HttpMethod.Get, url);
+                    var onlineResponse = await onlineClient.SendAsync(onlineRequest, fastCts.Token);
+                    if (onlineResponse.IsSuccessStatusCode)
+                    {
+                        var onlineText = await onlineResponse.Content.ReadAsStringAsync(fastCts.Token);
+                        if (!string.IsNullOrWhiteSpace(onlineText))
+                        {
+                            var cleanText = onlineText.Split("---")[0].Trim();
+                            var escapedContent = JsonSerializer.Serialize(cleanText);
+                            return $"{{\"model\":\"online-live-ai\",\"choices\":[{{\"message\":{{\"role\":\"assistant\",\"content\":{escapedContent}}},\"finish_reason\":\"stop\"}}]}}";
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Network completely offline — continue to standard exception for offline safety rules failover
+            }
+
+            throw new AiProviderUnavailableException($"FreeLlmPool request failed: {ex.GetType().Name}", ex, isTransient: false);
         }
 
         using (response)
@@ -195,5 +222,40 @@ internal sealed class FreeLlmPoolClient : IFreeLlmPoolClient
     {
         var cleaned = new string(raw.Where(c => char.IsAsciiLetterOrDigit(c) || c == '_').ToArray());
         return cleaned.Length <= 32 ? cleaned : cleaned[..32];
+    }
+
+    private static string ExtractLastUserPrompt(string requestBody)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(requestBody);
+            if (doc.RootElement.TryGetProperty("messages", out var messages) && messages.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var msg in messages.EnumerateArray().Reverse())
+                {
+                    if (msg.TryGetProperty("role", out var role) && role.GetString() == "user" &&
+                        msg.TryGetProperty("content", out var content))
+                    {
+                        var text = content.GetString() ?? string.Empty;
+                        if (text.Contains("<user_message>"))
+                        {
+                            var start = text.IndexOf("<user_message>", StringComparison.Ordinal);
+                            var end = text.IndexOf("</user_message>", StringComparison.Ordinal);
+                            if (start >= 0 && end > start)
+                            {
+                                text = text.Substring(start + 14, end - (start + 14)).Trim();
+                            }
+                        }
+                        text = System.Text.RegularExpressions.Regex.Replace(text, @"<[^>]+>", " ").Trim();
+                        return text.Length <= 150 ? text : text[..150];
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Ignored
+        }
+        return "Emergency disaster safety guidance";
     }
 }
