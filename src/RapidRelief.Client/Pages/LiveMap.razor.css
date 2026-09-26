@@ -157,14 +157,14 @@
 }
 
 .btn-filter:hover {
-    border-color: var(--rr-brand);
-    color: var(--rr-brand);
+    border-color: var(--rr-accent, #0e7490);
+    color: var(--rr-text);
 }
 
 .btn-filter.active {
-    background: var(--rr-brand);
-    color: #fff;
-    border-color: var(--rr-brand);
+    background: var(--rr-accent, #0e7490);
+    color: var(--rr-on-accent, #ffffff);
+    border-color: var(--rr-accent, #0e7490);
 }
 
 .map-legend-item {
