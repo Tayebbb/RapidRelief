@@ -15,7 +15,7 @@
         <ul class="nav-links-desktop">
             <li><a class="nav-link-item" href="home" @onclick="ScrollToTopAsync">Home</a></li>
             <li><a class="nav-link-item" href="quick-actions" @onclick="@(() => ScrollToSectionAsync("quick-actions"))">Quick Actions</a></li>
-            <li><a class="nav-link-item" href="#how-it-works">How It Works</a></li>
+            <li><a class="nav-link-item" href="how-it-works" @onclick="@(() => ScrollToSectionAsync("how-it-works"))">How It Works</a></li>
             <li><a class="nav-link-item" href="#features">Features</a></li>
             <li><a class="nav-link-item" href="shelter">Shelters</a></li>
             <li><a class="nav-link-item" href="livemap">Live Map</a></li>
@@ -101,7 +101,7 @@
             <AppIcon Name="activity" Size="18" />
             <span>Quick Actions</span>
         </a>
-        <a class="mobile-nav-link" href="#how-it-works" @onclick="CloseMobileMenu">
+        <a class="mobile-nav-link" href="how-it-works" @onclick="@(() => OnMobileSectionClickAsync("how-it-works"))">
             <AppIcon Name="clock" Size="18" />
             <span>How It Works</span>
         </a>
