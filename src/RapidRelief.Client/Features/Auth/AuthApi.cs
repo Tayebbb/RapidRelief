@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.JSInterop;
 using RapidRelief.Client.Common.Auth;
 using RapidRelief.Shared.Contracts.Common;
 
@@ -23,12 +24,19 @@ public sealed class AuthApi
 
     private readonly HttpClient _http;
     private readonly JwtAuthStateProvider _authState;
+    private readonly IJSRuntime? _js;
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
 
     public AuthApi(HttpClient handlerFreeClient, JwtAuthStateProvider authState)
+        : this(handlerFreeClient, authState, null)
+    {
+    }
+
+    public AuthApi(HttpClient handlerFreeClient, JwtAuthStateProvider authState, IJSRuntime? js)
     {
         _http = handlerFreeClient;
         _authState = authState;
+        _js = js;
     }
 
     public async Task<AuthResult> LoginAsync(LoginRequest request)
@@ -101,6 +109,24 @@ public sealed class AuthApi
         await _refreshLock.WaitAsync();
         try
         {
+            // If the user has never signed in (or explicitly logged out), avoid calling /api/auth/refresh
+            // on anonymous site boots to prevent 401 network errors in browser console.
+            if (_js is not null)
+            {
+                try
+                {
+                    var hasSession = await _js.InvokeAsync<string?>("localStorage.getItem", "rr_has_session");
+                    if (hasSession != "1")
+                    {
+                        return false;
+                    }
+                }
+                catch
+                {
+                    // Fall back to attempting refresh if JS interop / localStorage is unavailable.
+                }
+            }
+
             // Whoever held the lock may have refreshed already — re-check expiry (B10.2).
             if (_authState.HasSession && _authState.ExpiresAtUtc - DateTimeOffset.UtcNow >= RefreshMargin)
             {
@@ -112,6 +138,7 @@ public sealed class AuthApi
             if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
                 _authState.ClearSession(); // no/rotated-away cookie — stay anonymous
+                await SetSessionMarkerAsync(false);
                 return false;
             }
 
@@ -128,6 +155,7 @@ public sealed class AuthApi
             }
 
             _authState.SetSession(envelope.Data.AccessToken, envelope.Data.ExpiresAtUtc);
+            await SetSessionMarkerAsync(true);
             return true;
         }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
@@ -161,6 +189,7 @@ public sealed class AuthApi
         finally
         {
             _authState.ClearSession();
+            await SetSessionMarkerAsync(false);
         }
     }
 
@@ -214,6 +243,7 @@ public sealed class AuthApi
             }
 
             _authState.SetSession(envelope.Data.AccessToken, envelope.Data.ExpiresAtUtc);
+            await SetSessionMarkerAsync(true);
             return AuthResult.Ok();
         }
 
@@ -225,6 +255,30 @@ public sealed class AuthApi
             HttpStatusCode.TooManyRequests => AuthResult.Fail("Too many attempts — wait a minute and try again."),
             _ => AuthResult.Fail($"The request failed ({(int)response.StatusCode})."),
         };
+    }
+
+    private async Task SetSessionMarkerAsync(bool hasSession)
+    {
+        if (_js is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (hasSession)
+            {
+                await _js.InvokeVoidAsync("localStorage.setItem", "rr_has_session", "1");
+            }
+            else
+            {
+                await _js.InvokeVoidAsync("localStorage.removeItem", "rr_has_session");
+            }
+        }
+        catch
+        {
+            // Storage access might fail in strict private browsing modes.
+        }
     }
 }
 
