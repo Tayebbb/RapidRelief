@@ -1,6 +1,16 @@
-# Prompts for Tanjim's Remaining Tasks
+# Prompts for Tanjim's Tasks
 
-Use these detailed prompts to start the implementation of each of your remaining features in the RapidRelief project. You can copy and paste these to the AI assistant when you are ready to work on that specific task.
+Use these detailed prompts and status table to track the implementation of features in the RapidRelief project.
+
+## Status Overview
+
+| Task / Feature | Description | Status | Shipped Date / Ref |
+|---|---|---|---|
+| **F7** | Admin Command Center & Verification | ✅ DONE | 2026-09-03 (D-097…D-101) |
+| **F12** | Analytics, Heatmaps & Response Metrics | ✅ DONE | 2026-09-03 (D-098) |
+| **F14** | Audit Trail & Event Projections | ✅ DONE | 2026-09-03 (D-097) |
+| **F17** | Safety Zones & Road Closures | ✅ DONE | 2026-09-26 (D-120) |
+| **P2-6** | AI Classification Human Override | ✅ DONE | 2026-09-26 (D-122) |
 
 ---
 
