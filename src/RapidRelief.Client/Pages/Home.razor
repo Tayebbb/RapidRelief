@@ -2,6 +2,7 @@
 @page "/home"
 @page "/quick-actions"
 @page "/how-it-works"
+@page "/features"
 @layout LandingLayout
 @namespace RapidRelief.Client.Pages
 @inject IJSRuntime JS
@@ -52,7 +53,7 @@
         }
 
         var relative = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0].Split('#')[0].Trim('/').ToLowerInvariant();
-        if (relative is "quick-actions" or "how-it-works")
+        if (relative is "quick-actions" or "how-it-works" or "features")
         {
             try
             {
